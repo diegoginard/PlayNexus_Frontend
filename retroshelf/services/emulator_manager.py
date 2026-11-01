@@ -7,6 +7,7 @@ Funcionalidades clave:
 """
 
 import sys
+import time
 import ctypes
 import subprocess
 from PySide6.QtCore import QObject, QTimer, Signal
@@ -43,6 +44,7 @@ class EmulatorManager(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.active_proc: subprocess.Popen | None = None
+        self._last_launch_time: float = 0.0
         self.active_layout = None
         self.parent_window = None
         self.db = None
@@ -64,6 +66,31 @@ class EmulatorManager(QObject):
                     break
                 except Exception:
                     pass
+
+    # Ventana (segundos) durante la cual se ignoran nuevos lanzamientos tras iniciar uno
+    LAUNCH_GUARD_SECONDS = 2.5
+
+    def is_running(self) -> bool:
+        """Retorna True si hay un emulador actualmente en ejecución activa.
+        No modifica 'active_proc': su limpieza la realiza '_on_process_ended'
+        para no saltear la reanudación de medios y la restauración del foco."""
+        proc = self.active_proc
+        return proc is not None and proc.poll() is None
+
+    def is_launching_or_running(self) -> bool:
+        """Retorna True si un emulador está corriendo o en proceso inmediato de iniciarse."""
+        if self.is_running():
+            return True
+        last = self._last_launch_time
+        return bool(last) and (time.perf_counter() - last < self.LAUNCH_GUARD_SECONDS)
+
+    def mark_launching(self):
+        """Registra el instante de inicio para evitar ráfagas o dobles instancias."""
+        self._last_launch_time = time.perf_counter()
+
+    def clear_launching(self):
+        """Libera el bloqueo de lanzamiento (ej: si el inicio falló antes de crear el proceso)."""
+        self._last_launch_time = 0.0
 
     def start_monitoring(self, proc: subprocess.Popen, game_title: str, layout, db, parent_window=None):
         """
@@ -171,10 +198,15 @@ class EmulatorManager(QObject):
     def _on_process_ended(self, return_code: int):
         self._timer.stop()
         self.active_proc = None
+        self.clear_launching()
 
-        # 1. Reanudar video y audio en el layout activo
+        # 1. Reanudar video y audio en el layout activo y liberar bloqueos de clic
         if self.active_layout:
             try:
+                if hasattr(self.active_layout, "_last_activate_time"):
+                    self.active_layout._last_activate_time = 0.0
+                if hasattr(self.active_layout, "releaseMouse"):
+                    self.active_layout.releaseMouse()
                 if hasattr(self.active_layout, "resume_media"):
                     self.active_layout.resume_media()
                 elif hasattr(self.active_layout, "set_media_muted"):
@@ -184,9 +216,13 @@ class EmulatorManager(QObject):
             except Exception:
                 pass
 
-        # 2. Restaurar foco y traer RetroShelf al primer plano
+        # 2. Restaurar ventana y traer RetroShelf al primer plano
         if self.parent_window:
             try:
+                if hasattr(self.parent_window, "_last_activation_time"):
+                    self.parent_window._last_activation_time = 0.0
+                if hasattr(self.parent_window, "releaseMouse"):
+                    self.parent_window.releaseMouse()
                 if hasattr(self.parent_window, "resume_active_media"):
                     self.parent_window.resume_active_media()
                 self.parent_window.show()
@@ -194,6 +230,39 @@ class EmulatorManager(QObject):
                 self.parent_window.activateWindow()
             except Exception:
                 pass
+
+        # 3. En Windows: asegurar liberación de captura nativa y forzar primer plano
+        if sys.platform == "win32":
+            try:
+                ctypes.windll.user32.ReleaseCapture()
+                if self.parent_window:
+                    hwnd = int(self.parent_window.winId())
+                    ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)
+                    ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
+                    ctypes.windll.user32.AllowSetForegroundWindow(-1)
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    ctypes.windll.user32.BringWindowToTop(hwnd)
+            except Exception:
+                pass
+
+        # 4. Asignar foco explícito al layout activo (inmediato y con retardo seguro)
+        target_layout = self.active_layout
+        if not target_layout and self.parent_window and hasattr(self.parent_window, "layout_stack"):
+            target_layout = self.parent_window.layout_stack.currentWidget()
+        if target_layout:
+            try:
+                target_layout.setFocus()
+            except Exception:
+                pass
+
+        if self.parent_window and hasattr(self.parent_window, "layout_stack"):
+            from PySide6.QtCore import QTimer
+            def _ensure_layout_focus():
+                if self.parent_window and hasattr(self.parent_window, "layout_stack"):
+                    cur = self.parent_window.layout_stack.currentWidget()
+                    if cur:
+                        cur.setFocus()
+            QTimer.singleShot(60, _ensure_layout_focus)
 
         self.emulator_finished.emit(return_code)
 

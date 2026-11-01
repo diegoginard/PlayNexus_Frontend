@@ -26,6 +26,23 @@ def launch_game(db, game, layout=None, parent_window=None):
     Lanza el emulador correspondiente con los argumentos configurados y la ROM.
     Inicia la supervisión automática para silenciar videos y permitir cerrar el emulador con la tecla configurada.
     """
+    from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+    if EMULATOR_MANAGER.is_launching_or_running():
+        # Evitar abrir múltiples instancias del juego por doble clic, joystick o teclado
+        return None, "en_ejecucion"
+
+    EMULATOR_MANAGER.mark_launching()
+    try:
+        return _launch_game_impl(db, game, layout, parent_window)
+    except Exception:
+        # Si el inicio falló antes de crear el proceso, no bloquear el siguiente intento
+        if not EMULATOR_MANAGER.is_running():
+            EMULATOR_MANAGER.clear_launching()
+        raise
+
+
+def _launch_game_impl(db, game, layout=None, parent_window=None):
+    """Resuelve el emulador, arma los argumentos y crea el proceso del emulador."""
     emulator, source = resolve_emulator(db, game)
     if not emulator:
         raise RuntimeError(

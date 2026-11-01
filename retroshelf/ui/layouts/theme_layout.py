@@ -94,6 +94,7 @@ class SystemThemeLayout(BaseLayout):
     'ThemeLayout' definida en la carpeta de cada sistema.
     """
     def __new__(cls, theme_name: str = "Super Nintendo Entertainment System", parent=None):
+        """Gestiona la operación '__new__' de este layout temático."""
         target_cls = get_theme_layout_class(theme_name)
         if target_cls is not cls and target_cls is not BaseLayout:
             try:
@@ -103,5 +104,6 @@ class SystemThemeLayout(BaseLayout):
         return super().__new__(cls)
 
     def __init__(self, theme_name: str = "Super Nintendo Entertainment System", parent=None):
+        """Inicializa los componentes internos, estructuras de datos y temporizadores del objeto."""
         super().__init__(parent=parent, theme_name=theme_name)
 

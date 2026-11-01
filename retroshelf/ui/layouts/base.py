@@ -2,7 +2,8 @@ from pathlib import Path
 from PySide6.QtCore import Signal, QPoint
 from PySide6.QtWidgets import QWidget
 from retroshelf.services.controls import (
-    matches_action, ACTION_NAV_LETTER, ACTION_NAV_STEP5,
+    matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_SELECT,
+    ACTION_NAV_LETTER, ACTION_NAV_STEP5,
     ACTION_NAV_LETTER_FWD, ACTION_NAV_LETTER_BACK,
     ACTION_NAV_STEP5_FWD, ACTION_NAV_STEP5_BACK,
     ACTION_PAGE_UP, ACTION_PAGE_DOWN
@@ -43,6 +44,66 @@ class BaseLayout(QWidget):
         """Selecciona visualmente el juego con el ID indicado."""
         self.current_game_id = game_id
 
+    def _can_activate_game(self) -> bool:
+        """Evita ráfagas o dobles ejecuciones consecutivas por doble clic, joystick o teclado.
+        La ventana de bloqueo se basa en el intervalo de doble clic del sistema (mín. 0.6 s)
+        para descartar el segundo clic sin bloquear activaciones legítimas posteriores
+        (ej: entrar a un sistema y elegir un juego enseguida)."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            return False
+        import time
+        from PySide6.QtWidgets import QApplication
+        try:
+            window = max(0.6, QApplication.doubleClickInterval() / 1000.0 + 0.2)
+        except Exception:
+            window = 0.7
+        now = time.perf_counter()
+        last = getattr(self, "_last_activate_time", 0.0)
+        if last and (now - last < window):
+            return False
+        self._last_activate_time = now
+        return True
+
+    def mousePressEvent(self, event):
+        """Descarta clics si un emulador está iniciándose o en ejecución."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        self.setFocus()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        event.accept()
+
+    def wheelEvent(self, event):
+        """Permite navegar fluidamente por la lista utilizando la rueda del ratón."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self.navigate_steps(-1)
+            event.accept()
+        elif delta < 0:
+            self.navigate_steps(1)
+            event.accept()
+        else:
+            super().wheelEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        """Descarta el doble clic izquierdo: el primer clic (mousePressEvent) ya activó el juego.
+        Por defecto QWidget reenvía el doble clic a mousePressEvent, lo que provocaba
+        una segunda activación del juego o del sistema seleccionado."""
+        from PySide6.QtCore import Qt
+        if event.button() == Qt.LeftButton:
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
     def get_selected_game_id(self) -> int | None:
         """Retorna el ID del juego actualmente seleccionado."""
         return self.current_game_id
@@ -75,7 +136,7 @@ class BaseLayout(QWidget):
                         ao.setVolume(0.0)
                     except Exception:
                         pass
-        for player_name in ("player", "game_player", "bg_player", "_player"):
+        for player_name in ("player", "game_player", "_player"):
             if hasattr(self, player_name):
                 p = getattr(self, player_name)
                 if p:
@@ -445,8 +506,29 @@ class BaseLayout(QWidget):
                 self.game_selected.emit(target_gid)
 
     def keyPressEvent(self, event):
-        """Manejo genérico de atajos de salto de letra y saltos de a 5."""
-        if matches_action(event, ACTION_NAV_LETTER_BACK, getattr(self, "db", None)):
+        """Manejo genérico de atajos de navegación, salto de letra y saltos de a 5."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        if matches_action(event, ACTION_NAV_UP, getattr(self, "db", None)):
+            self.navigate_steps(-1)
+            event.accept()
+            return
+        elif matches_action(event, ACTION_NAV_DOWN, getattr(self, "db", None)):
+            self.navigate_steps(1)
+            event.accept()
+            return
+        elif matches_action(event, ACTION_SELECT, getattr(self, "db", None)):
+            if event.isAutoRepeat():
+                event.accept()
+                return
+            gid = self.get_selected_game_id()
+            if gid and self._can_activate_game():
+                self.game_activated.emit(gid)
+            event.accept()
+            return
+        elif matches_action(event, ACTION_NAV_LETTER_BACK, getattr(self, "db", None)):
             self.jump_to_prev_letter()
             event.accept()
             return

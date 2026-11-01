@@ -185,7 +185,8 @@ class TableLayout(BaseLayout):
                     self.game_selected.emit(game_id)
 
     def _on_item_activated(self, item):
-        if item:
+        # itemActivated y doubleClicked se disparan juntos en un doble clic: compartir el guard
+        if item and self._can_activate_game():
             row = item.row()
             id_item = self.table.item(row, 0)
             if id_item:
@@ -195,6 +196,8 @@ class TableLayout(BaseLayout):
                     self.game_activated.emit(game_id)
 
     def _on_double_clicked(self, index=None):
+        if not self._can_activate_game():
+            return
         if self.current_game_id:
             self.game_activated.emit(self.current_game_id)
         elif index and hasattr(index, "isValid") and index.isValid():
@@ -206,12 +209,19 @@ class TableLayout(BaseLayout):
                     self.game_activated.emit(game_id)
 
     def keyPressEvent(self, event):
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
         if matches_action(event, ACTION_NAV_BACK):
             self.nav_back_requested.emit()
             event.accept()
             return
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            if self.current_game_id:
+            if event.isAutoRepeat():
+                event.accept()
+                return
+            if self.current_game_id and self._can_activate_game():
                 self.game_activated.emit(self.current_game_id)
                 event.accept()
                 return

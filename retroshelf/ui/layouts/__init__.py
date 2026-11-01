@@ -41,6 +41,11 @@ def resolve_theme_name(name: str, themes: dict[str, dict] | None = None) -> str 
         "ps1": "Sony Playstation",
         "psx": "Sony Playstation",
         "playstation": "Sony Playstation",
+        "main menu": "Main Menu",
+        "mainmenu": "Main Menu",
+        "menu principal": "Main Menu",
+        "menu": "Main Menu",
+        "sistemas": "Main Menu",
     }
     n_lower = name.lower().strip()
     if n_lower in KNOWN_ALIASES:

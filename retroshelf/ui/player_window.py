@@ -233,7 +233,7 @@ class PlayerWindow(QMainWindow):
                             ao.setVolume(0.0)
                         except Exception:
                             pass
-            for player_attr in ("player", "game_player", "bg_player"):
+            for player_attr in ("player", "game_player"):
                 if hasattr(inst, player_attr):
                     p = getattr(inst, player_attr)
                     if p:
@@ -269,6 +269,10 @@ class PlayerWindow(QMainWindow):
             self.select_list(int(prev_lid), push_history=False, restore_game_id=prev_gid)
 
     def keyPressEvent(self, event):
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
         if matches_action(event, ACTION_TOGGLE_FPS, self.db):
             self.toggle_fps_counter()
             event.accept()
@@ -318,12 +322,53 @@ class PlayerWindow(QMainWindow):
                 cur.navigate_steps(5)
                 event.accept()
                 return
+
+        # Reenviar teclas no consumidas al layout activo (ej: flechas arriba/abajo, Enter, etc.)
+        cur = self.layout_stack.currentWidget()
+        if cur and hasattr(cur, "keyPressEvent"):
+            cur.keyPressEvent(event)
+            if event.isAccepted():
+                return
+
         super().keyPressEvent(event)
+
+    def wheelEvent(self, event):
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        cur = self.layout_stack.currentWidget()
+        if cur and hasattr(cur, "wheelEvent"):
+            cur.wheelEvent(event)
+            if event.isAccepted():
+                return
+        super().wheelEvent(event)
+
+    def mousePressEvent(self, event):
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.setFocus()
+        super().mousePressEvent(event)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
+            cur = self.layout_stack.currentWidget()
+            if cur:
+                cur.setFocus()
+        super().changeEvent(event)
 
     def _on_gamepad_action(self, action_id: str):
         """Procesa acciones provenientes de cualquier mando/joystick conectado."""
-        if not self.isActiveWindow():
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
             return
+
+        if not self.isActiveWindow():
+            if self.isVisible() and not self.isMinimized():
+                self.activateWindow()
+                self.raise_()
+            else:
+                return
 
         if action_id == ACTION_TOGGLE_FPS:
             self.toggle_fps_counter()
@@ -689,6 +734,20 @@ class PlayerWindow(QMainWindow):
         self.current_game_id = game_id
 
     def _on_game_activated(self, game_id: int):
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            return
+
+        # Anti doble activación (doble clic, mando o teclado): se aplica ANTES de distinguir
+        # entre menú y juego para que un doble clic sobre un sistema no abra la lista y
+        # acto seguido ejecute el juego seleccionado en ella.
+        now = time.perf_counter()
+        last = getattr(self, "_last_activation_time", 0.0)
+        window = max(0.6, QApplication.doubleClickInterval() / 1000.0 + 0.2)
+        if last and (now - last < window):
+            return
+        self._last_activation_time = now
+
         self.current_game_id = game_id
         game = next((g for g in self.games_cache if g["id"] == game_id), None)
         if game and game.get("is_menu_target"):
@@ -704,10 +763,16 @@ class PlayerWindow(QMainWindow):
 
         try:
             self.pause_active_media()
-            QApplication.processEvents()
+            from PySide6.QtCore import QEventLoop
+            QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
             active_layout = self.layout_stack.currentWidget()
-            launch_game(self.db, db_game, layout=active_layout, parent_window=self)
+            result = launch_game(self.db, db_game, layout=active_layout, parent_window=self)
+            if not result or result[0] is None:
+                # El lanzamiento fue descartado (ya había uno en curso): no dejar el video en pausa
+                self._last_activation_time = 0.0
+                self.resume_active_media()
         except Exception as e:
+            self._last_activation_time = 0.0
             self.resume_active_media()
             QMessageBox.critical(self, "No se pudo iniciar el juego", str(e))
 

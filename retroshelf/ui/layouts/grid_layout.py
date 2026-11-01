@@ -260,7 +260,8 @@ class GridLayout(BaseLayout):
     def _on_item_double_clicked(self, item):
         if item:
             game_id = item.data(Qt.UserRole)
-            self.game_activated.emit(game_id)
+            if self._can_activate_game():
+                self.game_activated.emit(game_id)
 
     def _on_context_menu(self, pos: QPoint):
         item = self.list_widget.itemAt(pos)

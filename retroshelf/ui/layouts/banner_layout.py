@@ -218,7 +218,7 @@ class BannerLayout(BaseLayout):
             self.game_selected.emit(game_id)
 
     def _on_item_double_clicked(self, item):
-        if item:
+        if item and self._can_activate_game():
             self.game_activated.emit(item.data(Qt.UserRole))
 
     def _on_context_menu(self, pos: QPoint):

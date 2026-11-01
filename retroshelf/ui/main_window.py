@@ -1057,6 +1057,20 @@ class MainWindow(QMainWindow):
                 self.on_game_unselected()
 
     def _on_game_activated(self, game_id: int):
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            return
+
+        # Anti doble activación: aplica también a menús para que un doble clic sobre un
+        # sistema no abra la lista y luego ejecute el juego seleccionado en ella.
+        import time
+        now = time.perf_counter()
+        last = getattr(self, "_last_activation_time", 0.0)
+        window = max(0.6, QApplication.doubleClickInterval() / 1000.0 + 0.2)
+        if last and (now - last < window):
+            return
+        self._last_activation_time = now
+
         self._select_game_by_id(game_id)
         selected_item = next((g for g in self.games_cache if g["id"] == game_id), None)
         if selected_item and selected_item.get("is_menu_target"):
@@ -1501,13 +1515,20 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Seleccionar juego", "Elegí un juego de la biblioteca para ejecutar.")
             return
 
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            return
+
         game = self.db.get_game(self.current_game_id)
         if not game:
             return
 
         try:
             active_layout = self.layout_stack.currentWidget()
-            name, source = launch_game(self.db, game, layout=active_layout, parent_window=self)
+            result = launch_game(self.db, game, layout=active_layout, parent_window=self)
+            if not result or result[0] is None:
+                return
+            name, source = result
             source_desc = "asignación individual del juego" if source == "juego" else "predeterminado de la lista"
             self.statusBar().showMessage(f"Iniciando con {name} ({source_desc})…", 6000)
         except Exception as e:
@@ -1580,7 +1601,7 @@ class MainWindow(QMainWindow):
                             ao.setVolume(0.0)
                         except Exception:
                             pass
-            for player_attr in ("player", "game_player", "bg_player"):
+            for player_attr in ("player", "game_player"):
                 if hasattr(inst, player_attr):
                     p = getattr(inst, player_attr)
                     if p:

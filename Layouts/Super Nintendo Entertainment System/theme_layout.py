@@ -47,28 +47,24 @@ class ThemeLayout(BaseLayout):
         {
             "key": "video",
             "label": "Video Snaps",
-            "folder": "videos",
             "extensions": [".mp4", ".mkv", ".avi", ".webm"],
             "required": True
         },
         {
             "key": "wheel",
             "label": "Wheel Logos",
-            "folder": "wheel",
             "extensions": [".png", ".webp"],
             "required": True
         },
         {
             "key": "cartart",
             "label": "Cartuchos",
-            "folder": "cartart",
             "extensions": [".png", ".webp"],
             "required": True
         },
         {
             "key": "boxart",
             "label": "Box Art / Carátulas",
-            "folder": "boxart",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": False
         }
@@ -77,17 +73,17 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # ASIGNACIÓN DE ARCHIVOS PROPIOS DEL LAYOUT (ADMINISTRADOS POR ESTE ARCHIVO)
     # -------------------------------------------------------------------------
-    BKG_IMAGE = "bkg.jpg"
-    TV_IMAGE = "tv.png"
-    CONSOLE_IMAGE = "console.png"
-    CONSOLE_COVER_IMAGE = "console_cover.png"
-    JOYSTICK_IMAGE = "joystick.png"
-    AVATAR_IMAGE = "avatar.png"
-    LOGO_IMAGE = "logo.png"
-    CARTART_IMAGE = "cartart.png"
-    BOXART_IMAGE = "boxart.png"
-    WHEEL_IMAGE = "wheel.png"
-    POINTER_IMAGE = "pointers/default.png"
+    BKG_IMAGE = LAYOUT_DIR / "bkg.jpg"
+    TV_IMAGE = LAYOUT_DIR / "tv.png"
+    CONSOLE_IMAGE = LAYOUT_DIR / "console.png"
+    CONSOLE_COVER_IMAGE = LAYOUT_DIR / "console_cover.png"
+    JOYSTICK_IMAGE = LAYOUT_DIR / "joystick.png"
+    AVATAR_IMAGE = LAYOUT_DIR / "avatar.png"
+    LOGO_IMAGE = LAYOUT_DIR / "logo.png"
+    CARTART_IMAGE = LAYOUT_DIR / "cartart.png"
+    BOXART_IMAGE = LAYOUT_DIR / "boxart.png"
+    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
+    POINTER_IMAGE = LAYOUT_DIR / "pointers/default.png"
     FONT_FILES = [
         "Handel Gothic BT.ttf",
         "BebasNeue Bold.otf",
@@ -129,6 +125,9 @@ class ThemeLayout(BaseLayout):
     CONVEYOR_A = [0, 20, 35, 60, 90, 125, 160, 255, 160, 125, 90, 60, 35, 0]
 
     @classmethod
+    # -------------------------------------------------------------------------
+    # GESTIÓN Y RESOLUCIÓN DE RECURSOS PROPIOS
+    # -------------------------------------------------------------------------
     def _resolve_file(cls, rel_path: str | None) -> str | None:
         """Resuelve una ruta relativa dentro de la carpeta propia del layout."""
         if not rel_path:
@@ -145,6 +144,7 @@ class ThemeLayout(BaseLayout):
         return None
 
     def __init__(self, theme_name: str = "Super Nintendo Entertainment System", parent=None):
+        """Inicializa los componentes internos, estructuras de datos y temporizadores del objeto."""
         super().__init__(parent)
         self.theme_name = theme_name
         self.layout_dir = LAYOUT_DIR
@@ -185,15 +185,15 @@ class ThemeLayout(BaseLayout):
             self._select_sound_effect.setSource(QUrl.fromLocalFile(str(sel_sound)))
 
         # Precargar imágenes asignadas directamente en este layout
-        self._pix_bkg = self._load_pixmap(self._resolve_file(self.BKG_IMAGE))
-        self._pix_tv = self._load_pixmap(self._resolve_file(self.TV_IMAGE))
-        self._pix_console = self._load_pixmap(self._resolve_file(self.CONSOLE_IMAGE))
-        self._pix_console_cover = self._load_pixmap(self._resolve_file(self.CONSOLE_COVER_IMAGE))
-        self._pix_joystick = self._load_pixmap(self._resolve_file(self.JOYSTICK_IMAGE))
-        self._pix_avatar = self._load_pixmap(self._resolve_file(self.AVATAR_IMAGE))
-        self._pix_logo = self._load_pixmap(self._resolve_file(self.LOGO_IMAGE))
-        self._pix_cartart_frame = self._load_pixmap(self._resolve_file(self.CARTART_IMAGE))
-        self._pix_boxart_frame = self._load_pixmap(self._resolve_file(self.BOXART_IMAGE))
+        self._pix_bkg = self._load_pixmap(str(self.BKG_IMAGE))
+        self._pix_tv = self._load_pixmap(str(self.TV_IMAGE))
+        self._pix_console = self._load_pixmap(str(self.CONSOLE_IMAGE))
+        self._pix_console_cover = self._load_pixmap((str(self.CONSOLE_COVER_IMAGE) if self.CONSOLE_COVER_IMAGE else None))
+        self._pix_joystick = self._load_pixmap((str(self.JOYSTICK_IMAGE) if self.JOYSTICK_IMAGE else None))
+        self._pix_avatar = self._load_pixmap(str(self.AVATAR_IMAGE))
+        self._pix_logo = self._load_pixmap(str(self.LOGO_IMAGE))
+        self._pix_cartart_frame = self._load_pixmap(str(self.CARTART_IMAGE))
+        self._pix_boxart_frame = self._load_pixmap((str(self.BOXART_IMAGE) if self.BOXART_IMAGE else None))
 
         # Recursos compartidos directos desde gtc-common (sin diccionarios)
         self._pix_scanlines = None
@@ -209,24 +209,24 @@ class ThemeLayout(BaseLayout):
         self._pix_wheel_shadow = self._load_pixmap(str(shadow_file)) if shadow_file.is_file() else None
 
         # Puntero animado de la ruleta asignado en este layout
-        pointer_path = self._resolve_file(self.POINTER_IMAGE)
+        pointer_path = str(self.POINTER_IMAGE)
         self._pix_pointer = self._load_pixmap(pointer_path)
 
         # Diccionario theme_info autogenerado internamente por el layout
         self.theme_info = {
             "name": self.theme_name,
             "folder": str(LAYOUT_DIR),
-            "bkg": self._resolve_file(self.BKG_IMAGE),
-            "tv": self._resolve_file(self.TV_IMAGE),
-            "console": self._resolve_file(self.CONSOLE_IMAGE),
-            "console_cover": self._resolve_file(self.CONSOLE_COVER_IMAGE),
-            "joystick": self._resolve_file(self.JOYSTICK_IMAGE),
-            "avatar": self._resolve_file(self.AVATAR_IMAGE),
-            "character": self._resolve_file(self.AVATAR_IMAGE),
-            "logo": self._resolve_file(self.LOGO_IMAGE),
-            "cartart": self._resolve_file(self.CARTART_IMAGE),
-            "boxart": self._resolve_file(self.BOXART_IMAGE),
-            "wheel": self._resolve_file(self.WHEEL_IMAGE),
+            "bkg": str(self.BKG_IMAGE),
+            "tv": str(self.TV_IMAGE),
+            "console": str(self.CONSOLE_IMAGE),
+            "console_cover": (str(self.CONSOLE_COVER_IMAGE) if self.CONSOLE_COVER_IMAGE else None),
+            "joystick": (str(self.JOYSTICK_IMAGE) if self.JOYSTICK_IMAGE else None),
+            "avatar": str(self.AVATAR_IMAGE),
+            "character": str(self.AVATAR_IMAGE),
+            "logo": str(self.LOGO_IMAGE),
+            "cartart": str(self.CARTART_IMAGE),
+            "boxart": (str(self.BOXART_IMAGE) if self.BOXART_IMAGE else None),
+            "wheel": str(self.WHEEL_IMAGE),
             "pointer": pointer_path,
         }
 
@@ -286,21 +286,22 @@ class ThemeLayout(BaseLayout):
         self._start_logo_animation()
 
     def _load_pixmap(self, path: str | None) -> QPixmap | None:
+        """Carga un QPixmap desde el disco de forma segura, retornando None si el archivo es inaccesible o nulo."""
         if path and os.path.isfile(path):
             pix = QPixmap(path)
             return pix if not pix.isNull() else None
         return None
+    # -------------------------------------------------------------------------
+    # RECURSOS TIPOGRÁFICOS Y EFECTOS DE SONIDO
+    # -------------------------------------------------------------------------
 
     def _load_theme_fonts(self):
+        """Registra las fuentes tipográficas TrueType/OpenType del sistema en la base de datos de fuentes de Qt."""
         font_paths = []
         for f_rel in getattr(self, "FONT_FILES", []):
-            resolved = self._resolve_file(f_rel)
-            if resolved:
+            resolved = str(LAYOUT_DIR / f_rel)
+            if Path(resolved).is_file():
                 font_paths.append(resolved)
-        if not font_paths:
-            for f in LAYOUT_DIR.iterdir():
-                if f.is_file() and f.suffix.lower() in (".ttf", ".otf"):
-                    font_paths.append(str(f))
 
         for f_path in font_paths:
             if os.path.isfile(f_path):
@@ -317,6 +318,7 @@ class ThemeLayout(BaseLayout):
                             self._font_handel = families[0]
 
     def _play_wheel_sound(self):
+        """Reproduce el efecto de sonido táctil de giro o navegación de la ruleta."""
         if getattr(self, "_media_muted", False):
             return
         try:
@@ -331,6 +333,7 @@ class ThemeLayout(BaseLayout):
             pass
 
     def _play_select_sound(self):
+        """Reproduce el sonido característico de selección al activar o confirmar un juego."""
         if getattr(self, "_media_muted", False):
             return
         try:
@@ -343,8 +346,12 @@ class ThemeLayout(BaseLayout):
                     self._select_sound_effect.play()
         except Exception:
             pass
+    # -------------------------------------------------------------------------
+    # CONTROLADORES DE ANIMACIÓN Y CINEMÁTICA
+    # -------------------------------------------------------------------------
 
     def _on_pointer_tick(self):
+        """Controla la animación de pulso y retracción del puntero indicador de selección."""
         self._pointer_anim_tick += 1
         diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
         if abs(diff) > 0.0005:
@@ -356,6 +363,7 @@ class ThemeLayout(BaseLayout):
                 self.update()
 
     def _on_avatar_bounce_tick(self):
+        """Calcula el movimiento sinusoidal suave de flotación y oscilación del avatar o personaje decorativo."""
         self._avatar_anim_time += 0.04
         t = self._avatar_anim_time
         self._avatar_offset_x = math.sin(t * 0.9) * 10.0
@@ -364,6 +372,7 @@ class ThemeLayout(BaseLayout):
             self.update()
 
     def _navigate_steps(self, delta_steps: int):
+        """Avanza o retrocede N posiciones en la lista de juegos y dispara la física de la ruleta."""
         n = len(self.games)
         if n == 0 or delta_steps == 0:
             return
@@ -382,6 +391,7 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def _on_wheel_spin_tick(self):
+        """Interpola la posición continua de la ruleta hacia el objetivo a 60 FPS con suavizado exponencial."""
         self._wheel_spin_offset *= 0.72
         if abs(self._wheel_spin_offset) < 0.015:
             self._wheel_spin_offset = 0.0
@@ -389,6 +399,7 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def _on_cart_anim_tick(self):
+        """Ejecuta la animación de descenso e inserción física del cartucho o rotación del disco en la consola."""
         dt = 16
         self._cart_anim_elapsed += dt
         t = min(self._cart_anim_elapsed / self._cart_anim_duration, 1.0)
@@ -403,11 +414,13 @@ class ThemeLayout(BaseLayout):
             self._cart_current_y_ratio = self._cart_end_y_ratio
 
     def _start_cart_animation(self):
+        """Reinicia la cinemática de inserción del cartucho/disco para el juego actual."""
         self._cart_anim_elapsed = 0
         self._cart_current_y_ratio = self._cart_start_y_ratio
         self._cart_anim_timer.start(16)
 
     def _on_logo_anim_tick(self):
+        """Anima la escala y opacidad de entrada del logotipo del juego o sistema en pantalla."""
         dt = 16
         self._logo_anim_elapsed += dt
         t = min(self._logo_anim_elapsed / self._logo_anim_duration, 1.0)
@@ -428,11 +441,13 @@ class ThemeLayout(BaseLayout):
             self._logo_current_y_offset_ratio = 0.0
 
     def _start_logo_animation(self):
+        """Dispara la animación de revelado del logotipo."""
         self._logo_anim_elapsed = 0
         self._logo_current_y_offset_ratio = -0.50
         self._logo_anim_timer.start(16)
 
     def _on_boxart_anim_tick(self):
+        """Interpola la posición horizontal y opacidad de la carátula (boxart) hacia su posición final."""
         dt = 16
         self._boxart_anim_elapsed += dt
         t = min(self._boxart_anim_elapsed / self._boxart_anim_duration, 1.0)
@@ -447,12 +462,14 @@ class ThemeLayout(BaseLayout):
             self._boxart_alpha = 1.0
 
     def _start_boxart_animation(self):
+        """Reinicia la transición animada de entrada de la carátula del juego seleccionado."""
         self._boxart_anim_elapsed = 0
         self._boxart_current_x_offset_ratio = -0.30
         self._boxart_alpha = 0.0
         self._boxart_anim_timer.start(16)
 
     def _ensure_player_initialized(self):
+        """Gestiona la operación '_ensure_player_initialized' de este layout temático."""
         if self._player_initialized:
             return
         self._player_initialized = True
@@ -482,6 +499,7 @@ class ThemeLayout(BaseLayout):
         self.player.errorOccurred.connect(self._on_player_error)
 
     def _on_video_frame_changed(self, frame):
+        """Recibe el frame decodificado desde QVideoSink y solicita el repintado del televisor CRT."""
         if frame.isValid() and getattr(self, "_want_video_playing", True) and self.player:
             p_path = getattr(self, "_pending_video_path", None)
             if p_path and self.player.source() != QUrl.fromLocalFile(p_path):
@@ -499,6 +517,7 @@ class ThemeLayout(BaseLayout):
                 self.update()
 
     def _on_media_status_changed(self, status):
+        """Supervisa el estado del reproductor y garantiza el bucle infinito automático del video snap."""
         if not self.player:
             return
         if status in (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferingMedia, QMediaPlayer.BufferedMedia):
@@ -523,9 +542,11 @@ class ThemeLayout(BaseLayout):
                 self.player.play()
 
     def _on_player_error(self, error, error_string=""):
+        """Maneja errores de decodificación o códecs de video reintentando la carga o aplicando respaldo estático."""
         self._current_video_image = None
 
     def _on_video_watchdog(self):
+        """Temporizador de seguridad que verifica que el video no se quede congelado tras navegar."""
         if not getattr(self, "_want_video_playing", False) or not getattr(self, "_pending_video_path", None) or not self.isVisible():
             return
         if not os.path.isfile(self._pending_video_path) or not self.player:
@@ -542,11 +563,16 @@ class ThemeLayout(BaseLayout):
                 pass
 
     def set_db(self, db):
+        """Asocia la base de datos de RetroShelf para consultas de metadatos o emuladores."""
         self.db = db
         if self.games and 0 <= self.selected_index < len(self.games):
             self._update_current_selection()
+    # -------------------------------------------------------------------------
+    # GESTIÓN DE JUEGOS Y PRECARGA ASÍNCRONA
+    # -------------------------------------------------------------------------
 
     def set_games(self, games: list):
+        """Establece la colección de juegos a mostrar, reinicia la posición y dispara la precarga de artes."""
         self.games = [dict(g) if hasattr(g, "keys") else g for g in games]
         self.selected_index = 0
         self._wheel_pixmaps.clear()
@@ -568,9 +594,11 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def render_games(self):
+        """Solicita la actualización y re-renderizado de los elementos gráficos en pantalla."""
         self.update()
 
     def select_game_by_id(self, game_id: int):
+        """Selecciona visualmente un juego por su identificador numérico único."""
         for i, g in enumerate(self.games):
             if g.get("id") == game_id:
                 if self.selected_index != i:
@@ -583,11 +611,13 @@ class ThemeLayout(BaseLayout):
                 break
 
     def get_selected_game_id(self) -> int | None:
+        """Retorna el identificador del juego actualmente seleccionado en la ruleta."""
         if self.games and 0 <= self.selected_index < len(self.games):
             return self.games[self.selected_index].get("id")
         return None
 
     def stop_media(self):
+        """Detiene completamente la reproducción de video y audio liberando recursos del sistema."""
         self._want_video_playing = False
         self._pending_video_path = None
         if hasattr(self, '_video_debounce_timer'):
@@ -608,8 +638,12 @@ class ThemeLayout(BaseLayout):
                 pass
         self._current_video_image = None
         self.update()
+    # -------------------------------------------------------------------------
+    # CONTROL DE CICLO DE VIDA Y RECURSOS DEL SISTEMA
+    # -------------------------------------------------------------------------
 
     def set_media_muted(self, muted: bool):
+        """Silencia o reactiva el audio de los videos según las preferencias del usuario."""
         self._media_muted = muted
         for eff_name in ("_sound_effect", "_select_sound_effect"):
             if hasattr(self, eff_name):
@@ -625,12 +659,15 @@ class ThemeLayout(BaseLayout):
             self.audio_output.setVolume(0.0 if muted else 0.8)
 
     def set_muted(self, muted: bool):
+        """Gestiona la operación 'set_muted' de este layout temático."""
         self.set_media_muted(muted)
 
     def is_muted(self) -> bool:
+        """Gestiona la operación 'is_muted' de este layout temático."""
         return self._media_muted
 
     def _update_current_selection(self):
+        """Actualiza todos los elementos artísticos, videos y animaciones para el juego enfocado."""
         if not self.games or not (0 <= self.selected_index < len(self.games)):
             self.current_media = {}
             if self.player:
@@ -680,6 +717,7 @@ class ThemeLayout(BaseLayout):
         self._video_debounce_timer.start()
 
     def _load_pending_art(self):
+        """Carga en memoria las imágenes de carátula y cartucho sin bloquear el hilo principal de renderizado."""
         if not hasattr(self, "_art_pix_cache"):
             self._art_pix_cache = {}
         if len(self._art_pix_cache) > 100:
@@ -702,6 +740,7 @@ class ThemeLayout(BaseLayout):
         else:
             self._current_cart_pixmap = None
     def _play_debounced_video(self):
+        """Reproduce el video snap una vez que la ruleta se ha detenido para maximizar la fluidez."""
         if not self.isVisible():
             return
         self._load_pending_art()
@@ -740,6 +779,7 @@ class ThemeLayout(BaseLayout):
             self.update()
 
     def _on_wheel_image_loaded(self, gid: int, img: QImage):
+        """Callback asíncrono disparado cuando un logotipo de ruleta ha terminado de escalarse en segundo plano."""
         if not img.isNull():
             pix = QPixmap.fromImage(img)
             self._wheel_pixmaps[gid] = pix
@@ -752,6 +792,7 @@ class ThemeLayout(BaseLayout):
                 self.update()
 
     def _is_game_visible_in_wheel(self, game_id: int) -> bool:
+        """Comprueba si un juego se encuentra actualmente dentro del campo visual visible de la ruleta curva."""
         if not self.games:
             return False
         n = len(self.games)
@@ -762,6 +803,7 @@ class ThemeLayout(BaseLayout):
         return False
 
     def _preload_around(self, center_idx: int):
+        """Encola en segundo plano la precarga de los logotipos vecinos al índice actual."""
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
             return
         n = len(self.games)
@@ -791,6 +833,7 @@ class ThemeLayout(BaseLayout):
 
 
     def _preload_direction(self, steps: int):
+        """Encola la precarga predictiva de logotipos en la dirección en que el usuario está navegando."""
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
             return
         n = len(self.games)
@@ -806,6 +849,7 @@ class ThemeLayout(BaseLayout):
             self._wheel_worker.queue_games(window, priority=True)
 
     def _get_game_wheel_pixmap(self, game: dict) -> QPixmap | None:
+        """Obtiene el QPixmap del logotipo de rueda, generando un reemplazo tipográfico si no posee imagen."""
         gid = game.get("id")
         if gid in self._wheel_pixmaps:
             return self._wheel_pixmaps[gid]
@@ -816,6 +860,7 @@ class ThemeLayout(BaseLayout):
         return None
 
     def _get_target_rect(self) -> QRect:
+        """Gestiona la operación '_get_target_rect' de este layout temático."""
         w = self.width()
         h = self.height()
         target_ar = self.CANONICAL_W / self.CANONICAL_H
@@ -834,6 +879,7 @@ class ThemeLayout(BaseLayout):
         return QRect(sx, sy, sw, sh)
 
     def paintEvent(self, event):
+        """Punto central de renderizado por capas: fondo, CRT, mueble/consola, artes, ruleta interactiva y puntero."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
@@ -931,6 +977,7 @@ class ThemeLayout(BaseLayout):
             painter.end()
 
     def _draw_avatar(self, painter: QPainter, sr: QRect):
+        """Dibuja el personaje decorativo con su oscilación sinusoidal."""
         avatar_pix = self._pix_avatar
         if not avatar_pix:
             return
@@ -949,6 +996,7 @@ class ThemeLayout(BaseLayout):
         painter.drawPixmap(draw_x, draw_y, aw, ah, avatar_pix)
 
     def _draw_logo(self, painter: QPainter, sr: QRect):
+        """Dibuja el logotipo del sistema o del juego con su escala y opacidad interpoladas."""
         if not self._pix_logo:
             return
         sw, sh = sr.width(), sr.height()
@@ -962,6 +1010,7 @@ class ThemeLayout(BaseLayout):
             painter.drawPixmap(sx, logo_y, sw, sh, self._pix_logo)
 
     def _draw_cart_or_disc(self, painter: QPainter, sr: QRect):
+        """Renderiza el cartucho o disco físico simulando la inserción tridimensional en la consola."""
         sw, sh = sr.width(), sr.height()
         sx, sy = sr.x(), sr.y()
 
@@ -985,6 +1034,7 @@ class ThemeLayout(BaseLayout):
             painter.restore()
 
     def _draw_boxart(self, painter: QPainter, sr: QRect):
+        """Dibuja la carátula del juego con sombreado y transición animada."""
         sw = sr.width()
         sh = sr.height()
         sx = sr.x()
@@ -1014,6 +1064,7 @@ class ThemeLayout(BaseLayout):
             painter.restore()
 
     def _draw_wheel_conveyor(self, painter: QPainter, sr: QRect):
+        """Calcula la perspectiva curva en 14 nodos interpolando posición, escala, rotación y opacidad de cada logo."""
         sw = sr.width()
         sh = sr.height()
         sx = sr.x()
@@ -1093,6 +1144,7 @@ class ThemeLayout(BaseLayout):
                 painter.restore()
 
     def _draw_pointer(self, painter: QPainter, sr: QRect):
+        """Dibuja la flecha indicadora o puntero que señala el juego seleccionado en la ruleta."""
         if not self._pix_pointer or not self.games:
             return
 
@@ -1127,6 +1179,7 @@ class ThemeLayout(BaseLayout):
         painter.restore()
 
     def _draw_bottom_bar(self, painter: QPainter, sr: QRect):
+        """Dibuja la barra inferior de metadatos con título, año, fabricante y contador de posición."""
         sw = sr.width()
         sh = sr.height()
         sx = sr.x()
@@ -1160,8 +1213,16 @@ class ThemeLayout(BaseLayout):
         painter.setPen(QColor(180, 210, 255))
         counter_rect = QRect(sx + int(sw * 0.70), bar_y, int(sw * 0.25), bar_h)
         painter.drawText(counter_rect, Qt.AlignVCenter | Qt.AlignRight, counter_text)
+    # -------------------------------------------------------------------------
+    # MANEJO DE ENTRADAS (TECLADO, MOUSE, MANDOS)
+    # -------------------------------------------------------------------------
 
     def keyPressEvent(self, event):
+        """Captura la navegación por teclado (flechas, enter, espacio, retroceso, página, inicio, fin)."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
         key = event.key()
         if matches_action(event, ACTION_NAV_UP):
             self._navigate_steps(-1)
@@ -1176,8 +1237,11 @@ class ThemeLayout(BaseLayout):
             self._navigate_steps(5)
             event.accept()
         elif matches_action(event, ACTION_SELECT) or key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
+            if event.isAutoRepeat():
+                event.accept()
+                return
             gid = self.get_selected_game_id()
-            if gid:
+            if gid and self._can_activate_game():
                 self._play_select_sound()
                 self.game_activated.emit(gid)
             event.accept()
@@ -1191,6 +1255,12 @@ class ThemeLayout(BaseLayout):
             super().keyPressEvent(event)
 
     def mousePressEvent(self, event):
+        """Permite interactuar mediante clics directos sobre los elementos de la interfaz."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        self.setFocus()
         if event.button() == Qt.LeftButton:
             sr = self._get_target_rect()
             sw = sr.width()
@@ -1225,7 +1295,7 @@ class ThemeLayout(BaseLayout):
                             target_game_idx = (self.selected_index + offset) % n_games
                             if target_game_idx == self.selected_index:
                                 gid = self.get_selected_game_id()
-                                if gid:
+                                if gid and self._can_activate_game():
                                     self._play_select_sound()
                                     self.game_activated.emit(gid)
                             else:
@@ -1234,7 +1304,17 @@ class ThemeLayout(BaseLayout):
                             return
         super().mousePressEvent(event)
 
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        event.accept()
+
     def wheelEvent(self, event):
+        """Permite navegar fluidamente por la lista utilizando la rueda de desplazamiento del ratón."""
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
         delta = event.angleDelta().y()
         if delta > 0:
             self._navigate_steps(-1)
@@ -1243,15 +1323,18 @@ class ThemeLayout(BaseLayout):
         event.accept()
 
     def hideEvent(self, event):
+        """Pausa la multimedia y animaciones cuando el layout deja de ser visible para ahorrar CPU/GPU."""
         if self.player:
             self.player.pause()
         super().hideEvent(event)
 
     def showEvent(self, event):
+        """Reanuda la reproducción y animación fluida al volver a enfocar este layout temático."""
         super().showEvent(event)
         self._start_logo_animation()
 
     def closeEvent(self, event):
+        """Libera los hilos de precarga, temporizadores y reproductores al cerrar la ventana."""
         self.stop_media()
         if hasattr(self, "_wheel_worker") and self._wheel_worker:
             self._wheel_worker.stop()
@@ -1259,6 +1342,7 @@ class ThemeLayout(BaseLayout):
             super().closeEvent(event)
 
     def clear(self):
+        """Limpia la lista de juegos y cachés de texturas en memoria."""
         self._wheel_spin_offset = 0.0
         if hasattr(self, '_wheel_spin_timer') and self._wheel_spin_timer.isActive():
             self._wheel_spin_timer.stop()

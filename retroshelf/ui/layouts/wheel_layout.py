@@ -691,12 +691,12 @@ class WheelLayout(BaseLayout):
     def _on_wheel_double_clicked(self, item):
         if item:
             game_id = item.data(Qt.UserRole)
-            if game_id:
+            if game_id and self._can_activate_game():
                 self.current_game_id = game_id
                 self.game_activated.emit(game_id)
 
     def _on_play_clicked(self):
-        if self.current_game_id:
+        if self.current_game_id and self._can_activate_game():
             self.game_activated.emit(self.current_game_id)
 
     def _on_context_menu(self, pos: QPoint):
@@ -707,8 +707,15 @@ class WheelLayout(BaseLayout):
             self.context_menu_requested.emit(game_id, global_pos)
 
     def keyPressEvent(self, event):
+        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
         if matches_action(event, ACTION_SELECT, getattr(self, "db", None)):
-            if self.current_game_id:
+            if event.isAutoRepeat():
+                event.accept()
+                return
+            if self.current_game_id and self._can_activate_game():
                 self.game_activated.emit(self.current_game_id)
                 event.accept()
                 return
