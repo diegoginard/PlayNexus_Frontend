@@ -141,24 +141,24 @@ class ThemeLayout(BaseLayout):
     FONT_COUNTER_FILE = LAYOUT_DIR / "Handel Gothic BT.ttf"
 
     # =========================================================================
-    # 2. ARCHIVOS DE IMÁGENES Y ARTES (Rutas directas a los archivos)
+    # 2. ARCHIVOS DE IMÁGENES Y ARTES PROPIOS DEL LAYOUT
     # =========================================================================
-    CABINET_IMAGE = LAYOUT_DIR / "cabinets.png"
-    MARQUEE_IMAGE = LAYOUT_DIR / "marquee1.jpg"
-    BEZEL_IMAGE = LAYOUT_DIR / "bezels.png"
-    POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png"
+    CABINET_IMAGE       = LAYOUT_DIR / "cabinets.png"
+    MARQUEE_IMAGE       = LAYOUT_DIR / "marquee1.jpg"
+    BEZEL_IMAGE         = LAYOUT_DIR / "bezels.png"
+    POINTER_IMAGE       = LAYOUT_DIR / "pointers" / "default.png"
     DEFAULT_WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
-    SCRATCHES_IMAGE = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
-    FALLBACK_BG_IMAGE = COMMON_DIR / "art" / "arcade" / "bkg.jpg"
 
     # =========================================================================
-    # 3. VIDEOS Y EFECTOS DE SONIDO (Rutas directas a los archivos)
+    # 3. RECURSOS COMPARTIDOS DESDE gtc-common
     # =========================================================================
-    BG_VIDEO = COMMON_DIR / "videos" / "bkg_anim.mp4"
-    STATIC_VIDEO = COMMON_DIR / "videos" / "static.mp4"
-    NAV_SOUND = COMMON_DIR / "sounds" / "joystick.mp3"
-    SELECT_SOUND = COMMON_DIR / "sounds" / "Mame_coin.mp3"
-    NAV_SOUND_VOLUME = 0.4
+    SCRATCHES_IMAGE     = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
+    FALLBACK_BG_IMAGE   = COMMON_DIR / "art" / "arcade" / "bkg.jpg"
+    BG_VIDEO            = COMMON_DIR / "videos" / "bkg_anim.mp4"
+    STATIC_VIDEO        = COMMON_DIR / "videos" / "static.mp4"
+    NAV_SOUND           = COMMON_DIR / "sounds" / "joystick.mp3"
+    SELECT_SOUND        = COMMON_DIR / "sounds" / "Mame_coin.mp3"
+    NAV_SOUND_VOLUME    = 0.4
     SELECT_SOUND_VOLUME = 0.5
 
     # =========================================================================
