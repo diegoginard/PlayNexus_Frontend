@@ -71,6 +71,7 @@ class ThemeLayout(BaseLayout):
     STATIC_VIDEO       = COMMON_DIR / "videos" / "static.mp4"
     SOUND_NAV          = COMMON_DIR / "sounds" / "joystick.mp3"
     SOUND_SELECT       = COMMON_DIR / "sounds" / "Mame_coin.mp3"
+    SCRATCHES_IMAGE    = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
 
     # -------------------------------------------------------------------------
     # ASIGNACIÓN DE ARCHIVOS PROPIOS DEL LAYOUT (ADMINISTRADOS POR ESTE ARCHIVO)
@@ -198,6 +199,7 @@ class ThemeLayout(BaseLayout):
         self._pix_scanlines = None
         self._pix_wheel_art = self._load_pixmap(str(self.COMMON_WHEEL_ART))
         self._pix_frame = self._load_pixmap(str(self.COMMON_FRAME))
+        self._pix_scratches = self._load_pixmap(str(self.SCRATCHES_IMAGE))
         self._static_video_path = str(self.STATIC_VIDEO) if self.STATIC_VIDEO.is_file() else None
 
         # Sombra de ruleta directa desde gtc-common/wheel
@@ -923,6 +925,17 @@ class ThemeLayout(BaseLayout):
                 painter.save()
                 painter.setOpacity(0.35)
                 painter.drawPixmap(tv_snap_x, tv_snap_y, tv_snap_w, tv_snap_h, self._pix_scanlines)
+                painter.restore()
+
+            # Capa 3b: Vidrio rayado CRT (scratched_cover desde gtc-common)
+            if self._pix_scratches:
+                s_size = (int(tv_snap_w), int(tv_snap_h))
+                if getattr(self, "_cached_scratches_size", None) != s_size:
+                    self._cached_scratches_pix = self._pix_scratches.scaled(s_size[0], s_size[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    self._cached_scratches_size = s_size
+                painter.save()
+                painter.setOpacity(0.40)
+                painter.drawPixmap(int(tv_snap_x), int(tv_snap_y), self._cached_scratches_pix)
                 painter.restore()
 
             # Capa 4: Marco de la TV

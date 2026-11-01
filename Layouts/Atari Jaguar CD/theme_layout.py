@@ -77,6 +77,7 @@ class ThemeLayout(BaseLayout):
     STATIC_VIDEO       = COMMON_DIR / "videos" / "static.mp4"
     SOUND_NAV          = COMMON_DIR / "sounds" / "joystick.mp3"
     SOUND_SELECT       = COMMON_DIR / "sounds" / "Mame_coin.mp3"
+    SCRATCHES_IMAGE    = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
 
     # -------------------------------------------------------------------------
     # ASIGNACIÓN DE ARCHIVOS PROPIOS DEL LAYOUT (ADMINISTRADOS POR ESTE ARCHIVO)
@@ -208,16 +209,13 @@ class ThemeLayout(BaseLayout):
 
         # Recursos compartidos directos desde gtc-common
         self._pix_scanlines = None
-        self._pix_wheel_art = self._load_pixmap(str(COMMON_DIR / "art" / "wheel_art.png"))
-        self._pix_frame = self._load_pixmap(str(COMMON_DIR / "art" / "frame.png"))
-        static_vid = COMMON_DIR / "videos" / "static.mp4"
-        self._static_video_path = str(static_vid) if static_vid.is_file() else None
+        self._pix_wheel_art = self._load_pixmap(str(self.COMMON_WHEEL_ART))
+        self._pix_frame = self._load_pixmap(str(self.COMMON_FRAME))
+        self._pix_scratches = self._load_pixmap(str(self.SCRATCHES_IMAGE))
+        self._static_video_path = str(self.STATIC_VIDEO) if self.STATIC_VIDEO.is_file() else None
 
-        # Sombra de ruleta directa desde gtc-common/wheels o gtc-common/wheel
-        shadow_file = COMMON_DIR / "wheels" / "wheel_shadow.png"
-        if not shadow_file.is_file():
-            shadow_file = COMMON_DIR / "wheel" / "wheel_shadow.png"
-        self._pix_wheel_shadow = self._load_pixmap(str(shadow_file)) if shadow_file.is_file() else None
+        # Sombra de ruleta directa desde gtc-common/wheel
+        self._pix_wheel_shadow = self._load_pixmap(str(self.WHEEL_SHADOW_IMAGE)) if self.WHEEL_SHADOW_IMAGE.is_file() else None
 
         # Puntero animado de la ruleta asignado en este layout
         pointer_path = str(self.POINTER_IMAGE)
@@ -958,6 +956,16 @@ class ThemeLayout(BaseLayout):
             if self._pix_scanlines:
                 painter.setOpacity(0.35)
                 painter.drawPixmap(tv_rect, self._pix_scanlines)
+                painter.setOpacity(1.0)
+
+            # Capa 3b: Vidrio rayado CRT (scratched_cover desde gtc-common)
+            if self._pix_scratches:
+                s_size = (tv_rect.width(), tv_rect.height())
+                if getattr(self, "_cached_scratches_size", None) != s_size:
+                    self._cached_scratches_pix = self._pix_scratches.scaled(s_size[0], s_size[1], Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    self._cached_scratches_size = s_size
+                painter.setOpacity(0.40)
+                painter.drawPixmap(tv_rect.x(), tv_rect.y(), self._cached_scratches_pix)
                 painter.setOpacity(1.0)
 
             # Capa 4: Marco exterior de la TV CRT
