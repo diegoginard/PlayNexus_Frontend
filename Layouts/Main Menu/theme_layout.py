@@ -68,8 +68,14 @@ class ThemeLayout(BaseLayout):
     # RECURSOS LOCALES PROPIOS DEL LAYOUT
     # -------------------------------------------------------------------------
     WHEEL_ART_IMAGE = LAYOUT_DIR / "wheel_art.png"
-    POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png"
-    FONT_FILE = LAYOUT_DIR / "SF Slapstick Comic Bold Oblique.ttf"
+    POINTER_IMAGE   = LAYOUT_DIR / "pointers" / "default.png"
+    FONT_FILE       = LAYOUT_DIR / "SF Slapstick Comic Bold Oblique.ttf"
+
+    # Recursos compartidos desde gtc-common
+    WHEEL_SHADOW_IMAGE = COMMON_DIR / "wheel" / "wheel_shadow.png"
+    SOUND_NAV          = COMMON_DIR / "sounds" / "joystick.mp3"
+    SOUND_SELECT       = COMMON_DIR / "sounds" / "hs_click.mp3"
+    FONT_BEBAS         = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
 
     # -------------------------------------------------------------------------
     # CONFIGURACIÓN GEOMÉTRICA DE LA RULETA CURVA (14 NODOS INTERPOLADOS A 60 FPS)
@@ -111,21 +117,16 @@ class ThemeLayout(BaseLayout):
         # Efectos de sonido
         self._sound_effect = QSoundEffect(self)
         self._sound_effect.setVolume(0.45)
-        click_sound = COMMON_DIR / "sounds" / "joystick.mp3"
-        if click_sound.is_file():
-            self._sound_effect.setSource(QUrl.fromLocalFile(str(click_sound)))
+        if self.SOUND_NAV.is_file():
+            self._sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_NAV)))
 
         self._select_sound_effect = QSoundEffect(self)
         self._select_sound_effect.setVolume(0.55)
-        sel_sound = COMMON_DIR / "sounds" / "hs_click.mp3"
-        if sel_sound.is_file():
-            self._select_sound_effect.setSource(QUrl.fromLocalFile(str(sel_sound)))
+        if self.SOUND_SELECT.is_file():
+            self._select_sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_SELECT)))
 
-        # Sombra de curvatura de la ruleta directa desde gtc-common
-        shadow_file = COMMON_DIR / "wheel" / "wheel_shadow.png"
-        if not shadow_file.is_file():
-            shadow_file = COMMON_DIR / "wheels" / "wheel_shadow.png"
-        self._pix_wheel_shadow = self._load_pixmap(str(shadow_file)) if shadow_file.is_file() else None
+        # Sombra de curvatura de la ruleta desde gtc-common
+        self._pix_wheel_shadow = self._load_pixmap(str(self.WHEEL_SHADOW_IMAGE)) if self.WHEEL_SHADOW_IMAGE.is_file() else None
 
         # Precargar imágenes locales del layout
         self._pix_wheel_art = self._load_pixmap(str(self.WHEEL_ART_IMAGE))
@@ -176,7 +177,7 @@ class ThemeLayout(BaseLayout):
                 if fams:
                     self._font_slapstick = fams[0]
 
-        bebas = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
+        bebas = self.FONT_BEBAS
         if bebas.is_file():
             fid = QFontDatabase.addApplicationFont(str(bebas))
             if fid >= 0:

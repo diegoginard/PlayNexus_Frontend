@@ -64,6 +64,14 @@ class ThemeLayout(BaseLayout):
         }
     ]
 
+    # Recursos compartidos desde gtc-common
+    WHEEL_SHADOW_IMAGE = COMMON_DIR / "wheel" / "wheel_shadow.png"
+    COMMON_WHEEL_ART   = COMMON_DIR / "art" / "wheel_art.png"
+    COMMON_FRAME       = COMMON_DIR / "art" / "frame.png"
+    STATIC_VIDEO       = COMMON_DIR / "videos" / "static.mp4"
+    SOUND_NAV          = COMMON_DIR / "sounds" / "joystick.mp3"
+    SOUND_SELECT       = COMMON_DIR / "sounds" / "Mame_coin.mp3"
+
     # -------------------------------------------------------------------------
     # ASIGNACIÓN DE ARCHIVOS PROPIOS DEL LAYOUT (ADMINISTRADOS POR ESTE ARCHIVO)
     # -------------------------------------------------------------------------
@@ -168,15 +176,13 @@ class ThemeLayout(BaseLayout):
         # Efectos de sonido directos desde gtc-common
         self._sound_effect = QSoundEffect(self)
         self._sound_effect.setVolume(0.4)
-        click_sound = COMMON_DIR / "sounds" / "joystick.mp3"
-        if click_sound.is_file():
-            self._sound_effect.setSource(QUrl.fromLocalFile(str(click_sound)))
+        if self.SOUND_NAV.is_file():
+            self._sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_NAV)))
 
         self._select_sound_effect = QSoundEffect(self)
         self._select_sound_effect.setVolume(0.5)
-        sel_sound = COMMON_DIR / "sounds" / "Mame_coin.mp3"
-        if sel_sound.is_file():
-            self._select_sound_effect.setSource(QUrl.fromLocalFile(str(sel_sound)))
+        if self.SOUND_SELECT.is_file():
+            self._select_sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_SELECT)))
 
         # Precargar imágenes asignadas directamente en este layout
         bkg_cand = str(self.BKG_IMAGE)
@@ -324,9 +330,8 @@ class ThemeLayout(BaseLayout):
             if self._sound_effect.source().isValid():
                 self._sound_effect.play()
             else:
-                c_sound = COMMON_DIR / "sounds" / "joystick.mp3"
-                if c_sound.is_file():
-                    self._sound_effect.setSource(QUrl.fromLocalFile(str(c_sound)))
+                if self.SOUND_NAV.is_file():
+                    self._sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_NAV)))
                     self._sound_effect.play()
         except Exception:
             pass
@@ -339,9 +344,8 @@ class ThemeLayout(BaseLayout):
             if self._select_sound_effect.source().isValid():
                 self._select_sound_effect.play()
             else:
-                sel_sound = COMMON_DIR / "sounds" / "Mame_coin.mp3"
-                if sel_sound.is_file():
-                    self._select_sound_effect.setSource(QUrl.fromLocalFile(str(sel_sound)))
+                if self.SOUND_SELECT.is_file():
+                    self._select_sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_SELECT)))
                     self._select_sound_effect.play()
         except Exception:
             pass
