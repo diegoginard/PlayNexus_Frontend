@@ -408,7 +408,7 @@ class ThemeLayout(BaseLayout):
 
     def _on_bg_player_error(self, error, error_string):
         """Maneja errores de reproducción del video de fondo reintentando la carga de la fuente."""
-        bg_video_path = COMMON_DIR / "videos" / "bkg_anim.mp4"
+        bg_video_path = self.BG_VIDEO
         if self.bg_player and bg_video_path.is_file():
             self.bg_player.setSource(QUrl.fromLocalFile(str(bg_video_path)))
             self.bg_player.play()
