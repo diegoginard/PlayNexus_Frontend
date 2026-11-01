@@ -58,7 +58,7 @@ class ThemeLayout(BaseLayout):
         },
         {
             "key": "boxart",
-            "label": "Artwork / Imagen de Fondo",
+            "label": "Artwork / Imagen decorativa",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": False,
         },
@@ -111,15 +111,13 @@ class ThemeLayout(BaseLayout):
         # Efectos de sonido
         self._sound_effect = QSoundEffect(self)
         self._sound_effect.setVolume(0.45)
-        click_sound = COMMON_DIR / "sounds" / "hs_click.mp3"
-        if not click_sound.is_file():
-            click_sound = COMMON_DIR / "sounds" / "joystick.mp3"
+        click_sound = COMMON_DIR / "sounds" / "joystick.mp3"
         if click_sound.is_file():
             self._sound_effect.setSource(QUrl.fromLocalFile(str(click_sound)))
 
         self._select_sound_effect = QSoundEffect(self)
         self._select_sound_effect.setVolume(0.55)
-        sel_sound = COMMON_DIR / "sounds" / "Mame_coin.mp3"
+        sel_sound = COMMON_DIR / "sounds" / "hs_click.mp3"
         if sel_sound.is_file():
             self._select_sound_effect.setSource(QUrl.fromLocalFile(str(sel_sound)))
 
