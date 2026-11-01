@@ -122,6 +122,12 @@ class ThemeLayout(BaseLayout):
         if sel_sound.is_file():
             self._select_sound_effect.setSource(QUrl.fromLocalFile(str(sel_sound)))
 
+        # Sombra de curvatura de la ruleta directa desde gtc-common
+        shadow_file = COMMON_DIR / "wheel" / "wheel_shadow.png"
+        if not shadow_file.is_file():
+            shadow_file = COMMON_DIR / "wheels" / "wheel_shadow.png"
+        self._pix_wheel_shadow = self._load_pixmap(str(shadow_file)) if shadow_file.is_file() else None
+
         # Precargar imágenes locales del layout
         self._pix_wheel_art = self._load_pixmap(str(self.WHEEL_ART_IMAGE))
         self._pix_pointer = self._load_pixmap(str(self.POINTER_IMAGE))
@@ -621,18 +627,22 @@ class ThemeLayout(BaseLayout):
                     dy = sy + (sh - dh) // 2
                     painter.drawPixmap(QRect(dx, dy, dw, dh), self._current_artwork_pixmap)
 
-            # Capa 3: Sombra / Viñeta de contraste en el lateral derecho para realce de los logos
-            gradient = QLinearGradient(sx + int(sw * 0.50), 0, sx + sw, 0)
-            gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
-            gradient.setColorAt(0.4, QColor(0, 0, 0, 80))
-            gradient.setColorAt(1.0, QColor(0, 0, 0, 210))
-            painter.fillRect(QRect(sx + int(sw * 0.50), sy, int(sw * 0.50), sh), gradient)
-
-            # Capa 4: Fondo curvado temático de la ruleta (wheel_art.png)
-            if self._pix_wheel_art and not self._pix_wheel_art.isNull():
-                bg_w = int(sw * 0.36)
-                bg_x = sx + int(sw * 0.65)
-                painter.drawPixmap(QRect(bg_x, sy, bg_w, sh), self._pix_wheel_art)
+            # Capa 3: Sombra de curvatura de la ruleta desde gtc-common (wheel/wheel_shadow.png)
+            if self._pix_wheel_shadow:
+                if getattr(self, "_cached_wheel_shadow_size", None) != (sw, sh):
+                    self._cached_wheel_shadow_pix = self._pix_wheel_shadow.scaled(sw, sh, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    self._cached_wheel_shadow_size = (sw, sh)
+                painter.drawPixmap(sx, sy, self._cached_wheel_shadow_pix)
+            else:
+                gradient = QLinearGradient(sx + int(sw * 0.50), 0, sx + sw, 0)
+                gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
+                gradient.setColorAt(0.4, QColor(0, 0, 0, 80))
+                gradient.setColorAt(1.0, QColor(0, 0, 0, 210))
+                painter.fillRect(QRect(sx + int(sw * 0.50), sy, int(sw * 0.50), sh), gradient)
+                if self._pix_wheel_art and not self._pix_wheel_art.isNull():
+                    bg_w = int(sw * 0.36)
+                    bg_x = sx + int(sw * 0.65)
+                    painter.drawPixmap(QRect(bg_x, sy, bg_w, sh), self._pix_wheel_art)
 
             # Capa 5: Ruleta curva interactiva
             if self.games:
@@ -907,3 +917,4 @@ class ThemeLayout(BaseLayout):
                     self._play_select_sound()
                     self.game_activated.emit(gid)
             event.accept()
+
