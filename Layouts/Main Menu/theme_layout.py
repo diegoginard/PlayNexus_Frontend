@@ -25,7 +25,8 @@ from retroshelf.ui.layouts.base import BaseLayout, WheelPreloadWorker
 from retroshelf.services.media import resolve_game_media
 from retroshelf.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_PAGE_UP,
-    ACTION_PAGE_DOWN, ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK
+    ACTION_PAGE_DOWN, ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
+    ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK
 )
 
 LAYOUT_DIR = Path(__file__).resolve().parent
