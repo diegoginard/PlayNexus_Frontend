@@ -161,11 +161,11 @@ def _launch_game_impl(db, game, layout=None, parent_window=None):
     # Ejecutar emulador sin bloquear la aplicación
     proc = subprocess.Popen([str(exe), *args], cwd=working_dir)
 
-    # Iniciar monitoreo del proceso (silenciar videos de fondo y capturar tecla global de salida)
+    # Iniciar monitoreo del proceso (silenciar videos de fondo, bezel overlay y capturar tecla global de salida)
     try:
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         game_title = game.get("title", emulator["name"]) if isinstance(game, dict) else emulator["name"]
-        EMULATOR_MANAGER.start_monitoring(proc, game_title, layout, db, parent_window)
+        EMULATOR_MANAGER.start_monitoring(proc, game_title, layout, db, parent_window, game=game)
     except Exception:
         pass
 

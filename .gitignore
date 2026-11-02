@@ -32,3 +32,8 @@ Thumbs.db
 .tempmediaStorage/
 .cache/
 Layouts/Media/
+
+# PyInstaller
+build/
+dist/
+*.spec

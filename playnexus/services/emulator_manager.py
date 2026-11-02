@@ -52,6 +52,8 @@ class EmulatorManager(QObject):
         self.mute_on_run = True
         self.global_exit_enabled = True
         self.gamepad_exit_enabled = True
+        self.bezel_overlay = None
+        self._tick_counter = 0
 
         self._timer = QTimer(self)
         self._timer.setInterval(50)  # Chequeo a 20 Hz (muy bajo impacto en CPU)
@@ -92,7 +94,7 @@ class EmulatorManager(QObject):
         """Libera el bloqueo de lanzamiento (ej: si el inicio falló antes de crear el proceso)."""
         self._last_launch_time = 0.0
 
-    def start_monitoring(self, proc: subprocess.Popen, game_title: str, layout, db, parent_window=None):
+    def start_monitoring(self, proc: subprocess.Popen, game_title: str, layout, db, parent_window=None, game=None):
         """
         Inicia la supervisión del proceso de emulador recién ejecutado.
         """
@@ -108,6 +110,25 @@ class EmulatorManager(QObject):
         self.mute_on_run = (db.get_setting("emulator_mute_video", "true").lower() == "true") if db else True
         self.global_exit_enabled = (db.get_setting("emulator_global_exit", "true").lower() == "true") if db else True
         self.gamepad_exit_enabled = (db.get_setting("emulator_gamepad_exit", "true").lower() == "true") if db else True
+
+        # Iniciar Bezel Overlay si está configurado y existe bezel para el juego o lista
+        bezel_enabled = (db.get_setting("emulator_bezel_overlay", "true").lower() == "true") if db else True
+        if bezel_enabled and game:
+            try:
+                from playnexus.services.media import resolve_game_bezel
+                bezel_path = resolve_game_bezel(db, game)
+                if bezel_path:
+                    target_screen = 0
+                    if db:
+                        try:
+                            target_screen = int(db.get_setting("target_screen", db.get_setting("video_monitor", "0")))
+                        except Exception:
+                            target_screen = 0
+                    from playnexus.ui.bezel_overlay import BezelOverlayWindow
+                    self.bezel_overlay = BezelOverlayWindow(bezel_path, target_screen_idx=target_screen)
+                    self.bezel_overlay.show()
+            except Exception:
+                pass
 
         # 1. Pausar video y silenciar audio del layout mientras el emulador se ejecuta
         if self.active_layout:
@@ -136,6 +157,10 @@ class EmulatorManager(QObject):
         if ret is not None:
             self._on_process_ended(ret)
             return
+
+        self._tick_counter += 1
+        if self._tick_counter % 20 == 0 and self.bezel_overlay:
+            self.bezel_overlay.bring_to_top()
 
         # 2. Verificar tecla global de salida en Windows
         if self.global_exit_enabled and sys.platform == "win32":
@@ -175,6 +200,14 @@ class EmulatorManager(QObject):
 
     def terminate_active_emulator(self):
         """Fuerza el cierre inmediato y limpio del proceso del emulador y sus subprocesos."""
+        if self.bezel_overlay:
+            try:
+                self.bezel_overlay.close()
+                self.bezel_overlay.deleteLater()
+            except Exception:
+                pass
+            self.bezel_overlay = None
+
         proc = self.active_proc
         if not proc:
             return
@@ -199,6 +232,14 @@ class EmulatorManager(QObject):
         self._timer.stop()
         self.active_proc = None
         self.clear_launching()
+
+        if self.bezel_overlay:
+            try:
+                self.bezel_overlay.close()
+                self.bezel_overlay.deleteLater()
+            except Exception:
+                pass
+            self.bezel_overlay = None
 
         # 1. Reanudar video y audio en el layout activo y liberar bloqueos de clic
         if self.active_layout:

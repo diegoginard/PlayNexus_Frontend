@@ -1,9 +1,14 @@
+import sys
 import os
 import random
 from pathlib import Path
 
 # Directorio raíz del proyecto PlayNexus (todo dentro de la carpeta de PlayNexus)
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if getattr(sys, "frozen", False):
+    REPO_ROOT = Path(sys.executable).resolve().parent
+else:
+    REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
 APP_DATA_DIR = REPO_ROOT
 
 

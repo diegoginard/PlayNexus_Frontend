@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 import playnexus
 from PySide6.QtCore import Qt, QPoint, QSize, QTimer, QEvent
-from PySide6.QtGui import QFont, QKeySequence, QShortcut, QGuiApplication
+from PySide6.QtGui import QFont, QKeySequence, QShortcut, QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel,
     QMessageBox, QStackedWidget
@@ -61,6 +61,11 @@ class PlayerWindow(QMainWindow):
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setStyleSheet(PLAYER_STYLESHEET)
+
+        root_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent.parent
+        logo_path = root_dir / "PlayNexus_Logo.png"
+        if logo_path.exists():
+            self.setWindowIcon(QIcon(str(logo_path)))
 
         # Gestor de mandos y joysticks en tiempo real
         self.gamepad_manager = get_gamepad_manager(self.db)

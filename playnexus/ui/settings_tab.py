@@ -407,6 +407,14 @@ class SystemSettingsWidget(QWidget):
         self.chk_gamepad_exit.setStyleSheet("font-weight: 500; font-size: 10pt;")
         v_emu.addWidget(self.chk_gamepad_exit)
 
+        self.chk_bezel_overlay = QCheckBox("Activar Bezels superpuestos (Overlay en primer plano sobre el emulador)")
+        self.chk_bezel_overlay.setStyleSheet("font-weight: 500; font-size: 10pt;")
+        v_emu.addWidget(self.chk_bezel_overlay)
+
+        lbl_bezel_hint = QLabel("Superpone el marco decorativo (bezel) específico de la ROM o el de base/genérico por encima del emulador.")
+        lbl_bezel_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
+        v_emu.addWidget(lbl_bezel_hint)
+
         layout.addWidget(grp_emu)
 
         # -------------------------------------------------------------
@@ -638,6 +646,7 @@ class SystemSettingsWidget(QWidget):
         self.chk_mute_video.setChecked(self.db.get_setting("emulator_mute_video", "true").lower() == "true")
         self.chk_global_exit.setChecked(self.db.get_setting("emulator_global_exit", "true").lower() == "true")
         self.chk_gamepad_exit.setChecked(self.db.get_setting("emulator_gamepad_exit", "true").lower() == "true")
+        self.chk_bezel_overlay.setChecked(self.db.get_setting("emulator_bezel_overlay", "true").lower() == "true")
 
         # Video
         mode = self.db.get_setting("video_mode", "fullscreen")
@@ -687,6 +696,7 @@ class SystemSettingsWidget(QWidget):
         self.db.set_setting("emulator_mute_video", "true" if self.chk_mute_video.isChecked() else "false")
         self.db.set_setting("emulator_global_exit", "true" if self.chk_global_exit.isChecked() else "false")
         self.db.set_setting("emulator_gamepad_exit", "true" if self.chk_gamepad_exit.isChecked() else "false")
+        self.db.set_setting("emulator_bezel_overlay", "true" if self.chk_bezel_overlay.isChecked() else "false")
 
         # Video
         mode = self.mode_combo.currentData()

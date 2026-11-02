@@ -374,6 +374,38 @@ class ListDialog(QDialog):
 
         scroll_layout.addWidget(media_group)
 
+        # 5. Sección de Bezel HUD (Marco superpuesto en el emulador)
+        bezel_hud_group = QGroupBox("Marco Decorativo / Bezel HUD (Superpuesto al Emulador)")
+        bezel_hud_layout = QFormLayout(bezel_hud_group)
+        bezel_hud_layout.setSpacing(8)
+
+        self.bezel_hud_enabled_cb = QCheckBox("Activar Bezel HUD para esta lista")
+        self.bezel_hud_enabled_cb.setStyleSheet("font-weight: 600;")
+        self.bezel_hud_enabled_cb.setChecked(True)
+        bezel_hud_layout.addRow(self.bezel_hud_enabled_cb)
+
+        self.bezel_hud_path_edit = QLineEdit()
+        self.bezel_hud_path_edit.setPlaceholderText("Carpeta con marcos transparentes PNG para el HUD")
+        browse_hud_btn = QPushButton("Examinar…")
+        browse_hud_btn.clicked.connect(self.pick_bezel_hud)
+        hud_box = QHBoxLayout()
+        hud_box.addWidget(self.bezel_hud_path_edit, 1)
+        hud_box.addWidget(browse_hud_btn)
+        hud_holder = QWidget()
+        hud_holder.setLayout(hud_box)
+        bezel_hud_layout.addRow("Carpeta Bezel HUD:", hud_holder)
+
+        lbl_hud_hint = QLabel(
+            "<i>Esta carpeta es independiente de los bezels del diseño visual (layout). "
+            "Contiene las imágenes PNG con centro transparente para proyectar sobre el emulador al jugar. "
+            "Busca primero por nombre de la ROM (ej: pacman.png) y si no existe usa el de base (default.png o base.png).</i>"
+        )
+        lbl_hud_hint.setStyleSheet("color: #8f9aa9; font-size: 8.5pt;")
+        lbl_hud_hint.setWordWrap(True)
+        bezel_hud_layout.addRow(lbl_hud_hint)
+
+        scroll_layout.addWidget(bezel_hud_group)
+
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll, 1)
 
@@ -419,6 +451,10 @@ class ListDialog(QDialog):
 
             if existing.get("icon_path"):
                 self.icon_path_edit.setText(self._normalize_path(existing["icon_path"]))
+            hud_en = str(existing.get("bezel_hud_enabled", "true")).strip().lower() in ("true", "1")
+            self.bezel_hud_enabled_cb.setChecked(hud_en)
+            if existing.get("bezel_hud_path"):
+                self.bezel_hud_path_edit.setText(self._normalize_path(existing["bezel_hud_path"]))
             for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel"):
                 field_name = f"{k}_path"
                 if field_name in existing.keys() and existing[field_name]:
@@ -842,6 +878,14 @@ class ListDialog(QDialog):
         if path:
             self.icon_path_edit.setText(self._normalize_path(path))
 
+    def pick_bezel_hud(self):
+        """Abre un selector para elegir la carpeta del Bezel HUD."""
+        current = self.bezel_hud_path_edit.text().strip() if hasattr(self, "bezel_hud_path_edit") else ""
+        initial_dir = current if (current and Path(current).is_dir()) else self._get_primary_rom_folder()
+        path = QFileDialog.getExistingDirectory(self, "Seleccionar carpeta para Bezel HUD", initial_dir or "")
+        if path:
+            self.bezel_hud_path_edit.setText(self._normalize_path(path))
+
     def pick_folder(self):
         current_folders = self.get_rom_folders()
         initial_dir = current_folders[-1] if current_folders else ""
@@ -1055,6 +1099,8 @@ class ListDialog(QDialog):
             filter_match_mode,
             flyer_path,
             icon_path,
+            "true" if self.bezel_hud_enabled_cb.isChecked() else "false",
+            self._normalize_path(self.bezel_hud_path_edit.text().strip()),
         )
 
 
@@ -1781,6 +1827,15 @@ class GameEditDialog(QDialog):
             self.override_combo.setCurrentIndex(idx)
         form.addRow("Emulador individual", self.override_combo)
 
+        self.bezel_hud_combo = QComboBox()
+        self.bezel_hud_combo.addItem("Heredar de la lista (por defecto)", "")
+        self.bezel_hud_combo.addItem("Activar Bezel HUD (Forzar para este juego)", "enabled")
+        self.bezel_hud_combo.addItem("Desactivar Bezel HUD (No mostrar)", "disabled")
+        idx_bh = self.bezel_hud_combo.findData(game.get("bezel_hud_mode") or "")
+        if idx_bh >= 0:
+            self.bezel_hud_combo.setCurrentIndex(idx_bh)
+        form.addRow("Bezel HUD (Marco)", self.bezel_hud_combo)
+
         self.args_edit = QLineEdit(game["launch_arguments"] or "")
         self.args_edit.setPlaceholderText("Dejar vacío para usar los argumentos del emulador")
         form.addRow("Argumentos propios", self.args_edit)
@@ -1821,6 +1876,7 @@ class GameEditDialog(QDialog):
         sourcefile = self.sourcefile_edit.text().strip() if hasattr(self, "sourcefile_edit") else ""
 
         emu_override = self.override_combo.currentData()
+        bezel_hud_mode = self.bezel_hud_combo.currentData() or ""
         args = self.args_edit.text().strip()
         notes = self.notes_edit.toPlainText().strip()
 
@@ -1867,6 +1923,7 @@ class GameEditDialog(QDialog):
                 sourcefile=sourcefile,
                 xml_metadata=xml_metadata,
                 emulator_override_id=emu_override,
+                bezel_hud_mode=bezel_hud_mode,
                 launch_arguments=args,
                 notes=notes,
             )

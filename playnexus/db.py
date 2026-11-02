@@ -12,12 +12,17 @@ Estructura en <Carpeta PlayNexus>/:
 from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime
+import sys
 import json
 from pathlib import Path
 import re
 
 # Carpeta raíz de PlayNexus (todo se guarda localmente dentro del proyecto, nada en AppData)
-APP_DIR = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent.parent
+
 CONFIG_DIR = APP_DIR / "config"
 EMULATORS_DIR = APP_DIR / "emulators"
 LISTS_DIR = APP_DIR / "lists"
@@ -105,6 +110,8 @@ LIST_DEFAULTS = {
     "cabinet_path": "",
     "marquee_path": "",
     "bezel_path": "",
+    "bezel_hud_enabled": "true",
+    "bezel_hud_path": "",
     "xml_path": "",
     "created_at": "",
     "source_list_id": None,
@@ -285,7 +292,7 @@ class _PlainTextStore:
                 for k, def_v in LIST_DEFAULTS.items():
                     lst[k] = data.get(k, def_v)
                 for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                           "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path"):
+                           "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path"):
                     if lst.get(pk):
                         lst[pk] = str(lst[pk]).strip().replace("\\", "/")
                 if lst.get("roms_path"):
@@ -361,6 +368,7 @@ class _PlainTextStore:
                     xml_metadata = parts[15] if (len(parts) > 15 and parts[15]) else "{}"
                     created_at = parts[16] if len(parts) > 16 else ""
                     sourcefile = parts[17] if len(parts) > 17 else ""
+                    bezel_hud_mode = parts[18].strip() if len(parts) > 18 else ""
                     if not sourcefile and xml_metadata and xml_metadata != "{}":
                         try:
                             _m = json.loads(xml_metadata)
@@ -387,6 +395,7 @@ class _PlainTextStore:
                         "cover_path": cover_path,
                         "notes": notes,
                         "sourcefile": sourcefile,
+                        "bezel_hud_mode": bezel_hud_mode,
                         "xml_metadata": xml_metadata,
                         "created_at": created_at,
                     }
@@ -530,7 +539,7 @@ class _PlainTextStore:
         lines.append("[Games]")
         lines.append(
             "# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;"
-            "emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile"
+            "emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode"
         )
         for g in self.games_by_list.get(lid, []):
             row_fields = [
@@ -552,6 +561,7 @@ class _PlainTextStore:
                 _escape_field(g.get("xml_metadata", "{}")),
                 _escape_field(g.get("created_at", "")),
                 _escape_field(g.get("sourcefile", "")),
+                _escape_field(g.get("bezel_hud_mode", "")),
             ]
             lines.append(";".join(row_fields))
 
@@ -754,7 +764,7 @@ class Database:
             else:
                 lst[k] = def_v
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path"):
+                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path"):
             if lst.get(pk):
                 lst[pk] = str(lst[pk]).strip().replace("\\", "/")
         if lst.get("roms_path"):
@@ -794,7 +804,7 @@ class Database:
                     raise ValueError(f"Ya existe una lista con el nombre '{new_name}'.")
             updates["name"] = new_name
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path"):
+                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path"):
             if pk in updates and updates[pk] is not None:
                 updates[pk] = str(updates[pk]).strip().replace("\\", "/")
         if "roms_path" in updates and updates["roms_path"] is not None:
@@ -968,6 +978,7 @@ class Database:
             "rating": str(fields.get("rating") or ""),
             "crc": str(fields.get("crc") or ""),
             "sourcefile": str(fields.get("sourcefile") or ""),
+            "bezel_hud_mode": str(fields.get("bezel_hud_mode") or ""),
             "xml_metadata": str(fields.get("xml_metadata") or "{}"),
             "created_at": str(fields.get("created_at") or now_str),
         }

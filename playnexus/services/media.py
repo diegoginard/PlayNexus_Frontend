@@ -245,7 +245,14 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
 
         bezel_folder = row_dict.get("bezel_path")
         if bezel_folder:
-            media["bezel"] = find_media_file(bezel_folder, stem, IMAGE_EXTS)
+            b_found = find_media_file(bezel_folder, stem, IMAGE_EXTS)
+            if not b_found:
+                # Bezel de base (fallback) si no se encuentra el específico de la ROM
+                for fb in ("default", "base", "generic", "bezel"):
+                    b_found = find_media_file(bezel_folder, fb, IMAGE_EXTS)
+                    if b_found:
+                        break
+            media["bezel"] = b_found
 
     # Resolución de medios para Menú de Sistemas (cuando el item representa una lista/consola)
     if (not stem or row_dict.get("is_menu_target")) and row_dict:
@@ -316,3 +323,66 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
 
     media["snap"] = media["video"]
     return media
+
+
+def resolve_game_bezel(db, game: dict | None, list_row: dict | None = None) -> str | None:
+    """
+    Resuelve el archivo para el Bezel HUD (superpuesto sobre el emulador):
+    1. Si el juego tiene 'bezel_hud_mode' == 'disabled': retorna None.
+    2. Si 'bezel_hud_mode' != 'enabled': comprueba 'bezel_hud_enabled' de la lista. Si es falso, retorna None.
+    3. Obtiene la carpeta de Bezel HUD seleccionada en la lista ('bezel_hud_path').
+       Si no está configurada o no existe, retorna None.
+    4. Dentro de esa carpeta exclusivamente:
+       a) Busca el bezel de la ROM: <stem>.png o <rom_name>.png.
+       b) Si no lo encuentra, busca estrictamente 'default.png'.
+       c) Si ninguno existe, retorna None.
+    """
+    if not game:
+        return None
+
+    # 1. Comprobar override individual de la ROM
+    game_mode = str(game.get("bezel_hud_mode") or "").strip().lower()
+    if game_mode == "disabled":
+        return None
+
+    if list_row is None and db:
+        lid = game.get("list_id")
+        if lid:
+            try:
+                list_row = db.get_list(lid)
+            except Exception:
+                pass
+
+    if not list_row:
+        return None
+
+    # 2. Comprobar si la lista tiene activo el Bezel HUD (a menos que la ROM fuerce 'enabled')
+    if game_mode != "enabled":
+        list_enabled = str(list_row.get("bezel_hud_enabled", "true")).strip().lower() in ("true", "1")
+        if not list_enabled:
+            return None
+
+    # 3. Carpeta seleccionada para el Bezel HUD
+    hud_folder = str(list_row.get("bezel_hud_path") or "").strip()
+    if not hud_folder or not os.path.isdir(hud_folder):
+        return None
+
+    hud_path_obj = Path(hud_folder)
+
+    # 4. Búsqueda del bezel específico de la ROM (<stem>.png o <rom_name>.png)
+    rom_path = game.get("rom_path") or ""
+    stem = Path(rom_path).stem if rom_path else ""
+    rom_name = game.get("rom_name") or ""
+
+    for name in (stem, rom_name):
+        if name:
+            cand = hud_path_obj / f"{name}.png"
+            if cand.is_file():
+                return str(cand).replace("\\", "/")
+
+    # 5. Bezel por defecto estricto: default.png en la misma carpeta
+    default_cand = hud_path_obj / "default.png"
+    if default_cand.is_file():
+        return str(default_cand).replace("\\", "/")
+
+    return None

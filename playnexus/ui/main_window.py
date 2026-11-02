@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 import playnexus
 from PySide6.QtCore import Qt, QSize, QPoint, QTimer, QUrl
-from PySide6.QtGui import QAction, QFont, QIcon, QColor
+from PySide6.QtGui import QAction, QFont, QIcon, QColor, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
     QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
@@ -171,6 +171,11 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(960, 640)
         self.setStyleSheet(DARK_STYLESHEET)
 
+        root_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent.parent
+        logo_path = root_dir / "PlayNexus_Logo.png"
+        if logo_path.exists():
+            self.setWindowIcon(QIcon(str(logo_path)))
+
         self._build_ui()
         self.refresh_lists()
         self.refresh_emulators()
@@ -186,6 +191,21 @@ class MainWindow(QMainWindow):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(6)
+
+        # Logo de la aplicación
+        root_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent.parent
+        logo_path = root_dir / "PlayNexus_Logo.png"
+        if logo_path.exists():
+            logo_label = QLabel()
+            pix = QPixmap(str(logo_path))
+            if not pix.isNull():
+                scaled_pix = pix.scaledToWidth(210, Qt.SmoothTransformation)
+                logo_label.setPixmap(scaled_pix)
+                logo_label.setAlignment(Qt.AlignCenter)
+                logo_label.setStyleSheet("padding: 2px 0 6px 0;")
+                left_layout.addWidget(logo_label)
+
         left_label = QLabel("LISTAS / PLATAFORMAS")
         left_label.setStyleSheet("font-weight: bold; color: #8e9bb0; letter-spacing: 1px;")
         left_layout.addWidget(left_label)
@@ -328,6 +348,12 @@ class MainWindow(QMainWindow):
         self.override_combo = QComboBox()
         self.override_combo.currentIndexChanged.connect(self.save_override)
 
+        self.game_bezel_combo = QComboBox()
+        self.game_bezel_combo.addItem("Heredar de la lista (por defecto)", "")
+        self.game_bezel_combo.addItem("Activar Bezel HUD (Forzar)", "enabled")
+        self.game_bezel_combo.addItem("Desactivar Bezel HUD", "disabled")
+        self.game_bezel_combo.currentIndexChanged.connect(self.save_game_bezel_hud)
+
         form.addRow("Título:", self.game_name)
         form.addRow("ROM / Código:", self.game_rom_code)
         form.addRow("Propiedades:", self.game_meta_info)
@@ -335,6 +361,7 @@ class MainWindow(QMainWindow):
         form.addRow("Tamaño:", self.game_size)
         form.addRow("Emulador activo:", self.effective_emu)
         form.addRow("Emulador individual:", self.override_combo)
+        form.addRow("Bezel HUD:", self.game_bezel_combo)
 
         right_layout.addWidget(details_group)
 
@@ -343,10 +370,6 @@ class MainWindow(QMainWindow):
         self.launch_btn.setMinimumHeight(48)
         self.launch_btn.clicked.connect(self.launch_selected)
         right_layout.addWidget(self.launch_btn)
-
-        btn_open_folder = QPushButton("📂 Abrir en Explorador de Windows")
-        btn_open_folder.clicked.connect(self.open_rom_location)
-        right_layout.addWidget(btn_open_folder)
 
         tip_box = QFrame()
         tip_box.setStyleSheet("background-color: #1a1e28; border-radius: 6px; padding: 10px; margin-top: 10px;")
@@ -569,6 +592,8 @@ class MainWindow(QMainWindow):
             filter_match_mode = vals[22] if len(vals) > 22 else "all"
             flyer_path = vals[23] if len(vals) > 23 else ""
             icon_path = vals[24] if len(vals) > 24 else ""
+            bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
+            bezel_hud_path = vals[26] if len(vals) > 26 else ""
             try:
                 list_id = self.db.add_list(
                     name=name,
@@ -594,6 +619,8 @@ class MainWindow(QMainWindow):
                     filter_rules=filter_rules,
                     filter_match_mode=filter_match_mode,
                     icon_path=icon_path,
+                    bezel_hud_enabled=str(bezel_hud_enabled).lower(),
+                    bezel_hud_path=bezel_hud_path,
                 )
                 clear_media_cache()
                 if list_type == "menu":
@@ -664,6 +691,8 @@ class MainWindow(QMainWindow):
             filter_match_mode = vals[22] if len(vals) > 22 else "all"
             flyer_path = vals[23] if len(vals) > 23 else ""
             icon_path = vals[24] if len(vals) > 24 else ""
+            bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
+            bezel_hud_path = vals[26] if len(vals) > 26 else ""
             old_roms_path = format_rom_folders(row["roms_path"] if "roms_path" in row.keys() else "")
             old_exts = (row["allowed_extensions"] if "allowed_extensions" in row.keys() else "") or ""
             old_scan_sub = str(row.get("scan_subfolders", "true")).strip().lower() in ("true", "1")
@@ -708,6 +737,8 @@ class MainWindow(QMainWindow):
                     filter_rules=filter_rules,
                     filter_match_mode=filter_match_mode,
                     icon_path=icon_path,
+                    bezel_hud_enabled=str(bezel_hud_enabled).lower(),
+                    bezel_hud_path=bezel_hud_path,
                 )
                 clear_media_cache()
                 if list_type == "menu":
@@ -1225,6 +1256,13 @@ class MainWindow(QMainWindow):
         self.override_combo.setCurrentIndex(max(idx, 0))
         self.override_combo.blockSignals(False)
 
+        # Configurar combo de Bezel HUD individual
+        self.game_bezel_combo.blockSignals(True)
+        bezel_mode = game.get("bezel_hud_mode") or ""
+        idx_b = self.game_bezel_combo.findData(bezel_mode)
+        self.game_bezel_combo.setCurrentIndex(max(idx_b, 0))
+        self.game_bezel_combo.blockSignals(False)
+
         emu, source = resolve_emulator(self.db, game_row)
         if emu:
             source_desc = "asignado a este juego" if source == "juego" else "predeterminado de la lista"
@@ -1246,6 +1284,9 @@ class MainWindow(QMainWindow):
         self.override_combo.blockSignals(True)
         self.override_combo.setCurrentIndex(0)
         self.override_combo.blockSignals(False)
+        self.game_bezel_combo.blockSignals(True)
+        self.game_bezel_combo.setCurrentIndex(0)
+        self.game_bezel_combo.blockSignals(False)
 
     def save_override(self, index):
         if not self.current_game_id:
@@ -1254,6 +1295,13 @@ class MainWindow(QMainWindow):
         self.db.update_game(self.current_game_id, emulator_override_id=emu_id)
         self.refresh_games()
         self.statusBar().showMessage("Emulador individual actualizado para este juego.", 3000)
+
+    def save_game_bezel_hud(self, index):
+        if not self.current_game_id:
+            return
+        mode = self.game_bezel_combo.currentData() or ""
+        self.db.update_game(self.current_game_id, bezel_hud_mode=mode)
+        self.statusBar().showMessage("Configuración de Bezel HUD actualizada para este juego.", 3000)
 
     # -------------------------------------------------------------
     # ESCANEO Y ADICIÓN DE JUEGOS
