@@ -19,6 +19,10 @@ from playnexus.services.controls import (
     get_gamepad_binding, set_gamepad_binding, reset_default_gamepad_bindings
 )
 from playnexus.services.gamepad import poll_raw_gamepad_inputs
+from playnexus.services.emulator_templates import (
+    load_emulator_templates, save_emulator_templates, reset_default_templates
+)
+from playnexus.ui.dialogs import TemplateEditDialog
 
 SCREEN_MODES = [
     ("Pantalla completa exclusiva (Fullscreen)", "fullscreen"),
@@ -519,6 +523,60 @@ class SystemSettingsWidget(QWidget):
 
         layout.addWidget(grp_video)
 
+        # -------------------------------------------------------------
+        # 4. Grupo: Plantillas Rápidas para Emuladores
+        # -------------------------------------------------------------
+        grp_templates = QGroupBox("🧩 Plantillas Rápidas para Emuladores")
+        v_templates = QVBoxLayout(grp_templates)
+        v_templates.setSpacing(10)
+
+        lbl_tmpl_desc = QLabel(
+            "Administrá las plantillas que aparecen en el menú desplegable «Plantilla rápida» al dar de alta o configurar emuladores. "
+            "Podés crear tus propios presets con ejecutables, argumentos y plataformas habituales."
+        )
+        lbl_tmpl_desc.setStyleSheet("color: #a0aec0; font-size: 9pt;")
+        lbl_tmpl_desc.setWordWrap(True)
+        v_templates.addWidget(lbl_tmpl_desc)
+
+        self.templates_table = QTableWidget()
+        self.templates_table.setColumnCount(5)
+        self.templates_table.setHorizontalHeaderLabels([
+            "Nombre", "Ejecutable", "Argumentos", "Plataforma", "Descripción"
+        ])
+        self.templates_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.templates_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.templates_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.templates_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.templates_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.templates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.templates_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.templates_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.templates_table.setMinimumHeight(220)
+        self.templates_table.doubleClicked.connect(self._edit_selected_template)
+        v_templates.addWidget(self.templates_table)
+
+        row_t_btns = QHBoxLayout()
+        btn_add_tmpl = QPushButton("➕ Agregar plantilla…")
+        btn_add_tmpl.clicked.connect(self._add_template)
+        row_t_btns.addWidget(btn_add_tmpl)
+
+        btn_edit_tmpl = QPushButton("✏ Editar plantilla…")
+        btn_edit_tmpl.clicked.connect(self._edit_selected_template)
+        row_t_btns.addWidget(btn_edit_tmpl)
+
+        btn_del_tmpl = QPushButton("🗑 Eliminar plantilla")
+        btn_del_tmpl.clicked.connect(self._delete_selected_template)
+        row_t_btns.addWidget(btn_del_tmpl)
+
+        row_t_btns.addStretch()
+
+        btn_reset_tmpl = QPushButton("↺ Restaurar plantillas predeterminadas")
+        btn_reset_tmpl.clicked.connect(self._reset_templates)
+        row_t_btns.addWidget(btn_reset_tmpl)
+
+        v_templates.addLayout(row_t_btns)
+        layout.addWidget(grp_templates)
+
         # Barra inferior de guardado
         save_bar = QHBoxLayout()
         save_bar.addStretch(1)
@@ -537,6 +595,7 @@ class SystemSettingsWidget(QWidget):
         outer_layout.addWidget(scroll)
 
         self.refresh_controls_table()
+        self.refresh_templates_table()
         self.load_settings()
 
     def refresh_controls_table(self):
@@ -637,6 +696,84 @@ class SystemSettingsWidget(QWidget):
         if self.res_combo.count() > 0 and self.res_combo.itemData(0) == "system":
             self.res_combo.setItemText(0, text)
 
+    def refresh_templates_table(self):
+        """Llena la tabla de plantillas de emuladores desde el archivo de texto plano."""
+        templates = load_emulator_templates()
+        self.templates_table.setRowCount(len(templates))
+        for row, t in enumerate(templates):
+            item_name = QTableWidgetItem(t.get("name", ""))
+            item_name.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            self.templates_table.setItem(row, 0, item_name)
+
+            self.templates_table.setItem(row, 1, QTableWidgetItem(t.get("executable", "")))
+            self.templates_table.setItem(row, 2, QTableWidgetItem(t.get("arguments", "")))
+            self.templates_table.setItem(row, 3, QTableWidgetItem(t.get("platform", "") or "—"))
+
+            item_desc = QTableWidgetItem(t.get("description", ""))
+            item_desc.setForeground(Qt.gray)
+            self.templates_table.setItem(row, 4, item_desc)
+
+    def _add_template(self):
+        dialog = TemplateEditDialog(self)
+        if dialog.exec():
+            new_tmpl = dialog.values()
+            templates = load_emulator_templates()
+            templates.append(new_tmpl)
+            save_emulator_templates(templates)
+            self.refresh_templates_table()
+            QMessageBox.information(
+                self,
+                "Plantilla agregada",
+                f"La plantilla '{new_tmpl['name']}' fue guardada con éxito.\nYa está disponible en la lista de 'Plantilla rápida' al registrar o editar emuladores."
+            )
+
+    def _edit_selected_template(self):
+        selected = self.templates_table.selectionModel().selectedRows()
+        if not selected:
+            QMessageBox.information(self, "Seleccionar", "Por favor seleccioná una plantilla de la tabla para editar.")
+            return
+        row_idx = selected[0].row()
+        templates = load_emulator_templates()
+        if 0 <= row_idx < len(templates):
+            curr = templates[row_idx]
+            dialog = TemplateEditDialog(self, existing=curr)
+            if dialog.exec():
+                updated = dialog.values()
+                templates[row_idx] = updated
+                save_emulator_templates(templates)
+                self.refresh_templates_table()
+
+    def _delete_selected_template(self):
+        selected = self.templates_table.selectionModel().selectedRows()
+        if not selected:
+            QMessageBox.information(self, "Seleccionar", "Por favor seleccioná una plantilla de la tabla para eliminar.")
+            return
+        row_idx = selected[0].row()
+        templates = load_emulator_templates()
+        if 0 <= row_idx < len(templates):
+            target_name = templates[row_idx].get("name", "")
+            confirm = QMessageBox.question(
+                self,
+                "Confirmar eliminación",
+                f"¿Deseás eliminar la plantilla '{target_name}'?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if confirm == QMessageBox.Yes:
+                templates.pop(row_idx)
+                save_emulator_templates(templates)
+                self.refresh_templates_table()
+
+    def _reset_templates(self):
+        confirm = QMessageBox.question(
+            self,
+            "Restaurar plantillas",
+            "¿Deseás restaurar todas las plantillas rápidas a los valores predeterminados oficiales?\n\n(Nota: Tus emuladores ya registrados en la biblioteca no se modificarán).",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if confirm == QMessageBox.Yes:
+            reset_default_templates()
+            self.refresh_templates_table()
+
     def load_settings(self):
         """Carga las opciones de emuladores y pantalla desde la base de datos."""
         if not self.db:
@@ -686,6 +823,7 @@ class SystemSettingsWidget(QWidget):
         self.chk_show_fps.setChecked(self.db.get_setting("video_show_fps", "false").lower() == "true")
 
         self._update_system_res_label()
+        self.refresh_templates_table()
 
     def save_all(self):
         """Guarda todas las configuraciones en la base de datos."""

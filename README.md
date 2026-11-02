@@ -87,6 +87,8 @@ Disponible tanto para **Listas Filtradas** como para **Listas Comunes**:
 
 ### 6. Gestión de Emuladores y Prioridad de Lanzamiento
 - Administrador centralizado de emuladores con soporte para cualquier ejecutable o comando del sistema.
+- **Plantillas rápidas configurables:** Al dar de alta o editar un emulador, el selector desplegable **«Plantilla rápida»** permite autocompletar nombre, ejecutable, argumentos y plataforma con un solo clic (Juegos de Windows, RetroArch y núcleos habituales, MAME, DuckStation, PCSX2, Dolphin, PPSSPP, Flycast, RPCS3, etc.).
+- **Gestor de plantillas en Configuración del Sistema:** En la pestaña *⚙ Configuración del Sistema* podés agregar tus propias plantillas personalizadas con sus ejecutables y argumentos preferidos, editarlas, eliminarlas o restablecer las predeterminadas, quedando inmediatamente disponibles en el selector rápido.
 - **Prioridad obligatoria al lanzar un juego:**
   1. *Prioridad 1:* Emulador asignado individualmente al juego (sobrescritura por título).
   2. *Prioridad 2:* Emulador predeterminado configurado en la lista activa.
@@ -120,10 +122,12 @@ PlayNexus ofrece un sistema modular y nativo de presentación visual en PySide6 
 ### 10. Bezels Superpuestos en Primer Plano (Bezel HUD / Overlay Transparente)
 PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por encima de la ventana del emulador en tiempo de ejecución:
 - **Carpeta independiente de Bezel HUD:** La carpeta de Bezel HUD (`bezel_hud_path`) se configura por lista y es totalmente independiente de los bezels de artwork del frontend (`bezel_path`).
-- **Resolución estricta por ROM:** Al iniciar el juego, PlayNexus busca únicamente dentro de la carpeta HUD seleccionada:
+- **Resolución estricta por ROM y orientación de pantalla:** Al iniciar el juego, PlayNexus busca únicamente dentro de la carpeta HUD seleccionada:
   1. `<nombre_rom>.png` (o el nombre base de la ROM).
-  2. Si no se encuentra, busca estricta y únicamente **`default.png`** en esa misma carpeta.
-  3. Si ninguno de los dos existe, no se proyecta ningún bezel.
+  2. Si no se encuentra:
+     - Para juegos con pantalla vertical (detectados automáticamente por rotación MAME 90°/270°, resolución o configuración manual): busca primero **`default_v.png`**. Si no existe en la carpeta, recurre a **`default.png`**.
+     - Para juegos con pantalla horizontal estándar: busca estrictamente **`default.png`**.
+  3. Si ninguno de los archivos existe, no se proyecta ningún bezel.
   *(No busca en ninguna otra carpeta ni utiliza heurísticas de nombres alternativos).*
 - **Control por lista y anulación (override) por ROM:**
   - Se puede activar o desactivar el HUD para toda la lista de juegos.
@@ -151,7 +155,7 @@ PlayNexus_Frontend/
 ├── entry_config.py           # Punto de entrada para PlayNexus_Config.exe
 ├── entry_launcher.py         # Punto de entrada para PlayNexus_Launcher.exe
 ├── PlayNexus_Logo.png        # Logotipo del proyecto
-├── config/                   # Configuración global del sistema (settings.txt)
+├── config/                   # Configuración global del sistema (settings.txt, emulator_templates.txt)
 ├── emulators/                # Archivos .txt independientes por cada emulador registrado
 ├── lists/                    # Archivos .txt independientes por lista/menú y sus juegos
 ├── icons/                    # Logotipos e iconos de consolas y arcades (.png)
@@ -164,6 +168,7 @@ PlayNexus_Frontend/
     │   ├── __init__.py
     │   ├── controls.py       # Mapeo y gestión de controles de teclado
     │   ├── emulator_manager.py # Monitoreo de procesos, silenciamiento y salida global
+    │   ├── emulator_templates.py # Carga, edición y persistencia de plantillas rápidas
     │   ├── gamepad.py        # Lectura y eventos de joystick / gamepad
     │   ├── launcher.py       # Resolución de emuladores, comodines Attract-Mode y ejecución
     │   ├── library.py        # Normalización de extensiones, XML de MAME, filtros y escaneo
@@ -197,5 +202,6 @@ PlayNexus_Frontend/
 PlayNexus almacena toda la información de manera legible y portable en archivos de texto plano directamente dentro de la carpeta del proyecto, sin crear entradas en el registro ni carpetas ocultas en `AppData`:
 
 - **`config/settings.txt`**: Ajustes generales, controles asignados, modos de video y preferencias.
+- **`config/emulator_templates.txt`**: Catálogo de plantillas rápidas de emuladores (nombre, ejecutable, argumentos, plataforma, descripción).
 - **`emulators/<NombreEmulador>.txt`**: Parámetros de cada emulador (`executable`, `arguments`, `platform`).
 - **`lists/<NombreLista>.txt`**: Configuración de cada lista (`[List]`: rutas de ROMs, layout, icono, filtros, medios, Bezel HUD) y catálogo completo de juegos (`[Games]`: título, archivo, emulador individual, modo de Bezel HUD, metadatos).

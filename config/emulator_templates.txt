@@ -1,0 +1,17 @@
+# Plantillas Rápidas de Emuladores para PlayNexus (Texto Plano)
+# Formato: nombre;ejecutable;argumentos;plataforma;descripcion
+# Este archivo puede ser editado directamente o desde Configuración del Sistema en la aplicación.
+
+Juegos de Windows / PC (cmd.exe);cmd;/c "[romfilename]";PC Games;Lanza ejecutables (.exe), accesos directos (.lnk) y scripts (.bat) con cwd en la carpeta del juego.
+RetroArch (General);retroarch.exe;-f -L cores\\nombre_core_libretro.dll "{rom}";Multi-sistema;Inicia RetroArch en pantalla completa cargando el núcleo especificado.
+RetroArch - Genesis Plus GX (Mega Drive);retroarch.exe;-f -L cores\\genesis_plus_gx_libretro.dll "{rom}";Sega Genesis;Núcleo de alta compatibilidad para Sega Genesis / Mega Drive y Master System.
+RetroArch - Snes9x (Super Nintendo);retroarch.exe;-f -L cores\\snes9x_libretro.dll "{rom}";Super Nintendo;Núcleo Snes9x para Super Nintendo / Super Famicom.
+RetroArch - Beetle PSX (PlayStation 1);retroarch.exe;-f -L cores\\mednafen_psx_hw_libretro.dll "{rom}";Sony PlayStation;Núcleo Beetle PSX HW con renderizado por hardware.
+RetroArch - Mupen64Plus (Nintendo 64);retroarch.exe;-f -L cores\\mupen64plus_next_libretro.dll "{rom}";Nintendo 64;Núcleo Mupen64Plus-Next de alto rendimiento para N64.
+MAME (Arcade Oficial);mame.exe;[name] -skip_gameinfo;Arcade;Lanza la ROM de arcade en MAME omitiendo pantallas de diagnóstico inicial.
+DuckStation (PlayStation 1);duckstation-qt-x64-ReleaseLTCG.exe;-batch -fullscreen "[romfilename]";Sony PlayStation;Emulador DuckStation moderno en modo batch a pantalla completa.
+PCSX2 (PlayStation 2);pcsx2-qtx64.exe;-nogui -fullscreen -- "[romfilename]";Sony PlayStation 2;PCSX2 Qt en modo pantalla completa sin GUI.
+Dolphin (GameCube / Wii);Dolphin.exe;-b -e "[romfilename]";Nintendo GameCube;Dolphin en modo batch / arranque directo del juego.
+PPSSPP (Sony PSP);PPSSPPWindows64.exe;"[romfilename]";Sony PSP;Emulador PPSSPP para PlayStation Portable en pantalla completa.
+Flycast (Dreamcast / Naomi);flycast.exe;"[romfilename]";Sega Dreamcast;Emulador Flycast para Sega Dreamcast, Naomi y Naomi 2.
+RPCS3 (PlayStation 3);rpcs3.exe;--no-gui "[romfilename]";Sony PlayStation 3;RPCS3 para PS3 en modo directo sin interfaz.

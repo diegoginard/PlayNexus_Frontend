@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from pathlib import Path
@@ -325,6 +326,63 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
     return media
 
 
+def is_game_vertical(game: dict | None) -> bool:
+    """
+    Determina si un juego tiene orientación de pantalla vertical:
+    1. Campo directo o override manual: 'orientation', 'rotate', 'rotation', 'display_rotate'.
+    2. Propiedades de XML / Metadatos (MAME, Arcade):
+       - 'display_rotate' en ('90', '270')
+       - 'rotate' / 'rotation' en ('90', '270')
+       - 'orientation' / 'video_orientation' / 'display_orientation' con 'vertical'
+       - 'display_height' > 'display_width' cuando no hay rotación explícita
+    """
+    if not game:
+        return False
+
+    meta_dict: dict = {}
+    xml_props = game.get("xml_properties")
+    if isinstance(xml_props, dict):
+        meta_dict.update(xml_props)
+
+    xml_raw = game.get("xml_metadata")
+    if isinstance(xml_raw, dict):
+        meta_dict.update(xml_raw)
+    elif isinstance(xml_raw, str) and xml_raw.strip() and xml_raw != "{}":
+        try:
+            parsed = json.loads(xml_raw)
+            if isinstance(parsed, dict):
+                meta_dict.update(parsed)
+        except Exception:
+            pass
+
+    # Combinar con los campos directos del diccionario del juego
+    merged = {**meta_dict, **{k: v for k, v in game.items() if v is not None}}
+
+    # 1. Comprobar orientación explícita o manual del usuario
+    for k in ("orientation", "video_orientation", "display_orientation"):
+        val = str(merged.get(k) or "").strip().lower()
+        if "vertical" in val or val in ("v", "vert", "90", "270"):
+            return True
+        if "horizontal" in val or val in ("h", "horiz", "0", "180"):
+            return False
+
+    # 2. Comprobar rotación explícita (MAME XML: 90 y 270 grados indican monitor vertical)
+    for k in ("display_rotate", "rotate", "rotation"):
+        val = str(merged.get(k) or "").strip().lower()
+        if val in ("90", "270", "90.0", "270.0"):
+            return True
+
+    # 3. Comprobar resolución si el alto nativo es mayor que el ancho
+    w_str = str(merged.get("display_width") or "").strip()
+    h_str = str(merged.get("display_height") or "").strip()
+    if w_str.isdigit() and h_str.isdigit():
+        w, h = int(w_str), int(h_str)
+        if h > w and w > 0:
+            return True
+
+    return False
+
+
 def resolve_game_bezel(db, game: dict | None, list_row: dict | None = None) -> str | None:
     """
     Resuelve el archivo para el Bezel HUD (superpuesto sobre el emulador):
@@ -334,7 +392,9 @@ def resolve_game_bezel(db, game: dict | None, list_row: dict | None = None) -> s
        Si no está configurada o no existe, retorna None.
     4. Dentro de esa carpeta exclusivamente:
        a) Busca el bezel de la ROM: <stem>.png o <rom_name>.png.
-       b) Si no lo encuentra, busca estrictamente 'default.png'.
+       b) Si no lo encuentra:
+          - Si el juego tiene pantalla vertical, busca 'default_v.png'.
+          - Si no existe 'default_v.png' (o si es horizontal), busca estrictamente 'default.png'.
        c) Si ninguno existe, retorna None.
     """
     if not game:
@@ -380,7 +440,14 @@ def resolve_game_bezel(db, game: dict | None, list_row: dict | None = None) -> s
             if cand.is_file():
                 return str(cand).replace("\\", "/")
 
-    # 5. Bezel por defecto estricto: default.png en la misma carpeta
+    # 5. Bezel por defecto:
+    # Si el juego es de pantalla vertical, busca primero default_v.png
+    if is_game_vertical(game):
+        default_v = hud_path_obj / "default_v.png"
+        if default_v.is_file():
+            return str(default_v).replace("\\", "/")
+
+    # Si no es vertical, o si default_v.png no está presente, busca default.png
     default_cand = hud_path_obj / "default.png"
     if default_cand.is_file():
         return str(default_cand).replace("\\", "/")

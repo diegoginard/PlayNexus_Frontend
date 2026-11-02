@@ -1,7 +1,7 @@
-# Configuración de Emulador: Super Nintendo
+# Configuración de Emulador: Super-Snes9x
 id = 1
-name = Super Nintendo
+name = Super-Snes9x
 executable = C:/Attract/Emu/Super Nintendo/super-snes9x/super-snes9x-x64.exe
 arguments = "{rom}" -fullscreen
-platform = 
+platform = Super Nintendo
 created_at = 2026-10-25 01:09:49

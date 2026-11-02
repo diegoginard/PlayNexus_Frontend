@@ -398,7 +398,7 @@ class ListDialog(QDialog):
         lbl_hud_hint = QLabel(
             "<i>Esta carpeta es independiente de los bezels del diseño visual (layout). "
             "Contiene las imágenes PNG con centro transparente para proyectar sobre el emulador al jugar. "
-            "Busca primero por nombre de la ROM (ej: pacman.png) y si no existe usa el de base (default.png o base.png).</i>"
+            "Busca primero por nombre de la ROM (ej: pacman.png) y si no existe usa default.png (o default_v.png para juegos con pantalla vertical).</i>"
         )
         lbl_hud_hint.setStyleSheet("color: #8f9aa9; font-size: 8.5pt;")
         lbl_hud_hint.setWordWrap(True)
@@ -1132,13 +1132,13 @@ class EmulatorDialog(QDialog):
 
         form = QFormLayout()
 
-        # Botón de plantilla rápida para juegos de Windows / PC
+        # Selector de plantilla rápida
         presets_row = QHBoxLayout()
-        quick_win_btn = QPushButton("⚙ Cargar plantilla para Juegos de Windows (cmd.exe)")
-        quick_win_btn.setToolTip("Configura automáticamente 'cmd' y argumentos /c \"[romfilename]\" para scripts .bat y accesos directos .lnk")
-        quick_win_btn.clicked.connect(self._preset_windows_cmd)
-        presets_row.addWidget(quick_win_btn)
-        presets_row.addStretch()
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("— Seleccionar una plantilla rápida… —", None)
+        self._load_presets()
+        self.preset_combo.currentIndexChanged.connect(self._on_preset_selected)
+        presets_row.addWidget(self.preset_combo, 1)
         form.addRow("Plantilla rápida", presets_row)
 
         form.addRow("Nombre del emulador *", self.name)
@@ -1170,6 +1170,26 @@ class EmulatorDialog(QDialog):
             self.exe.setText(existing["executable"])
             self.args.setText(existing["arguments"])
             self.platform.setText(existing["platform"] or "")
+
+    def _load_presets(self):
+        try:
+            from playnexus.services.emulator_templates import load_emulator_templates
+            templates = load_emulator_templates()
+            for tmpl in templates:
+                plat_str = f" [{tmpl['platform']}]" if tmpl.get("platform") else ""
+                self.preset_combo.addItem(f"{tmpl['name']}{plat_str}", tmpl)
+        except Exception as e:
+            print(f"Error cargando plantillas de emuladores: {e}")
+
+    def _on_preset_selected(self, index: int):
+        tmpl = self.preset_combo.currentData()
+        if not tmpl:
+            return
+        self.name.setText(tmpl.get("name", ""))
+        self.exe.setText(tmpl.get("executable", ""))
+        self.args.setText(tmpl.get("arguments", ""))
+        if tmpl.get("platform"):
+            self.platform.setText(tmpl.get("platform", ""))
 
     def _preset_windows_cmd(self):
         if not self.name.text().strip():
@@ -1220,6 +1240,93 @@ class EmulatorDialog(QDialog):
             self.args.text().strip() or '"{rom}"',
             self.platform.text().strip()
         )
+
+
+class TemplateEditDialog(QDialog):
+    """Diálogo modal para crear o editar una plantilla rápida de emulador."""
+    def __init__(self, parent=None, existing=None):
+        super().__init__(parent)
+        self.setWindowTitle("Editar Plantilla de Emulador" if existing else "Nueva Plantilla de Emulador")
+        self.setMinimumWidth(540)
+
+        self.name_edit = QLineEdit(existing.get("name", "") if existing else "")
+        self.name_edit.setPlaceholderText("Ej: RetroArch - Genesis Plus GX, DuckStation, PCSX2...")
+
+        self.exe_edit = QLineEdit(existing.get("executable", "") if existing else "")
+        self.exe_edit.setPlaceholderText("Ej: retroarch.exe, cmd, pcsx2-qtx64.exe...")
+        browse_btn = QPushButton("Examinar…")
+        browse_btn.clicked.connect(self._pick_exe)
+        exe_row = QHBoxLayout()
+        exe_row.addWidget(self.exe_edit, 1)
+        exe_row.addWidget(browse_btn)
+        exe_holder = QWidget()
+        exe_holder.setLayout(exe_row)
+
+        self.args_edit = QLineEdit(existing.get("arguments", "") if existing else '"{rom}"')
+        self.args_edit.setPlaceholderText('Ej: -f -L cores\\core.dll "{rom}" o /c "[romfilename]"')
+
+        self.plat_edit = QLineEdit(existing.get("platform", "") if existing else "")
+        self.plat_edit.setPlaceholderText("Ej: Multi-sistema, PC Games, Arcade, Super Nintendo...")
+
+        self.desc_edit = QLineEdit(existing.get("description", "") if existing else "")
+        self.desc_edit.setPlaceholderText("Descripción breve o notas sobre la plantilla")
+
+        form = QFormLayout()
+        form.addRow("Nombre de la plantilla *", self.name_edit)
+        form.addRow("Ejecutable (.exe / comando) *", exe_holder)
+        form.addRow("Argumentos de inicio", self.args_edit)
+        form.addRow("Plataforma", self.plat_edit)
+        form.addRow("Descripción", self.desc_edit)
+
+        hint = QLabel(
+            "<b>Comodines de argumentos admitidos:</b><br>"
+            "<code>{rom}</code> o <code>[romfilename]</code>: Ruta completa al archivo del juego.<br>"
+            "<code>{rom_dir}</code> o <code>[rompath]</code>: Carpeta donde reside el juego.<br>"
+            "<code>{rom_name}</code> o <code>[name]</code>: Nombre del juego sin extensión."
+        )
+        hint.setStyleSheet("color: #aab1c0; font-size: 8.5pt;")
+        hint.setWordWrap(True)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(hint)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._validate)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _pick_exe(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar ejecutable",
+            "",
+            "Archivos ejecutables (*.exe *.bat *.cmd);;Todos los archivos (*.*)"
+        )
+        if path:
+            self.exe_edit.setText(path)
+
+    def _validate(self):
+        name = self.name_edit.text().strip()
+        exe = self.exe_edit.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Dato requerido", "Ingresá un nombre para la plantilla.")
+            self.name_edit.setFocus()
+            return
+        if not exe:
+            QMessageBox.warning(self, "Dato requerido", "Ingresá o seleccioná un ejecutable para la plantilla.")
+            self.exe_edit.setFocus()
+            return
+        self.accept()
+
+    def values(self) -> dict[str, str]:
+        return {
+            "name": self.name_edit.text().strip(),
+            "executable": self.exe_edit.text().strip(),
+            "arguments": self.args_edit.text().strip(),
+            "platform": self.plat_edit.text().strip(),
+            "description": self.desc_edit.text().strip(),
+        }
 
 
 class EmulatorManagerWidget(QWidget):
@@ -1817,6 +1924,24 @@ class GameEditDialog(QDialog):
         self.sourcefile_edit.setPlaceholderText("Archivo fuente driver MAME (ej: capcom/cps1.cpp, neogeo.cpp)")
         meta_form.addRow("Sourcefile:", self.sourcefile_edit)
 
+        # Orientación de pantalla (útil para Bezel HUD vertical/horizontal)
+        self.orientation_combo = QComboBox()
+        self.orientation_combo.addItem("Automático (según XML / Metadatos)", "")
+        self.orientation_combo.addItem("Horizontal (Estándar)", "horizontal")
+        self.orientation_combo.addItem("Vertical (TATE)", "vertical")
+        cur_orient = ""
+        meta_json_raw = game.get("xml_metadata") or "{}"
+        try:
+            m_dict_or = json.loads(meta_json_raw) if isinstance(meta_json_raw, str) else meta_json_raw
+            if isinstance(m_dict_or, dict):
+                cur_orient = m_dict_or.get("orientation") or ""
+        except Exception:
+            pass
+        idx_or = self.orientation_combo.findData(cur_orient.lower())
+        if idx_or >= 0:
+            self.orientation_combo.setCurrentIndex(idx_or)
+        meta_form.addRow("Orientación:", self.orientation_combo)
+
         self.override_combo = QComboBox()
         self.override_combo.addItem("Heredar emulador de la lista (por defecto)", None)
         emulators = self.db.get_emulators()
@@ -1893,6 +2018,11 @@ class GameEditDialog(QDialog):
         meta_dict["rom_name"] = rom_name
         if sourcefile:
             meta_dict["sourcefile"] = sourcefile
+        orient_val = self.orientation_combo.currentData() or ""
+        if orient_val:
+            meta_dict["orientation"] = orient_val
+        elif "orientation" in meta_dict:
+            meta_dict.pop("orientation", None)
         for k, v in (
             ("year", year),
             ("manufacturer", manufacturer),

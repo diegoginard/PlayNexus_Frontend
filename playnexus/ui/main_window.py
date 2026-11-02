@@ -18,7 +18,7 @@ from playnexus.services.library import (
     parse_rom_xml, apply_xml_to_list, enrich_game_dict,
     parse_rom_folders, format_rom_folders, sync_filtered_list_games
 )
-from playnexus.services.media import clear_media_cache
+from playnexus.services.media import clear_media_cache, is_game_vertical
 from playnexus.services.launcher import launch_game, resolve_emulator
 from playnexus.ui.dialogs import (
     EmulatorDialog, ListDialog, EmulatorManagerDialog, EmulatorManagerWidget,
@@ -1227,6 +1227,8 @@ class MainWindow(QMainWindow):
             meta_parts.append(f"<b>CRC:</b> {game['crc']}")
         if game.get("sourcefile"):
             meta_parts.append(f"<b>Driver:</b> {game['sourcefile']}")
+        if is_game_vertical(game):
+            meta_parts.append("<span style='color: #38bdf8;'><b>Pantalla:</b> Vertical ↕</span>")
 
         if meta_parts:
             self.game_meta_info.setText(" · ".join(meta_parts))

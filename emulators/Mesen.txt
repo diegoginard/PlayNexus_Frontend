@@ -1,0 +1,7 @@
+# Configuración de Emulador: Mesen
+id = 19
+name = Mesen
+executable = C:/Attract/Emu/Mesen/Mesen.exe
+arguments = "{rom}" -fullscreen
+platform = 
+created_at = 2026-11-02 15:27:37
