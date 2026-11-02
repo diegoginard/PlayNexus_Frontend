@@ -124,6 +124,8 @@ EMULATOR_DEFAULTS = {
     "executable": "",
     "arguments": '"{rom}"',
     "platform": "",
+    "bezel_delay": "0.0",
+    "bezel_fade": "0.3",
     "created_at": "",
 }
 
@@ -479,7 +481,7 @@ class _PlainTextStore:
             f"# Configuración de Emulador: {emu.get('name', '')}",
             f"id = {eid}",
         ]
-        for k in ("name", "executable", "arguments", "platform", "created_at"):
+        for k in ("name", "executable", "arguments", "platform", "bezel_delay", "bezel_fade", "created_at"):
             val = str(emu.get(k) or "").replace("\r", "").replace("\n", "\\n")
             lines.append(f"{k} = {val}")
 
@@ -666,6 +668,8 @@ class Database:
         executable: str,
         arguments: str = '"{rom}"',
         platform: str = "",
+        bezel_delay: float | str = 0.0,
+        bezel_fade: float | str = 0.3,
     ) -> int:
         """Registra un nuevo emulador y crea su archivo .txt en emulators/."""
         clean_name = str(name or "").strip()
@@ -681,6 +685,8 @@ class Database:
             "executable": str(executable or ""),
             "arguments": str(arguments or '"{rom}"'),
             "platform": str(platform or ""),
+            "bezel_delay": str(bezel_delay if bezel_delay is not None else "0.0"),
+            "bezel_fade": str(bezel_fade if bezel_fade is not None else "0.3"),
             "created_at": now_str,
         }
         self._store._dirty_emulators.add(eid)
@@ -698,6 +704,10 @@ class Database:
                 if other_id != eid and ex["name"].lower() == new_name.lower():
                     raise ValueError(f"Ya existe un emulador con el nombre '{new_name}'.")
             updates["name"] = new_name
+        if "bezel_delay" in updates and updates["bezel_delay"] is not None:
+            updates["bezel_delay"] = str(updates["bezel_delay"])
+        if "bezel_fade" in updates and updates["bezel_fade"] is not None:
+            updates["bezel_fade"] = str(updates["bezel_fade"])
         self._store.emulators[eid].update(updates)
         self._store._dirty_emulators.add(eid)
         self._store.flush()

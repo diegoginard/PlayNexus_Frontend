@@ -539,15 +539,17 @@ class SystemSettingsWidget(QWidget):
         v_templates.addWidget(lbl_tmpl_desc)
 
         self.templates_table = QTableWidget()
-        self.templates_table.setColumnCount(5)
+        self.templates_table.setColumnCount(7)
         self.templates_table.setHorizontalHeaderLabels([
-            "Nombre", "Ejecutable", "Argumentos", "Plataforma", "Descripción"
+            "Nombre", "Ejecutable", "Argumentos", "Plataforma", "Retardo", "Fade", "Descripción"
         ])
         self.templates_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.templates_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.templates_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.templates_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.templates_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.templates_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        self.templates_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
         self.templates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.templates_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.templates_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -709,9 +711,28 @@ class SystemSettingsWidget(QWidget):
             self.templates_table.setItem(row, 2, QTableWidgetItem(t.get("arguments", "")))
             self.templates_table.setItem(row, 3, QTableWidgetItem(t.get("platform", "") or "—"))
 
+            d_raw = t.get("bezel_delay", "0.0")
+            f_raw = t.get("bezel_fade", "0.3")
+            try:
+                d_str = f"{float(d_raw):.1f} s"
+            except Exception:
+                d_str = "0.0 s"
+            try:
+                f_str = f"{float(f_raw):.1f} s"
+            except Exception:
+                f_str = "0.3 s"
+
+            item_d = QTableWidgetItem(d_str)
+            item_d.setTextAlignment(Qt.AlignCenter)
+            self.templates_table.setItem(row, 4, item_d)
+
+            item_f = QTableWidgetItem(f_str)
+            item_f.setTextAlignment(Qt.AlignCenter)
+            self.templates_table.setItem(row, 5, item_f)
+
             item_desc = QTableWidgetItem(t.get("description", ""))
             item_desc.setForeground(Qt.gray)
-            self.templates_table.setItem(row, 4, item_desc)
+            self.templates_table.setItem(row, 6, item_desc)
 
     def _add_template(self):
         dialog = TemplateEditDialog(self)

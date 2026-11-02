@@ -165,7 +165,7 @@ def _launch_game_impl(db, game, layout=None, parent_window=None):
     try:
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         game_title = game.get("title", emulator["name"]) if isinstance(game, dict) else emulator["name"]
-        EMULATOR_MANAGER.start_monitoring(proc, game_title, layout, db, parent_window, game=game)
+        EMULATOR_MANAGER.start_monitoring(proc, game_title, layout, db, parent_window, game=game, emulator=emulator)
     except Exception:
         pass
 

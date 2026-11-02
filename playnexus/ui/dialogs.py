@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit, QComboBox, QPushButton,
     QDialogButtonBox, QFileDialog, QMessageBox, QHBoxLayout, QWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QLabel, QGroupBox,
-    QTextEdit, QAbstractItemView, QCheckBox, QSpinBox, QFrame,
+    QTextEdit, QAbstractItemView, QCheckBox, QSpinBox, QDoubleSpinBox, QFrame,
     QListWidget, QListWidgetItem, QScrollArea, QProgressBar, QPlainTextEdit
 )
 from playnexus.services.library import (
@@ -1146,6 +1146,42 @@ class EmulatorDialog(QDialog):
         form.addRow("Argumentos de inicio", self.args)
         form.addRow("Plataforma (opcional)", self.platform)
 
+        # Configuración de retardo y fade para el Bezel HUD
+        self.bezel_delay_spin = QDoubleSpinBox()
+        self.bezel_delay_spin.setRange(0.0, 30.0)
+        self.bezel_delay_spin.setSingleStep(0.5)
+        self.bezel_delay_spin.setDecimals(1)
+        self.bezel_delay_spin.setSuffix(" seg")
+        self.bezel_delay_spin.setValue(0.0)
+        self.bezel_delay_spin.setToolTip("Tiempo de espera tras el lanzamiento antes de desplegar el Bezel HUD y permitir el cierre.")
+
+        self.bezel_fade_spin = QDoubleSpinBox()
+        self.bezel_fade_spin.setRange(0.0, 10.0)
+        self.bezel_fade_spin.setSingleStep(0.1)
+        self.bezel_fade_spin.setDecimals(1)
+        self.bezel_fade_spin.setSuffix(" seg")
+        self.bezel_fade_spin.setValue(0.3)
+        self.bezel_fade_spin.setToolTip("Duración de la animación de fundido (fade-in) del Bezel HUD en segundos.")
+
+        bezel_anim_row = QHBoxLayout()
+        bezel_anim_row.addWidget(QLabel("Retardo (Delay):"))
+        bezel_anim_row.addWidget(self.bezel_delay_spin, 1)
+        bezel_anim_row.addSpacing(16)
+        bezel_anim_row.addWidget(QLabel("Fundido (Fade-in):"))
+        bezel_anim_row.addWidget(self.bezel_fade_spin, 1)
+
+        bezel_holder = QWidget()
+        bezel_holder.setLayout(bezel_anim_row)
+        form.addRow("Bezel HUD (Aparición)", bezel_holder)
+
+        lockout_hint = QLabel(
+            "🔒 <i>Protección contra congelamiento: El botón o comando de salida (Escape / Back+Start) permanece bloqueado "
+            "durante la inicialización hasta que el Bezel termine de aparecer.</i>"
+        )
+        lockout_hint.setStyleSheet("color: #7289da; font-size: 8.5pt;")
+        lockout_hint.setWordWrap(True)
+        form.addRow("", lockout_hint)
+
         hint = QLabel(
             "<b>Plantillas de argumentos admitidas:</b><br>"
             "<code>{rom}</code> o <code>[romfilename]</code>: Ruta completa al archivo del juego.<br>"
@@ -1170,6 +1206,14 @@ class EmulatorDialog(QDialog):
             self.exe.setText(existing["executable"])
             self.args.setText(existing["arguments"])
             self.platform.setText(existing["platform"] or "")
+            try:
+                self.bezel_delay_spin.setValue(float(existing.get("bezel_delay", 0.0) or 0.0))
+            except Exception:
+                self.bezel_delay_spin.setValue(0.0)
+            try:
+                self.bezel_fade_spin.setValue(float(existing.get("bezel_fade", 0.3) if existing.get("bezel_fade") is not None else 0.3))
+            except Exception:
+                self.bezel_fade_spin.setValue(0.3)
 
     def _load_presets(self):
         try:
@@ -1190,6 +1234,16 @@ class EmulatorDialog(QDialog):
         self.args.setText(tmpl.get("arguments", ""))
         if tmpl.get("platform"):
             self.platform.setText(tmpl.get("platform", ""))
+        if "bezel_delay" in tmpl:
+            try:
+                self.bezel_delay_spin.setValue(float(tmpl["bezel_delay"]))
+            except Exception:
+                pass
+        if "bezel_fade" in tmpl:
+            try:
+                self.bezel_fade_spin.setValue(float(tmpl["bezel_fade"]))
+            except Exception:
+                pass
 
     def _preset_windows_cmd(self):
         if not self.name.text().strip():
@@ -1238,7 +1292,9 @@ class EmulatorDialog(QDialog):
             self.name.text().strip(),
             self.exe.text().strip(),
             self.args.text().strip() or '"{rom}"',
-            self.platform.text().strip()
+            self.platform.text().strip(),
+            float(self.bezel_delay_spin.value()),
+            float(self.bezel_fade_spin.value()),
         )
 
 
@@ -1271,12 +1327,42 @@ class TemplateEditDialog(QDialog):
         self.desc_edit = QLineEdit(existing.get("description", "") if existing else "")
         self.desc_edit.setPlaceholderText("Descripción breve o notas sobre la plantilla")
 
+        self.bezel_delay_spin = QDoubleSpinBox()
+        self.bezel_delay_spin.setRange(0.0, 30.0)
+        self.bezel_delay_spin.setSingleStep(0.5)
+        self.bezel_delay_spin.setDecimals(1)
+        self.bezel_delay_spin.setSuffix(" seg")
+        try:
+            self.bezel_delay_spin.setValue(float(existing.get("bezel_delay", 0.0) or 0.0) if existing else 0.0)
+        except Exception:
+            self.bezel_delay_spin.setValue(0.0)
+
+        self.bezel_fade_spin = QDoubleSpinBox()
+        self.bezel_fade_spin.setRange(0.0, 10.0)
+        self.bezel_fade_spin.setSingleStep(0.1)
+        self.bezel_fade_spin.setDecimals(1)
+        self.bezel_fade_spin.setSuffix(" seg")
+        try:
+            self.bezel_fade_spin.setValue(float(existing.get("bezel_fade", 0.3) if existing and existing.get("bezel_fade") is not None else 0.3))
+        except Exception:
+            self.bezel_fade_spin.setValue(0.3)
+
+        anim_row = QHBoxLayout()
+        anim_row.addWidget(QLabel("Retardo (Delay):"))
+        anim_row.addWidget(self.bezel_delay_spin, 1)
+        anim_row.addSpacing(16)
+        anim_row.addWidget(QLabel("Fundido (Fade):"))
+        anim_row.addWidget(self.bezel_fade_spin, 1)
+        anim_holder = QWidget()
+        anim_holder.setLayout(anim_row)
+
         form = QFormLayout()
         form.addRow("Nombre de la plantilla *", self.name_edit)
         form.addRow("Ejecutable (.exe / comando) *", exe_holder)
         form.addRow("Argumentos de inicio", self.args_edit)
         form.addRow("Plataforma", self.plat_edit)
         form.addRow("Descripción", self.desc_edit)
+        form.addRow("Bezel HUD (Aparición)", anim_holder)
 
         hint = QLabel(
             "<b>Comodines de argumentos admitidos:</b><br>"
@@ -1326,6 +1412,8 @@ class TemplateEditDialog(QDialog):
             "arguments": self.args_edit.text().strip(),
             "platform": self.plat_edit.text().strip(),
             "description": self.desc_edit.text().strip(),
+            "bezel_delay": f"{self.bezel_delay_spin.value():.1f}",
+            "bezel_fade": f"{self.bezel_fade_spin.value():.1f}",
         }
 
 
@@ -1365,12 +1453,16 @@ class EmulatorManagerWidget(QWidget):
             layout.addWidget(header_card)
 
         # Tabla de emuladores
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Nombre", "Plataforma", "Ejecutable", "Argumentos"])
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels([
+            "Nombre", "Plataforma", "Ejecutable", "Argumentos", "Retardo Bezel", "Fade Bezel"
+        ])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -1407,6 +1499,25 @@ class EmulatorManagerWidget(QWidget):
             self.table.setItem(i, 2, QTableWidgetItem(row["executable"]))
             self.table.setItem(i, 3, QTableWidgetItem(row["arguments"]))
 
+            d_raw = row.get("bezel_delay", "0.0")
+            f_raw = row.get("bezel_fade", "0.3")
+            try:
+                d_str = f"{float(d_raw):.1f} s"
+            except Exception:
+                d_str = "0.0 s"
+            try:
+                f_str = f"{float(f_raw):.1f} s"
+            except Exception:
+                f_str = "0.3 s"
+
+            item_d = QTableWidgetItem(d_str)
+            item_d.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 4, item_d)
+
+            item_f = QTableWidgetItem(f_str)
+            item_f.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 5, item_f)
+
     def _get_selected_id(self):
         selected = self.table.selectionModel().selectedRows()
         if not selected:
@@ -1416,9 +1527,19 @@ class EmulatorManagerWidget(QWidget):
     def add_emulator(self):
         dialog = EmulatorDialog(self)
         if dialog.exec():
-            name, exe, args, plat = dialog.values()
+            vals = dialog.values()
+            name, exe, args, plat = vals[:4]
+            delay = vals[4] if len(vals) > 4 else 0.0
+            fade = vals[5] if len(vals) > 5 else 0.3
             try:
-                self.db.add_emulator(name=name, executable=exe, arguments=args, platform=plat)
+                self.db.add_emulator(
+                    name=name,
+                    executable=exe,
+                    arguments=args,
+                    platform=plat,
+                    bezel_delay=delay,
+                    bezel_fade=fade,
+                )
                 self.refresh()
                 self.emulators_changed.emit()
             except Exception as e:
@@ -1434,7 +1555,10 @@ class EmulatorManagerWidget(QWidget):
             return
         dialog = EmulatorDialog(self, existing=row)
         if dialog.exec():
-            name, exe, args, plat = dialog.values()
+            vals = dialog.values()
+            name, exe, args, plat = vals[:4]
+            delay = vals[4] if len(vals) > 4 else 0.0
+            fade = vals[5] if len(vals) > 5 else 0.3
             try:
                 self.db.update_emulator(
                     emu_id,
@@ -1442,6 +1566,8 @@ class EmulatorManagerWidget(QWidget):
                     executable=exe,
                     arguments=args,
                     platform=plat,
+                    bezel_delay=delay,
+                    bezel_fade=fade,
                 )
                 self.refresh()
                 self.emulators_changed.emit()

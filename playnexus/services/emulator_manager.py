@@ -54,6 +54,9 @@ class EmulatorManager(QObject):
         self.gamepad_exit_enabled = True
         self.bezel_overlay = None
         self._tick_counter = 0
+        self._exit_locked = False
+        self._bezel_delay_timer: QTimer | None = None
+        self._unlock_timer: QTimer | None = None
 
         self._timer = QTimer(self)
         self._timer.setInterval(50)  # Chequeo a 20 Hz (muy bajo impacto en CPU)
@@ -94,7 +97,7 @@ class EmulatorManager(QObject):
         """Libera el bloqueo de lanzamiento (ej: si el inicio falló antes de crear el proceso)."""
         self._last_launch_time = 0.0
 
-    def start_monitoring(self, proc: subprocess.Popen, game_title: str, layout, db, parent_window=None, game=None):
+    def start_monitoring(self, proc: subprocess.Popen, game_title: str, layout, db, parent_window=None, game=None, emulator=None):
         """
         Inicia la supervisión del proceso de emulador recién ejecutado.
         """
@@ -102,6 +105,33 @@ class EmulatorManager(QObject):
         self.active_layout = layout
         self.parent_window = parent_window
         self.db = db
+        self._exit_locked = True
+
+        # Detener temporizadores previos si existieran
+        if self._bezel_delay_timer and self._bezel_delay_timer.isActive():
+            self._bezel_delay_timer.stop()
+        if self._unlock_timer and self._unlock_timer.isActive():
+            self._unlock_timer.stop()
+
+        # Resolver emulador para extraer retardo y fade configurados
+        if emulator is None and db and game:
+            try:
+                from playnexus.services.launcher import resolve_emulator
+                emulator, _ = resolve_emulator(db, game)
+            except Exception:
+                emulator = None
+
+        delay_sec = 0.0
+        fade_sec = 0.3
+        if emulator:
+            try:
+                delay_sec = max(0.0, float(emulator.get("bezel_delay", 0.0) or 0.0))
+            except (ValueError, TypeError):
+                delay_sec = 0.0
+            try:
+                fade_sec = max(0.0, float(emulator.get("bezel_fade", 0.3) if emulator.get("bezel_fade") is not None else 0.3))
+            except (ValueError, TypeError):
+                fade_sec = 0.3
 
         # Leer configuración de la base de datos
         self.exit_key_name = get_binding(db, ACTION_CLOSE_EMULATOR)
@@ -113,6 +143,7 @@ class EmulatorManager(QObject):
 
         # Iniciar Bezel Overlay si está configurado y existe bezel para el juego o lista
         bezel_enabled = (db.get_setting("emulator_bezel_overlay", "true").lower() == "true") if db else True
+        bezel_started = False
         if bezel_enabled and game:
             try:
                 from playnexus.services.media import resolve_game_bezel
@@ -125,10 +156,32 @@ class EmulatorManager(QObject):
                         except Exception:
                             target_screen = 0
                     from playnexus.ui.bezel_overlay import BezelOverlayWindow
-                    self.bezel_overlay = BezelOverlayWindow(bezel_path, target_screen_idx=target_screen)
-                    self.bezel_overlay.show()
+                    self.bezel_overlay = BezelOverlayWindow(
+                        bezel_path,
+                        target_screen_idx=target_screen,
+                        fade_duration=fade_sec
+                    )
+                    self.bezel_overlay.fade_finished.connect(self._unlock_exit)
+
+                    if delay_sec > 0:
+                        self._bezel_delay_timer = QTimer(self)
+                        self._bezel_delay_timer.setSingleShot(True)
+                        self._bezel_delay_timer.timeout.connect(self._on_bezel_delay_timeout)
+                        self._bezel_delay_timer.start(int(delay_sec * 1000))
+                    else:
+                        self.bezel_overlay.show()
+                        self.bezel_overlay.start_fade()
+                    bezel_started = True
             except Exception:
                 pass
+
+        if not bezel_started:
+            # Si no hay bezel activo, el bloqueo de salida previene crasheos durante el inicio
+            safety_time_sec = max(delay_sec + fade_sec, 1.5)
+            self._unlock_timer = QTimer(self)
+            self._unlock_timer.setSingleShot(True)
+            self._unlock_timer.timeout.connect(self._unlock_exit)
+            self._unlock_timer.start(int(safety_time_sec * 1000))
 
         # 1. Pausar video y silenciar audio del layout mientras el emulador se ejecuta
         if self.active_layout:
@@ -146,6 +199,20 @@ class EmulatorManager(QObject):
         self._timer.start()
         self.emulator_started.emit(game_title)
 
+    def _on_bezel_delay_timeout(self):
+        if self.is_running() and self.bezel_overlay:
+            try:
+                self.bezel_overlay.show()
+                self.bezel_overlay.start_fade()
+            except Exception:
+                self._unlock_exit()
+        else:
+            self._unlock_exit()
+
+    def _unlock_exit(self):
+        """Habilita la interceptación de salida (Escape y combo de mando) tras concluir el arranque del bezel."""
+        self._exit_locked = False
+
     def _on_check_tick(self):
         proc = self.active_proc
         if not proc:
@@ -159,8 +226,12 @@ class EmulatorManager(QObject):
             return
 
         self._tick_counter += 1
-        if self._tick_counter % 20 == 0 and self.bezel_overlay:
+        if self._tick_counter % 20 == 0 and self.bezel_overlay and self.bezel_overlay.isVisible():
             self.bezel_overlay.bring_to_top()
+
+        # Si el cierre aún está bloqueado (aguardando que aparezca el bezel para evitar crasheos), ignorar comandos de salida
+        if self._exit_locked:
+            return
 
         # 2. Verificar tecla global de salida en Windows
         if self.global_exit_enabled and sys.platform == "win32":
@@ -200,8 +271,15 @@ class EmulatorManager(QObject):
 
     def terminate_active_emulator(self):
         """Fuerza el cierre inmediato y limpio del proceso del emulador y sus subprocesos."""
+        if self._bezel_delay_timer and self._bezel_delay_timer.isActive():
+            self._bezel_delay_timer.stop()
+        if self._unlock_timer and self._unlock_timer.isActive():
+            self._unlock_timer.stop()
+        self._exit_locked = False
+
         if self.bezel_overlay:
             try:
+                self.bezel_overlay.stop_fade()
                 self.bezel_overlay.close()
                 self.bezel_overlay.deleteLater()
             except Exception:
@@ -233,8 +311,15 @@ class EmulatorManager(QObject):
         self.active_proc = None
         self.clear_launching()
 
+        if self._bezel_delay_timer and self._bezel_delay_timer.isActive():
+            self._bezel_delay_timer.stop()
+        if self._unlock_timer and self._unlock_timer.isActive():
+            self._unlock_timer.stop()
+        self._exit_locked = False
+
         if self.bezel_overlay:
             try:
+                self.bezel_overlay.stop_fade()
                 self.bezel_overlay.close()
                 self.bezel_overlay.deleteLater()
             except Exception:

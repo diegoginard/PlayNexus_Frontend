@@ -26,6 +26,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '/c "[romfilename]"',
         "platform": "PC Games",
         "description": "Lanza ejecutables (.exe), accesos directos (.lnk) y scripts (.bat) con cwd en la carpeta del juego.",
+        "bezel_delay": "0.0",
+        "bezel_fade": "0.3",
     },
     {
         "name": "RetroArch (General)",
@@ -33,6 +35,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-f -L cores\\nombre_core_libretro.dll "{rom}"',
         "platform": "Multi-sistema",
         "description": "Inicia RetroArch en pantalla completa cargando el núcleo especificado.",
+        "bezel_delay": "0.5",
+        "bezel_fade": "0.3",
     },
     {
         "name": "RetroArch - Genesis Plus GX (Mega Drive)",
@@ -40,6 +44,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-f -L cores\\genesis_plus_gx_libretro.dll "{rom}"',
         "platform": "Sega Genesis",
         "description": "Núcleo de alta compatibilidad para Sega Genesis / Mega Drive y Master System.",
+        "bezel_delay": "0.5",
+        "bezel_fade": "0.3",
     },
     {
         "name": "RetroArch - Snes9x (Super Nintendo)",
@@ -47,6 +53,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-f -L cores\\snes9x_libretro.dll "{rom}"',
         "platform": "Super Nintendo",
         "description": "Núcleo Snes9x para Super Nintendo / Super Famicom.",
+        "bezel_delay": "0.5",
+        "bezel_fade": "0.3",
     },
     {
         "name": "RetroArch - Beetle PSX (PlayStation 1)",
@@ -54,6 +62,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-f -L cores\\mednafen_psx_hw_libretro.dll "{rom}"',
         "platform": "Sony PlayStation",
         "description": "Núcleo Beetle PSX HW con renderizado por hardware.",
+        "bezel_delay": "1.0",
+        "bezel_fade": "0.3",
     },
     {
         "name": "RetroArch - Mupen64Plus (Nintendo 64)",
@@ -61,6 +71,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-f -L cores\\mupen64plus_next_libretro.dll "{rom}"',
         "platform": "Nintendo 64",
         "description": "Núcleo Mupen64Plus-Next de alto rendimiento para N64.",
+        "bezel_delay": "1.0",
+        "bezel_fade": "0.3",
     },
     {
         "name": "MAME (Arcade Oficial)",
@@ -68,6 +80,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": "[name] -skip_gameinfo",
         "platform": "Arcade",
         "description": "Lanza la ROM de arcade en MAME omitiendo pantallas de diagnóstico inicial.",
+        "bezel_delay": "1.0",
+        "bezel_fade": "0.3",
     },
     {
         "name": "DuckStation (PlayStation 1)",
@@ -75,6 +89,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-batch -fullscreen "[romfilename]"',
         "platform": "Sony PlayStation",
         "description": "Emulador DuckStation moderno en modo batch a pantalla completa.",
+        "bezel_delay": "1.5",
+        "bezel_fade": "0.3",
     },
     {
         "name": "PCSX2 (PlayStation 2)",
@@ -82,6 +98,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-nogui -fullscreen -- "[romfilename]"',
         "platform": "Sony PlayStation 2",
         "description": "PCSX2 Qt en modo pantalla completa sin GUI.",
+        "bezel_delay": "2.0",
+        "bezel_fade": "0.3",
     },
     {
         "name": "Dolphin (GameCube / Wii)",
@@ -89,6 +107,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '-b -e "[romfilename]"',
         "platform": "Nintendo GameCube",
         "description": "Dolphin en modo batch / arranque directo del juego.",
+        "bezel_delay": "1.5",
+        "bezel_fade": "0.3",
     },
     {
         "name": "PPSSPP (Sony PSP)",
@@ -96,6 +116,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '"[romfilename]"',
         "platform": "Sony PSP",
         "description": "Emulador PPSSPP para PlayStation Portable en pantalla completa.",
+        "bezel_delay": "1.0",
+        "bezel_fade": "0.3",
     },
     {
         "name": "Flycast (Dreamcast / Naomi)",
@@ -103,6 +125,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '"[romfilename]"',
         "platform": "Sega Dreamcast",
         "description": "Emulador Flycast para Sega Dreamcast, Naomi y Naomi 2.",
+        "bezel_delay": "1.5",
+        "bezel_fade": "0.3",
     },
     {
         "name": "RPCS3 (PlayStation 3)",
@@ -110,6 +134,8 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "arguments": '--no-gui "[romfilename]"',
         "platform": "Sony PlayStation 3",
         "description": "RPCS3 para PS3 en modo directo sin interfaz.",
+        "bezel_delay": "3.0",
+        "bezel_fade": "0.3",
     },
 ]
 
@@ -198,12 +224,16 @@ def load_emulator_templates(custom_dir: Path | str | None = None) -> list[dict[s
                 args = parts[2].strip()
                 plat = parts[3].strip() if len(parts) > 3 else ""
                 desc = parts[4].strip() if len(parts) > 4 else ""
+                delay = parts[5].strip() if len(parts) > 5 else "0.0"
+                fade = parts[6].strip() if len(parts) > 6 else "0.3"
                 templates.append({
                     "name": name,
                     "executable": exe,
                     "arguments": args,
                     "platform": plat,
                     "description": desc,
+                    "bezel_delay": delay,
+                    "bezel_fade": fade,
                 })
     except Exception as e:
         print(f"Error al cargar {path}: {e}")
@@ -221,7 +251,7 @@ def save_emulator_templates(templates: list[dict[str, str]], custom_dir: Path | 
 
     header = [
         "# Plantillas Rápidas de Emuladores para PlayNexus (Texto Plano)",
-        "# Formato: nombre;ejecutable;argumentos;plataforma;descripcion",
+        "# Formato: nombre;ejecutable;argumentos;plataforma;descripcion;bezel_delay;bezel_fade",
         "# Este archivo puede ser editado directamente o desde Configuración del Sistema en la aplicación.",
         "",
     ]
@@ -232,7 +262,9 @@ def save_emulator_templates(templates: list[dict[str, str]], custom_dir: Path | 
         args = _escape(t.get("arguments", ""))
         plat = _escape(t.get("platform", ""))
         desc = _escape(t.get("description", ""))
-        rows.append(f"{name};{exe};{args};{plat};{desc}")
+        delay = _escape(t.get("bezel_delay", "0.0"))
+        fade = _escape(t.get("bezel_fade", "0.3"))
+        rows.append(f"{name};{exe};{args};{plat};{desc};{delay};{fade}")
 
     content = "\n".join(header + rows) + "\n"
     path.write_text(content, encoding="utf-8")
