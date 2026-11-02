@@ -1,91 +1,99 @@
-# Lista de RetroShelf: Atari Jaguar
+# Lista de PlayNexus: Atari Jaguar
 [List]
 id = 9
 name = Atari Jaguar
 list_type = games
 platform = Atari Jaguar
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Atari Jaguar.png
 default_emulator_id = 11
 default_emulator = BigPEmu
 layout = Atari Jaguar
 allowed_extensions = .zip;.rom
 roms_path = D:/Roms/Atari Jaguar/Roms
-media_path = D:/Roms/Atari Jaguar/media
-boxart_path = D:\Roms\Atari Jaguar\media\boxart
-wheel_path = D:\Roms\Atari Jaguar\media\wheel
-video_path = D:\Roms\Atari Jaguar\media\videos
-cartart_path = D:\Roms\Atari Jaguar\media\cartart
+scan_subfolders = true
+exclude_folder_if_zip = false
+media_path = 
+boxart_path = D:/Roms/Atari Jaguar/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Atari Jaguar/media/wheel
+video_path = D:/Roms/Atari Jaguar/media/videos
+cartart_path = D:/Roms/Atari Jaguar/media/cartart
 cabinet_path = 
 marquee_path = 
+bezel_path = 
 xml_path = 
 created_at = 2026-10-27 20:07:33
+source_list_id = 
+filter_rules = []
+filter_match_mode = all
 menu_items = 
 
 [Games]
-# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at
-2417;Aircars (U);Aircars (U);D:\\Roms\\Atari Jaguar\\Roms\\Aircars (U).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2418;Alien vs Predator (World);Alien vs Predator (World);D:\\Roms\\Atari Jaguar\\Roms\\Alien vs Predator (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2419;Arena Football '95 (World);Arena Football '95 (World);D:\\Roms\\Atari Jaguar\\Roms\\Arena Football '95 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2420;Atari Karts (World);Atari Karts (World);D:\\Roms\\Atari Jaguar\\Roms\\Atari Karts (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2421;Attack of the Mutant Penguins (World);Attack of the Mutant Penguins (World);D:\\Roms\\Atari Jaguar\\Roms\\Attack of the Mutant Penguins (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2422;Barkley Shut Up and Jam (World);Barkley Shut Up and Jam (World);D:\\Roms\\Atari Jaguar\\Roms\\Barkley Shut Up and Jam (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2423;Battle Sphere (World);Battle Sphere (World);D:\\Roms\\Atari Jaguar\\Roms\\Battle Sphere (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2424;Battle Sphere Gold (World);Battle Sphere Gold (World);D:\\Roms\\Atari Jaguar\\Roms\\Battle Sphere Gold (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2425;Breakout 2000 (USA, Europe);Breakout 2000 (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Breakout 2000 (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2426;Brett Hull Hockey (World);Brett Hull Hockey (World);D:\\Roms\\Atari Jaguar\\Roms\\Brett Hull Hockey (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2427;Brutal Sports Football (World);Brutal Sports Football (World);D:\\Roms\\Atari Jaguar\\Roms\\Brutal Sports Football (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2428;Bubsy in Fractured Furry Tales (World);Bubsy in Fractured Furry Tales (World);D:\\Roms\\Atari Jaguar\\Roms\\Bubsy in Fractured Furry Tales (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2429;Cannon Fodder (World);Cannon Fodder (World);D:\\Roms\\Atari Jaguar\\Roms\\Cannon Fodder (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2430;Checkered Flag (World);Checkered Flag (World);D:\\Roms\\Atari Jaguar\\Roms\\Checkered Flag (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2431;Club Drive (World);Club Drive (World);D:\\Roms\\Atari Jaguar\\Roms\\Club Drive (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2432;Cybermorph (World) (Rev B);Cybermorph (World) (Rev B);D:\\Roms\\Atari Jaguar\\Roms\\Cybermorph (World) (Rev B).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2433;Defender 2000 (World);Defender 2000 (World);D:\\Roms\\Atari Jaguar\\Roms\\Defender 2000 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2434;Doom (World);Doom (World);D:\\Roms\\Atari Jaguar\\Roms\\Doom (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2435;Double Dragon V - The Shadow Falls (World);Double Dragon V - The Shadow Falls (World);D:\\Roms\\Atari Jaguar\\Roms\\Double Dragon V - The Shadow Falls (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2436;Dragon - The Bruce Lee Story (World);Dragon - The Bruce Lee Story (World);D:\\Roms\\Atari Jaguar\\Roms\\Dragon - The Bruce Lee Story (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2437;Evolution - Dino Dudes (World);Evolution - Dino Dudes (World);D:\\Roms\\Atari Jaguar\\Roms\\Evolution - Dino Dudes (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2438;Fever Pitch Soccer (World) (En,Fr,De,Es,It);Fever Pitch Soccer (World) (En,Fr,De,Es,It);D:\\Roms\\Atari Jaguar\\Roms\\Fever Pitch Soccer (World) (En,Fr,De,Es,It).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2439;Fight for Life (USA, Europe);Fight for Life (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Fight for Life (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2440;Flashback - The Quest for Identity (World) (En,Fr);Flashback - The Quest for Identity (World) (En,Fr);D:\\Roms\\Atari Jaguar\\Roms\\Flashback - The Quest for Identity (World) (En,Fr).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2441;Flip Out! (World);Flip Out! (World);D:\\Roms\\Atari Jaguar\\Roms\\Flip Out! (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2442;Frog Feast (World);Frog Feast (World);D:\\Roms\\Atari Jaguar\\Roms\\Frog Feast (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2443;Hover Strike (World);Hover Strike (World);D:\\Roms\\Atari Jaguar\\Roms\\Hover Strike (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2444;Hyper Force (World);Hyper Force (World);D:\\Roms\\Atari Jaguar\\Roms\\Hyper Force (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2445;I-War (USA, Europe);I-War (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\I-War (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2446;International Sensible Soccer (World);International Sensible Soccer (World);D:\\Roms\\Atari Jaguar\\Roms\\International Sensible Soccer (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2447;Iron Soldier (World);Iron Soldier (World);D:\\Roms\\Atari Jaguar\\Roms\\Iron Soldier (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2448;Iron Soldier 2 (USA, Europe);Iron Soldier 2 (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Iron Soldier 2 (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2449;Kasumi Ninja (World);Kasumi Ninja (World);D:\\Roms\\Atari Jaguar\\Roms\\Kasumi Ninja (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2450;Missile Command 3D (World);Missile Command 3D (World);D:\\Roms\\Atari Jaguar\\Roms\\Missile Command 3D (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2451;NBA Jam - Tournament Edition (USA, Europe);NBA Jam - Tournament Edition (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\NBA Jam - Tournament Edition (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2452;Phase Zero (World);Phase Zero (World);D:\\Roms\\Atari Jaguar\\Roms\\Phase Zero (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2453;Pinball Fantasies (World);Pinball Fantasies (World);D:\\Roms\\Atari Jaguar\\Roms\\Pinball Fantasies (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2454;Pitfall - The Mayan Adventure (USA, Europe);Pitfall - The Mayan Adventure (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Pitfall - The Mayan Adventure (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2455;Power Drive Rally (World);Power Drive Rally (World);D:\\Roms\\Atari Jaguar\\Roms\\Power Drive Rally (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2456;Protector (World);Protector (World);D:\\Roms\\Atari Jaguar\\Roms\\Protector (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2457;Protector - Special Edition (World);Protector - Special Edition (World);D:\\Roms\\Atari Jaguar\\Roms\\Protector - Special Edition (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2458;Raiden (1994);Raiden (1994);D:\\Roms\\Atari Jaguar\\Roms\\Raiden (1994).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2459;Rayman (World);Rayman (World);D:\\Roms\\Atari Jaguar\\Roms\\Rayman (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2460;Ruiner Pinball (USA, Europe);Ruiner Pinball (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Ruiner Pinball (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2461;Skyhammer (World);Skyhammer (World);D:\\Roms\\Atari Jaguar\\Roms\\Skyhammer (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2462;Slam Racer (USA) (Proto);Slam Racer (USA) (Proto);D:\\Roms\\Atari Jaguar\\Roms\\Slam Racer (USA) (Proto).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2463;Soccer Kid (World);Soccer Kid (World);D:\\Roms\\Atari Jaguar\\Roms\\Soccer Kid (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33
-2464;Space War 2000 (World);Space War 2000 (World);D:\\Roms\\Atari Jaguar\\Roms\\Space War 2000 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2465;Super Burnout (World);Super Burnout (World);D:\\Roms\\Atari Jaguar\\Roms\\Super Burnout (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2466;Supercross 3D (USA, Europe);Supercross 3D (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Supercross 3D (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2467;Syndicate (World);Syndicate (World);D:\\Roms\\Atari Jaguar\\Roms\\Syndicate (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2468;Tempest 2000 (World);Tempest 2000 (World);D:\\Roms\\Atari Jaguar\\Roms\\Tempest 2000 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2469;Thea Realm Fighters (USA) (Proto 2);Thea Realm Fighters (USA) (Proto 2);D:\\Roms\\Atari Jaguar\\Roms\\Thea Realm Fighters (USA) (Proto 2).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2470;Theme Park (World);Theme Park (World);D:\\Roms\\Atari Jaguar\\Roms\\Theme Park (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2471;Tiny Toon Adventures (USA) (Proto);Tiny Toon Adventures (USA) (Proto);D:\\Roms\\Atari Jaguar\\Roms\\Tiny Toon Adventures (USA) (Proto).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2472;Total Carnage (World);Total Carnage (World);D:\\Roms\\Atari Jaguar\\Roms\\Total Carnage (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2473;Towers II - Plight of the Stargazer (USA, Europe);Towers II - Plight of the Stargazer (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Towers II - Plight of the Stargazer (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2474;Trevor McFur in the Crescent Galaxy (World) (Rev A);Trevor McFur in the Crescent Galaxy (World) (Rev A);D:\\Roms\\Atari Jaguar\\Roms\\Trevor McFur in the Crescent Galaxy (World) (Rev A).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2475;Troy Aikman NFL Football (World);Troy Aikman NFL Football (World);D:\\Roms\\Atari Jaguar\\Roms\\Troy Aikman NFL Football (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2476;Ultra Vortek (World);Ultra Vortek (World);D:\\Roms\\Atari Jaguar\\Roms\\Ultra Vortek (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2477;Val d'Isere Skiing and Snowboarding (World);Val d'Isere Skiing and Snowboarding (World);D:\\Roms\\Atari Jaguar\\Roms\\Val d'Isere Skiing and Snowboarding (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2478;White Men Can't Jump (USA, Europe);White Men Can't Jump (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\White Men Can't Jump (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2479;Wolfenstein 3D (World);Wolfenstein 3D (World);D:\\Roms\\Atari Jaguar\\Roms\\Wolfenstein 3D (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2480;Worms (USA, Europe);Worms (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Worms (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2481;Zero 5 (USA, Europe);Zero 5 (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Zero 5 (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2482;Zool 2 (World);Zool 2 (World);D:\\Roms\\Atari Jaguar\\Roms\\Zool 2 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
-2483;Zoop (USA, Europe);Zoop (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Zoop (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile
+2417;Aircars (U);Aircars (U);D:\\Roms\\Atari Jaguar\\Roms\\Aircars (U).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2418;Alien vs Predator (World);Alien vs Predator (World);D:\\Roms\\Atari Jaguar\\Roms\\Alien vs Predator (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2419;Arena Football '95 (World);Arena Football '95 (World);D:\\Roms\\Atari Jaguar\\Roms\\Arena Football '95 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2420;Atari Karts (World);Atari Karts (World);D:\\Roms\\Atari Jaguar\\Roms\\Atari Karts (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2421;Attack of the Mutant Penguins (World);Attack of the Mutant Penguins (World);D:\\Roms\\Atari Jaguar\\Roms\\Attack of the Mutant Penguins (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2422;Barkley Shut Up and Jam (World);Barkley Shut Up and Jam (World);D:\\Roms\\Atari Jaguar\\Roms\\Barkley Shut Up and Jam (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2423;Battle Sphere (World);Battle Sphere (World);D:\\Roms\\Atari Jaguar\\Roms\\Battle Sphere (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2424;Battle Sphere Gold (World);Battle Sphere Gold (World);D:\\Roms\\Atari Jaguar\\Roms\\Battle Sphere Gold (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2425;Breakout 2000 (USA, Europe);Breakout 2000 (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Breakout 2000 (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2426;Brett Hull Hockey (World);Brett Hull Hockey (World);D:\\Roms\\Atari Jaguar\\Roms\\Brett Hull Hockey (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2427;Brutal Sports Football (World);Brutal Sports Football (World);D:\\Roms\\Atari Jaguar\\Roms\\Brutal Sports Football (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2428;Bubsy in Fractured Furry Tales (World);Bubsy in Fractured Furry Tales (World);D:\\Roms\\Atari Jaguar\\Roms\\Bubsy in Fractured Furry Tales (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2429;Cannon Fodder (World);Cannon Fodder (World);D:\\Roms\\Atari Jaguar\\Roms\\Cannon Fodder (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2430;Checkered Flag (World);Checkered Flag (World);D:\\Roms\\Atari Jaguar\\Roms\\Checkered Flag (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2431;Club Drive (World);Club Drive (World);D:\\Roms\\Atari Jaguar\\Roms\\Club Drive (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2432;Cybermorph (World) (Rev B);Cybermorph (World) (Rev B);D:\\Roms\\Atari Jaguar\\Roms\\Cybermorph (World) (Rev B).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2433;Defender 2000 (World);Defender 2000 (World);D:\\Roms\\Atari Jaguar\\Roms\\Defender 2000 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2434;Doom (World);Doom (World);D:\\Roms\\Atari Jaguar\\Roms\\Doom (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2435;Double Dragon V - The Shadow Falls (World);Double Dragon V - The Shadow Falls (World);D:\\Roms\\Atari Jaguar\\Roms\\Double Dragon V - The Shadow Falls (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2436;Dragon - The Bruce Lee Story (World);Dragon - The Bruce Lee Story (World);D:\\Roms\\Atari Jaguar\\Roms\\Dragon - The Bruce Lee Story (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2437;Evolution - Dino Dudes (World);Evolution - Dino Dudes (World);D:\\Roms\\Atari Jaguar\\Roms\\Evolution - Dino Dudes (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2438;Fever Pitch Soccer (World) (En,Fr,De,Es,It);Fever Pitch Soccer (World) (En,Fr,De,Es,It);D:\\Roms\\Atari Jaguar\\Roms\\Fever Pitch Soccer (World) (En,Fr,De,Es,It).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2439;Fight for Life (USA, Europe);Fight for Life (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Fight for Life (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2440;Flashback - The Quest for Identity (World) (En,Fr);Flashback - The Quest for Identity (World) (En,Fr);D:\\Roms\\Atari Jaguar\\Roms\\Flashback - The Quest for Identity (World) (En,Fr).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2441;Flip Out! (World);Flip Out! (World);D:\\Roms\\Atari Jaguar\\Roms\\Flip Out! (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2442;Frog Feast (World);Frog Feast (World);D:\\Roms\\Atari Jaguar\\Roms\\Frog Feast (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2443;Hover Strike (World);Hover Strike (World);D:\\Roms\\Atari Jaguar\\Roms\\Hover Strike (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2444;Hyper Force (World);Hyper Force (World);D:\\Roms\\Atari Jaguar\\Roms\\Hyper Force (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2445;I-War (USA, Europe);I-War (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\I-War (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2446;International Sensible Soccer (World);International Sensible Soccer (World);D:\\Roms\\Atari Jaguar\\Roms\\International Sensible Soccer (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2447;Iron Soldier (World);Iron Soldier (World);D:\\Roms\\Atari Jaguar\\Roms\\Iron Soldier (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2448;Iron Soldier 2 (USA, Europe);Iron Soldier 2 (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Iron Soldier 2 (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2449;Kasumi Ninja (World);Kasumi Ninja (World);D:\\Roms\\Atari Jaguar\\Roms\\Kasumi Ninja (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2450;Missile Command 3D (World);Missile Command 3D (World);D:\\Roms\\Atari Jaguar\\Roms\\Missile Command 3D (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2451;NBA Jam - Tournament Edition (USA, Europe);NBA Jam - Tournament Edition (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\NBA Jam - Tournament Edition (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2452;Phase Zero (World);Phase Zero (World);D:\\Roms\\Atari Jaguar\\Roms\\Phase Zero (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2453;Pinball Fantasies (World);Pinball Fantasies (World);D:\\Roms\\Atari Jaguar\\Roms\\Pinball Fantasies (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2454;Pitfall - The Mayan Adventure (USA, Europe);Pitfall - The Mayan Adventure (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Pitfall - The Mayan Adventure (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2455;Power Drive Rally (World);Power Drive Rally (World);D:\\Roms\\Atari Jaguar\\Roms\\Power Drive Rally (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2456;Protector (World);Protector (World);D:\\Roms\\Atari Jaguar\\Roms\\Protector (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2457;Protector - Special Edition (World);Protector - Special Edition (World);D:\\Roms\\Atari Jaguar\\Roms\\Protector - Special Edition (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2458;Raiden (1994);Raiden (1994);D:\\Roms\\Atari Jaguar\\Roms\\Raiden (1994).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2459;Rayman (World);Rayman (World);D:\\Roms\\Atari Jaguar\\Roms\\Rayman (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2460;Ruiner Pinball (USA, Europe);Ruiner Pinball (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Ruiner Pinball (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2461;Skyhammer (World);Skyhammer (World);D:\\Roms\\Atari Jaguar\\Roms\\Skyhammer (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2462;Slam Racer (USA) (Proto);Slam Racer (USA) (Proto);D:\\Roms\\Atari Jaguar\\Roms\\Slam Racer (USA) (Proto).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2463;Soccer Kid (World);Soccer Kid (World);D:\\Roms\\Atari Jaguar\\Roms\\Soccer Kid (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:33;
+2464;Space War 2000 (World);Space War 2000 (World);D:\\Roms\\Atari Jaguar\\Roms\\Space War 2000 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2465;Super Burnout (World);Super Burnout (World);D:\\Roms\\Atari Jaguar\\Roms\\Super Burnout (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2466;Supercross 3D (USA, Europe);Supercross 3D (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Supercross 3D (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2467;Syndicate (World);Syndicate (World);D:\\Roms\\Atari Jaguar\\Roms\\Syndicate (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2468;Tempest 2000 (World);Tempest 2000 (World);D:\\Roms\\Atari Jaguar\\Roms\\Tempest 2000 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2469;Thea Realm Fighters (USA) (Proto 2);Thea Realm Fighters (USA) (Proto 2);D:\\Roms\\Atari Jaguar\\Roms\\Thea Realm Fighters (USA) (Proto 2).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2470;Theme Park (World);Theme Park (World);D:\\Roms\\Atari Jaguar\\Roms\\Theme Park (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2471;Tiny Toon Adventures (USA) (Proto);Tiny Toon Adventures (USA) (Proto);D:\\Roms\\Atari Jaguar\\Roms\\Tiny Toon Adventures (USA) (Proto).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2472;Total Carnage (World);Total Carnage (World);D:\\Roms\\Atari Jaguar\\Roms\\Total Carnage (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2473;Towers II - Plight of the Stargazer (USA, Europe);Towers II - Plight of the Stargazer (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Towers II - Plight of the Stargazer (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2474;Trevor McFur in the Crescent Galaxy (World) (Rev A);Trevor McFur in the Crescent Galaxy (World) (Rev A);D:\\Roms\\Atari Jaguar\\Roms\\Trevor McFur in the Crescent Galaxy (World) (Rev A).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2475;Troy Aikman NFL Football (World);Troy Aikman NFL Football (World);D:\\Roms\\Atari Jaguar\\Roms\\Troy Aikman NFL Football (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2476;Ultra Vortek (World);Ultra Vortek (World);D:\\Roms\\Atari Jaguar\\Roms\\Ultra Vortek (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2477;Val d'Isere Skiing and Snowboarding (World);Val d'Isere Skiing and Snowboarding (World);D:\\Roms\\Atari Jaguar\\Roms\\Val d'Isere Skiing and Snowboarding (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2478;White Men Can't Jump (USA, Europe);White Men Can't Jump (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\White Men Can't Jump (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2479;Wolfenstein 3D (World);Wolfenstein 3D (World);D:\\Roms\\Atari Jaguar\\Roms\\Wolfenstein 3D (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2480;Worms (USA, Europe);Worms (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Worms (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2481;Zero 5 (USA, Europe);Zero 5 (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Zero 5 (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2482;Zool 2 (World);Zool 2 (World);D:\\Roms\\Atari Jaguar\\Roms\\Zool 2 (World).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;
+2483;Zoop (USA, Europe);Zoop (USA, Europe);D:\\Roms\\Atari Jaguar\\Roms\\Zoop (USA, Europe).zip;;;;;;;;;;;;{};2026-10-27 20:07:34;

@@ -3,5 +3,5 @@ id = 12
 name = Mame Unlock
 executable = C:/Attract/Emu/Mame_oficial/mame.exe
 arguments = "{rom}" -skip_gameinfo
-platform = VArios sistemas arcade
+platform = Varios sistemas arcade
 created_at = 2026-10-28 18:13:02

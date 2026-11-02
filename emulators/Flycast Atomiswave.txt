@@ -1,0 +1,7 @@
+# Configuración de Emulador: Flycast Atomiswave
+id = 16
+name = Flycast Atomiswave
+executable = C:/Attract/Emu/Sammy Atomiswave/Flycast/flycast.exe
+arguments = "{rom}"
+platform = Sammy Atomiswave
+created_at = 2026-11-01 21:19:36

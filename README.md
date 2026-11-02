@@ -1,4 +1,4 @@
-# RetroShelf — Frontend de Emulación para Windows
+# PlayNexus — Frontend de Emulación para Windows
 
 Frontend modular, rápido y elegante para organizar, visualizar y ejecutar videojuegos retro mediante emuladores en Windows 10 y Windows 11. Desarrollado con **Python 3.11+**, **PySide6** y almacenamiento local en **Texto Plano (`.txt`)**.
 
@@ -6,12 +6,12 @@ Frontend modular, rápido y elegante para organizar, visualizar y ejecutar video
 
 ## 🚀 Guía de inicio rápido: Cómo crear el entorno
 
-RetroShelf incluye un script automatizado (`run.bat`) que detecta Python, crea el entorno virtual e instala las dependencias por vos. Si preferís hacerlo manualmente, seguí los pasos detallados a continuación:
+PlayNexus incluye lanzadores automatizados (`PlayNexus_Launcher.bat` y `PlayNexus_Config.bat`) que detectan Python, crean el entorno virtual e instalan las dependencias por vos. Si preferís hacerlo manualmente, seguí los pasos detallados a continuación:
 
 ### Lanzadores rápidos incluidos:
-- **`jugar.bat`**: Inicia el **Modo Frontend / Reproductor**, una interfaz limpia de pantalla completa pensada exclusivamente para jugar, sin menús de configuración técnica.
-- **`configurador.bat`**: Abre el **Configurador**, donde podés crear listas, seleccionar carpetas de ROMs, registrar emuladores y asignar layouts.
-- **`run.bat`**: Menú interactivo que te permite elegir entre iniciar el Modo Frontend o el Configurador.
+- **`PlayNexus_Launcher.bat`**: Inicia el **Modo Frontend / Reproductor**, una interfaz limpia de pantalla completa pensada exclusivamente para jugar, sin menús de configuración técnica.
+- **`PlayNexus_Config.bat`**: Abre el **Configurador**, donde podés crear listas, seleccionar carpetas de ROMs, registrar emuladores y asignar layouts.
+- **`PlayNexus.bat`**: Menú interactivo que te permite elegir entre iniciar el Modo Frontend o el Configurador.
 
 Ambos scripts crean automáticamente el entorno virtual `.venv` e instalan las dependencias si no existen en tu equipo.
 
@@ -26,11 +26,11 @@ Ambos scripts crean automáticamente el entorno virtual `.venv` e instalan las d
    ```
 2. **Ejecutar en modo Configurador:**
    ```bash
-   python -m retroshelf
+   python -m playnexus
    ```
 3. **Ejecutar en modo Frontend / Jugador:**
    ```bash
-   python -m retroshelf --player
+   python -m playnexus --player
    ```
 
 ---
@@ -40,7 +40,7 @@ Ambos scripts crean automáticamente el entorno virtual `.venv` e instalan las d
 ### 1. Biblioteca por Listas y Plataformas
 - Creación, edición y eliminación de listas dedicadas para cada consola o colección.
 - **Selección de carpeta de juegos al crear la lista:** Al dar de alta o editar una lista, contás con un campo y botón «Examinar…» para indicar la carpeta donde están almacenadas las ROMs.
-- **Escaneo e importación automática:** Si definís una carpeta al crear la lista, RetroShelf te ofrece escanearla e importar los juegos de forma inmediata al pulsar «Guardar».
+- **Escaneo e importación automática:** Si definís una carpeta al crear la lista, PlayNexus te ofrece escanearla e importar los juegos de forma inmediata al pulsar «Guardar».
 - Cada lista almacena de forma independiente su nombre, plataforma, carpeta de juegos asociada, emulador predeterminado, diseño visual y extensiones permitidas.
 - Eliminar o modificar una lista nunca altera la configuración de las demás ni borra archivos del disco.
 
@@ -58,7 +58,7 @@ Ambos scripts crean automáticamente el entorno virtual `.venv` e instalan las d
   - Elimina duplicados conservando el orden ingresado.
   - Valida el formato y prohíbe el uso de comas (`,`) como separador.
   - Advierte al usuario si se especifica la extensión genérica `.bin` (frecuente en pistas secundarias de discos).
-- **Escaneo recursivo:** RetroShelf busca en todas las subcarpetas del directorio seleccionado, compara únicamente contra las extensiones de la lista actual, ignora las no configuradas y evita duplicar juegos ya presentes en la biblioteca.
+- **Escaneo recursivo:** PlayNexus busca en todas las subcarpetas del directorio seleccionado, compara únicamente contra las extensiones de la lista actual, ignora las no configuradas y evita duplicar juegos ya presentes en la biblioteca.
 - **Resumen de escaneo:** Al finalizar la exploración se muestra una ventana detallada con archivos encontrados, juegos agregados y omitidos.
 
 ### 3. Gestión y registro de emuladores
@@ -75,11 +75,11 @@ Ambos scripts crean automáticamente el entorno virtual `.venv` e instalan las d
 Al lanzar un juego (haciendo doble clic o presionando **▶ EJECUTAR JUEGO**):
 1. **Prioridad 1:** Emulador asignado individualmente al juego (sobrescritura).
 2. **Prioridad 2:** Emulador predeterminado de la lista.
-3. Si ninguno está asignado, RetroShelf guía al usuario para que configure uno.
+3. Si ninguno está asignado, PlayNexus guía al usuario para que configure uno.
 
 ### 5. Sistema de Layouts Personalizados, Modulares y Temáticos por Sistema
-RetroShelf cuenta con un motor desacoplado de layouts (`retroshelf/ui/layouts/`) y soporte para temas dedicados por consola:
-- **Carpeta `Layouts/`:** Podés agregar una subcarpeta para cada sistema emulado (por ejemplo `Layouts/Super Nintendo Entertainment System/`) con sus elementos visuales (fondo `bkg.jpg`, TV CRT `tv.png`, consola `console.png`, controles, carátula, cartucho y logos). RetroShelf los detecta y renderiza automáticamente.
+PlayNexus cuenta con un motor desacoplado de layouts (`playnexus/ui/layouts/`) y soporte para temas dedicados por consola:
+- **Carpeta `Layouts/`:** Podés agregar una subcarpeta para cada sistema emulado (por ejemplo `Layouts/Super Nintendo Entertainment System/`) con sus elementos visuales (fondo `bkg.jpg`, TV CRT `tv.png`, consola `console.png`, controles, carátula, cartucho y logos). PlayNexus los detecta y renderiza automáticamente.
 - **Grid (Estantería / Cuadrícula):** Tarjetas visuales de juegos con distintivos de formato y **control deslizante de zoom en vivo** para ajustar el tamaño de las tarjetas a gusto.
 - **Showcase (Modo Cinemático / Big Screen):** Inspirado en consolas modernas. Gran banner superior con tipografía destacada, datos técnicos, botón «JUGAR AHORA» y carrusel inferior de selección rápida.
 - **Wheel (Rueda Clásica):** Rueda arcade interactiva con logos transparentes (`wheel`) y video snaps.
@@ -103,16 +103,16 @@ Desde el botón **🖥 Configuración de video** en la barra de herramientas del
 ## 🗂 Estructura del proyecto
 
 ```text
-RetroShelf/
+PlayNexus/
 ├── README.md                 # Documentación técnica y de usuario
 ├── requirements.txt          # Dependencias (PySide6)
-├── run.bat                   # Menú selector interactivo
-├── configurador.bat          # Lanzador directo del Modo Configurador
-├── jugar.bat                 # Lanzador directo del Modo Frontend / Jugador
+├── PlayNexus.bat             # Menú selector interactivo
+├── PlayNexus_Config.bat      # Lanzador directo del Modo Configurador
+├── PlayNexus_Launcher.bat    # Lanzador directo del Modo Frontend / Jugador
 ├── config/                   # Configuración general en texto plano (settings.txt)
 ├── emulators/                # Archivos .txt individuales por cada emulador
 ├── lists/                    # Archivos .txt individuales por cada lista/menú y sus juegos
-└── retroshelf/
+└── playnexus/
     ├── __init__.py
     ├── __main__.py           # Enrutador principal (--player o configurador)
     ├── db.py                 # Motor de almacenamiento en memoria y archivos de texto plano (.txt)
@@ -140,7 +140,7 @@ RetroShelf/
 
 ## 💾 Persistencia de datos en Texto Plano (100% Portable)
 
-RetroShelf guarda toda su información en archivos de texto plano (`.txt`) directamente dentro de la carpeta del proyecto (sin utilizar `AppData` ni bases de datos binarias):
+PlayNexus guarda toda su información en archivos de texto plano (`.txt`) directamente dentro de la carpeta del proyecto (sin utilizar `AppData` ni bases de datos binarias):
 
 - **`config/settings.txt`**: Ajustes generales del sistema y controles.
 - **`emulators/<NombreEmulador>.txt`**: Un archivo `.txt` independiente por cada emulador registrado.

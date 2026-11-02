@@ -1,4 +1,4 @@
-# Configuración del Sistema RetroShelf (Texto Plano)
+# Configuración del Sistema PlayNexus (Texto Plano)
 control_close_emulator = Escape
 control_close_frontend = F4
 control_mute_video = M

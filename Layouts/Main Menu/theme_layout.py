@@ -1,4 +1,4 @@
-import retroshelf
+import playnexus
 """
 =============================================================================
 Layout Autónomo y Configuración: Main Menu
@@ -6,7 +6,7 @@ Layout Autónomo y Configuración: Main Menu
 Este archivo maneja en su totalidad la configuración, métricas, recursos,
 reproducción de video de fondo a pantalla completa, ruleta de wheels curva
 interactiva a 60 FPS y renderizado para el Menú Principal / Selección de
-Sistemas en RetroShelf.
+Sistemas en PlayNexus.
 """
 import os
 import time
@@ -21,9 +21,9 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink, QSoundEffect
 
-from retroshelf.ui.layouts.base import BaseLayout, WheelPreloadWorker
-from retroshelf.services.media import resolve_game_media
-from retroshelf.services.controls import (
+from playnexus.ui.layouts.base import BaseLayout, WheelPreloadWorker
+from playnexus.services.media import resolve_game_media
+from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_PAGE_UP,
     ACTION_PAGE_DOWN, ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
     ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK
@@ -152,10 +152,9 @@ class ThemeLayout(BaseLayout):
         self._pointer_anim_tick = 0
         self._pointer_anim_timer = QTimer(self)
         self._pointer_anim_timer.timeout.connect(self._on_pointer_tick)
-        if self._pix_pointer:
-            self._pointer_anim_timer.start(16)
 
         # Temporizador para inicio diferido de video (debounce) y watchdog de bucle
+        self._last_video_frame_time = 0.0
         self._video_debounce_timer = QTimer(self)
         self._video_debounce_timer.setSingleShot(True)
         self._video_debounce_timer.setInterval(180)
@@ -199,6 +198,7 @@ class ThemeLayout(BaseLayout):
         if self._player_initialized:
             return
         self.player = QMediaPlayer(self)
+        self.player.setLoops(QMediaPlayer.Infinite)
         self.audio_output = QAudioOutput(self)
         self.player.setAudioOutput(self.audio_output)
         self.audio_output.setMuted(self._media_muted)
@@ -213,8 +213,22 @@ class ThemeLayout(BaseLayout):
 
     def _on_video_frame_changed(self, frame):
         """Convierte y almacena el fotograma recibido directamente en GPU/memoria rápida."""
-        if not frame.isValid():
+        if not frame.isValid() or not getattr(self, "_want_video_playing", True) or not self.player:
             return
+        p_path = getattr(self, "_pending_video_path", None)
+        if p_path and self.player.source() != QUrl.fromLocalFile(p_path):
+            return
+
+        # Si la ruleta está girando activamente, no extraer frames pesados para mantener los 60 FPS
+        if hasattr(self, "_wheel_spin_timer") and self._wheel_spin_timer.isActive() and self._current_video_image is not None:
+            return
+
+        # Limitar extracción a ~30 FPS para evitar saturar el bucle de eventos de la GUI
+        now = time.perf_counter()
+        if now - getattr(self, "_last_video_frame_time", 0.0) < 0.033:
+            return
+        self._last_video_frame_time = now
+
         img = frame.toImage()
         if not img.isNull():
             self._current_video_image = img
@@ -396,6 +410,7 @@ class ThemeLayout(BaseLayout):
                 self.audio_output.setVolume(0.0 if self._media_muted else 0.8)
             source_url = QUrl.fromLocalFile(video_to_play)
             try:
+                self.player.setLoops(QMediaPlayer.Infinite)
                 if self.player.source() == source_url:
                     self.player.setPosition(0)
                 else:
@@ -436,6 +451,8 @@ class ThemeLayout(BaseLayout):
         # Pulso elástico del puntero
         self._pointer_current_x_ratio = self._pointer_pulse_x_ratio
         self._pointer_anim_tick = 0
+        if self._pix_pointer and not self._pointer_anim_timer.isActive():
+            self._pointer_anim_timer.start(16)
 
         self._play_nav_sound()
         self._preload_around(new_idx)
@@ -502,6 +519,10 @@ class ThemeLayout(BaseLayout):
         self._pointer_anim_tick += 1
         if abs(self._pointer_current_x_ratio - self._pointer_rest_x_ratio) > 0.0005:
             self._pointer_current_x_ratio += (self._pointer_rest_x_ratio - self._pointer_current_x_ratio) * 0.18
+            self.update()
+        else:
+            self._pointer_current_x_ratio = self._pointer_rest_x_ratio
+            self._pointer_anim_timer.stop()
             self.update()
 
     # -------------------------------------------------------------------------
@@ -760,7 +781,7 @@ class ThemeLayout(BaseLayout):
         base_x = sx + sw - edge_margin - visible_w
 
         pulse_offset = int(sw * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
-        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * 0.08) * 0.002))
+        idle_oscillation = int(sw * (math.sin(time.perf_counter() * 5.0) * 0.002))
         ptr_x = base_x - pulse_offset + idle_oscillation
 
         painter.save()
@@ -807,7 +828,7 @@ class ThemeLayout(BaseLayout):
     # CONTROL DE EVENTOS DE TECLADO Y RATÓN
     # -------------------------------------------------------------------------
     def keyPressEvent(self, event):
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
@@ -848,7 +869,7 @@ class ThemeLayout(BaseLayout):
         event.accept()
 
     def wheelEvent(self, event):
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
@@ -860,7 +881,7 @@ class ThemeLayout(BaseLayout):
         event.accept()
 
     def mousePressEvent(self, event):
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return

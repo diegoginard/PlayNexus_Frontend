@@ -5,7 +5,7 @@ Layout Autónomo y Configuración: At-The-Arcade Flex
 Este archivo maneja en su totalidad la configuración, métricas, recursos,
 reproducción de video de fondo, video snap en monitor CRT, cartel marquee,
 mueble arcade frontal con transparencias, afiche publicitario (flyer) y
-ruleta curva interactiva para RetroShelf.
+ruleta curva interactiva para PlayNexus.
 """
 import os
 import math
@@ -14,7 +14,7 @@ import time
 import threading
 from collections import deque
 from pathlib import Path
-import retroshelf  # Asegura configuración FFmpeg antes de importar QtMultimedia
+import playnexus  # Asegura configuración FFmpeg antes de importar QtMultimedia
 
 from PySide6.QtCore import Qt, QSize, QUrl, QRect, QPoint, QTimer, QRectF, QThread, Signal
 from PySide6.QtGui import (
@@ -24,10 +24,10 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink, QSoundEffect
 
-from retroshelf.ui.layouts.base import BaseLayout
-from retroshelf.ui.cover_utils import load_cover
-from retroshelf.services.media import find_media_file as cached_find_media_file
-from retroshelf.services.controls import (
+from playnexus.ui.layouts.base import BaseLayout
+from playnexus.ui.cover_utils import load_cover
+from playnexus.services.media import find_media_file as cached_find_media_file
+from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_PAGE_UP,
     ACTION_PAGE_DOWN, ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK,
     ACTION_NAV_LETTER_BACK, ACTION_NAV_LETTER_FWD,
@@ -1442,7 +1442,7 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     def keyPressEvent(self, event):
         """Captura la navegación por teclado (flechas, enter, espacio, retroceso, página, inicio, fin)."""
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
@@ -1491,7 +1491,7 @@ class ThemeLayout(BaseLayout):
 
     def wheelEvent(self, event):
         """Permite navegar fluidamente por la lista utilizando la rueda de desplazamiento del ratón."""
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
@@ -1504,7 +1504,7 @@ class ThemeLayout(BaseLayout):
 
     def mousePressEvent(self, event):
         """Permite interactuar mediante clics directos sobre los elementos de la interfaz."""
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return

@@ -1,9 +1,10 @@
-# Lista de RetroShelf: Sega CD
+# Lista de PlayNexus: Sega CD
 [List]
 id = 6
 name = Sega CD
 list_type = games
 platform = Sega CD
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Sega CD.png
 default_emulator_id = 10
 default_emulator = Retroarch Picodrive
 layout = Sega CD
@@ -12,10 +13,11 @@ roms_path = D:/Roms/Sega CD/Roms
 scan_subfolders = true
 exclude_folder_if_zip = false
 media_path = 
-boxart_path = D:\Roms\Sega CD\media\boxart
-wheel_path = D:\Roms\Sega CD\media\wheel
-video_path = D:\Roms\Sega CD\media\videos
-cartart_path = D:\Roms\Sega CD\media\cartart
+boxart_path = D:/Roms/Sega CD/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Sega CD/media/wheel
+video_path = D:/Roms/Sega CD/media/videos
+cartart_path = D:/Roms/Sega CD/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 

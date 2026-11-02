@@ -1,9 +1,10 @@
-# Lista de RetroShelf: Taito G-Net
+# Lista de PlayNexus: Taito G-Net
 [List]
 id = 13
 name = Taito G-Net
 list_type = games
 platform = Arcades
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Arcade.png
 default_emulator_id = 13
 default_emulator = ArcadeDuck
 layout = At-The-Arcade Flex
@@ -11,7 +12,7 @@ allowed_extensions = .zip
 roms_path = D:/Roms/Mame/Taito G-Net
 scan_subfolders = false
 exclude_folder_if_zip = true
-media_path = D:/Roms/Mame/media
+media_path = 
 boxart_path = 
 flyer_path = D:/Roms/Mame/media/flyer
 wheel_path = D:/Roms/Mame/media/wheel

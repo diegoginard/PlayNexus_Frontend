@@ -1,9 +1,10 @@
-# Lista de RetroShelf: Sega Genesis
+# Lista de PlayNexus: Sega Genesis
 [List]
 id = 2
 name = Sega Genesis
 list_type = games
 platform = Sega Genesis
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Sega Genesis.png
 default_emulator_id = 8
 default_emulator = Retroarch genesis plus gx
 layout = Sega Genesis
@@ -12,10 +13,11 @@ roms_path = D:/Roms/Sega Genesis/Roms
 scan_subfolders = true
 exclude_folder_if_zip = false
 media_path = 
-boxart_path = D:\Roms\Sega Genesis\media\boxart
-wheel_path = D:\Roms\Sega Genesis\media\Wheel
-video_path = D:\Roms\Sega Genesis\media\videos
-cartart_path = D:\Roms\Sega Genesis\media\cartart
+boxart_path = D:/Roms/Sega Genesis/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Sega Genesis/media/Wheel
+video_path = D:/Roms/Sega Genesis/media/videos
+cartart_path = D:/Roms/Sega Genesis/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 

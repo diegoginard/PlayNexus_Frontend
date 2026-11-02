@@ -1,4 +1,4 @@
-# Lista de RetroShelf: Menu Consolas
+# Lista de PlayNexus: Menu Consolas
 [List]
 id = 8
 name = Menu Consolas
@@ -11,11 +11,11 @@ allowed_extensions =
 roms_path = 
 scan_subfolders = true
 exclude_folder_if_zip = false
-media_path = C:/Users/ARcade/Desktop/Repos/RetroShelf/Layouts/Media
+media_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/Layouts/Media
 boxart_path = 
 flyer_path = 
-wheel_path = C:/Users/ARcade/Desktop/Repos/RetroShelf/Layouts/Media/Wheel
-video_path = C:/Users/ARcade/Desktop/Repos/RetroShelf/Layouts/Media/Video
+wheel_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/Layouts/Media/Wheel
+video_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/Layouts/Media/Video
 cartart_path = 
 cabinet_path = 
 marquee_path = 

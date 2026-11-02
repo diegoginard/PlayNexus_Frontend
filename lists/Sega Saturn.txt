@@ -1,9 +1,10 @@
-# Lista de RetroShelf: Sega Saturn
+# Lista de PlayNexus: Sega Saturn
 [List]
 id = 4
 name = Sega Saturn
 list_type = games
 platform = Sega Saturn
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Sega Saturn.png
 default_emulator_id = 9
 default_emulator = Yaba Sanshiro 2
 layout = Sega Saturn
@@ -12,10 +13,11 @@ roms_path = D:/Roms/Sega Saturn/Roms
 scan_subfolders = true
 exclude_folder_if_zip = false
 media_path = 
-boxart_path = D:\Roms\Sega Saturn\media\boxart
-wheel_path = D:\Roms\Sega Saturn\media\wheel
-video_path = D:\Roms\Sega Saturn\media\videos
-cartart_path = D:\Roms\Sega Saturn\media\cartart
+boxart_path = D:/Roms/Sega Saturn/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Sega Saturn/media/wheel
+video_path = D:/Roms/Sega Saturn/media/videos
+cartart_path = D:/Roms/Sega Saturn/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 

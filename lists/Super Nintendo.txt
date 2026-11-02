@@ -1,9 +1,10 @@
-# Lista de RetroShelf: Super Nintendo
+# Lista de PlayNexus: Super Nintendo
 [List]
 id = 1
 name = Super Nintendo
 list_type = games
 platform = Super Nintendo
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Super Nintendo.png
 default_emulator_id = 1
 default_emulator = Super Nintendo
 layout = Super Nintendo Entertainment System
@@ -11,7 +12,7 @@ allowed_extensions = .sfc;.smc;.zip
 roms_path = D:/Roms/Super Nintendo/Roms
 scan_subfolders = true
 exclude_folder_if_zip = false
-media_path = D:/Roms/Super Nintendo/media
+media_path = 
 boxart_path = D:/Roms/Super Nintendo/media/boxart
 flyer_path = 
 wheel_path = D:/Roms/Super Nintendo/media/wheel

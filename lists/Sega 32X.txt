@@ -1,9 +1,10 @@
-# Lista de RetroShelf: Sega 32X
+# Lista de PlayNexus: Sega 32X
 [List]
 id = 5
 name = Sega 32X
 list_type = games
 platform = Sega 32X
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Sega 32X.png
 default_emulator_id = 10
 default_emulator = Retroarch Picodrive
 layout = Sega 32X
@@ -12,10 +13,11 @@ roms_path = D:/Roms/Sega 32X/Roms
 scan_subfolders = true
 exclude_folder_if_zip = false
 media_path = 
-boxart_path = D:\Roms\Sega 32X\media\boxart
-wheel_path = D:\Roms\Sega 32X\media\wheel
-video_path = D:\Roms\Sega 32X\media\videos
-cartart_path = D:\Roms\Sega 32X\media\cartart
+boxart_path = D:/Roms/Sega 32X/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Sega 32X/media/wheel
+video_path = D:/Roms/Sega 32X/media/videos
+cartart_path = D:/Roms/Sega 32X/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 

@@ -1,11 +1,11 @@
-import retroshelf
+import playnexus
 """
 =============================================================================
 Layout Autónomo y Configuración: Sega Saturn
 =============================================================================
 Este archivo maneja en su totalidad la configuración, métricas, recursos,
 reproducción de video, animaciones de entrada, giro de CD y renderizado
-completo del sistema Sega Saturn para RetroShelf.
+completo del sistema Sega Saturn para PlayNexus.
 """
 import os
 import time
@@ -21,10 +21,10 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink, QSoundEffect
 
-from retroshelf.ui.layouts.base import BaseLayout, WheelPreloadWorker
-from retroshelf.services.media import resolve_game_media
-from retroshelf.ui.cover_utils import load_cover
-from retroshelf.services.controls import (
+from playnexus.ui.layouts.base import BaseLayout, WheelPreloadWorker
+from playnexus.services.media import resolve_game_media
+from playnexus.ui.cover_utils import load_cover
+from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_PAGE_UP,
     ACTION_PAGE_DOWN, ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK
 )
@@ -596,7 +596,7 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def set_db(self, db):
-        """Asocia la base de datos de RetroShelf para consultas de metadatos o emuladores."""
+        """Asocia la base de datos de PlayNexus para consultas de metadatos o emuladores."""
         self.db = db
         if self.games and 0 <= self.selected_index < len(self.games):
             self._load_game_media(self.games[self.selected_index])
@@ -1242,7 +1242,7 @@ class ThemeLayout(BaseLayout):
 
     def keyPressEvent(self, event):
         """Captura la navegación por teclado (flechas, enter, espacio, retroceso, página, inicio, fin)."""
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
@@ -1284,7 +1284,7 @@ class ThemeLayout(BaseLayout):
 
     def wheelEvent(self, event):
         """Permite navegar fluidamente por la lista utilizando la rueda de desplazamiento del ratón."""
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
@@ -1297,7 +1297,7 @@ class ThemeLayout(BaseLayout):
 
     def mousePressEvent(self, event):
         """Permite interactuar mediante clics directos sobre los elementos de la interfaz."""
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return

@@ -10,7 +10,7 @@ venv/
 ENV/
 
 # Database files
-retroshelf.db
+playnexus.db
 *.db
 *.db-shm
 *.db-wal

@@ -1,6 +1,6 @@
-# Guía de Creación de Layouts para RetroShelf
+# Guía de Creación de Layouts para PlayNexus
 
-Este documento define el estándar oficial para crear un nuevo tema visual (`theme_layout.py`) en RetroShelf. Seguir esta guía garantiza compatibilidad con el sistema de descubrimiento automático, los controles, la gestión de medios y la navegación.
+Este documento define el estándar oficial para crear un nuevo tema visual (`theme_layout.py`) en PlayNexus. Seguir esta guía garantiza compatibilidad con el sistema de descubrimiento automático, los controles, la gestión de medios y la navegación.
 
 ---
 
@@ -32,7 +32,7 @@ Layouts/
 ### 1. Encabezado e imports
 
 ```python
-import retroshelf
+import playnexus
 """
 =============================================================================
 Layout Autónomo y Configuración: Nombre Del Sistema
@@ -47,9 +47,9 @@ from PySide6.QtCore import Qt, QUrl, QRect, QTimer
 from PySide6.QtGui import QFont, QColor, QPainter, QPixmap, QFontDatabase
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink, QSoundEffect
 
-from retroshelf.ui.layouts.base import BaseLayout, WheelPreloadWorker
-from retroshelf.services.media import resolve_game_media
-from retroshelf.services.controls import (
+from playnexus.ui.layouts.base import BaseLayout, WheelPreloadWorker
+from playnexus.services.media import resolve_game_media
+from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_PAGE_UP,
     ACTION_PAGE_DOWN, ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
     ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK
@@ -101,7 +101,7 @@ Define qué carpetas de medios necesita el layout. El sistema las detecta autom�
     ]
 ```
 
-**Claves válidas** para el campo `"key"` (usadas por `retroshelf/services/media.py`):
+**Claves válidas** para el campo `"key"` (usadas por `playnexus/services/media.py`):
 
 | Clave      | Descripción                        |
 |------------|------------------------------------|
@@ -241,14 +241,14 @@ Todos los métodos siguientes deben implementarse:
 
 ```python
     def keyPressEvent(self, event):
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
         # ... lógica de navegación con matches_action(event, ACTION_*)
 
     def wheelEvent(self, event):
-        from retroshelf.services.emulator_manager import EMULATOR_MANAGER
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
