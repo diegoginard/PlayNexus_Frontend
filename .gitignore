@@ -37,3 +37,5 @@ Layouts/Media/
 build/
 dist/
 *.spec
+bin/
+*.exe

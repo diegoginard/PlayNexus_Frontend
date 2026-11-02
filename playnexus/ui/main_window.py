@@ -410,25 +410,6 @@ class MainWindow(QMainWindow):
         self.settings_tab.settings_saved.connect(self._on_settings_saved)
         self.main_tabs.addTab(self.settings_tab, "⚙  Configuración del Sistema")
 
-        corner_btn = QPushButton("▶  Iniciar Frontend")
-        corner_btn.setToolTip("Iniciar el Frontend a pantalla completa sin botones")
-        corner_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #5d48d9;
-                color: #ffffff;
-                font-weight: bold;
-                border-radius: 6px;
-                padding: 6px 14px;
-                margin-right: 6px;
-                font-size: 9.5pt;
-            }
-            QPushButton:hover {
-                background-color: #6e59ea;
-            }
-        """)
-        corner_btn.clicked.connect(self.launch_frontend_player)
-        self.main_tabs.setCornerWidget(corner_btn, Qt.TopRightCorner)
-
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
 
         self.setCentralWidget(self.main_tabs)

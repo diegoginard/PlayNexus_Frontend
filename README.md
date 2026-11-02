@@ -10,10 +10,17 @@
 
 PlayNexus puede ejecutarse directamente mediante sus **ejecutables independientes** (sin necesidad de tener Python instalado), mediante scripts `.bat` automatizados o desde la consola de comandos.
 
-### 1. Ejecutables independientes (Recomendado para distribución)
-- **`PlayNexus_Config.exe`**: Abre directamente el **Configurador de Biblioteca** sin requerir Python ni dependencias externas.
-- **`PlayNexus_Launcher.exe`**: Inicia directamente el **Modo Frontend / Reproductor** en pantalla completa.
-- **Compilación propia:** Si modificás el código fuente, podés compilar tus propios ejecutables ejecutando `python build_executables.py`.
+### 1. Ejecutables independientes en carpeta `bin/` (Distribución 100% limpia y portable)
+Al ejecutar `python build_executables.py`, se compilan y ensamblan todos los archivos necesarios dentro de la carpeta **`bin/`**, lista para usarse de forma autónoma en limpio (o comprimirse en `.zip` para llevar a cualquier equipo):
+- **`bin/PlayNexus_Config.exe`**: Abre directamente el **Configurador de Biblioteca** sin requerir Python ni dependencias externas.
+- **`bin/PlayNexus_Launcher.exe`**: Inicia directamente el **Modo Frontend / Reproductor** en pantalla completa.
+- **Estructura autónoma incluida en `bin/`**:
+  - `bin/config/`: `settings.txt` con ajustes limpios de fábrica y `emulator_templates.txt` con el catálogo de plantillas rápidas.
+  - `bin/emulators/`: Carpeta limpia preparada para dar de alta emuladores.
+  - `bin/lists/`: Carpeta limpia preparada para tus listas de juegos.
+  - `bin/icons/`: Logotipos e iconos de consolas y arcades.
+  - `bin/Layouts/`: Temas y diseños visuales listos para usar (CRT tv, consolas, wheel, showcase, etc.).
+  - `bin/PlayNexus_Logo.png`: Logotipo de la aplicación para cabeceras y ventanas.
 
 ### 2. Lanzadores por scripts (.bat)
 - **`PlayNexus.bat`**: Menú selector interactivo que te permite elegir entre iniciar el Frontend o el Configurador.
@@ -146,18 +153,25 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
 PlayNexus_Frontend/
 ├── README.md                 # Documentación técnica y guía de uso
 ├── requirements.txt          # Dependencias del proyecto (PySide6)
-├── PlayNexus_Config.exe      # Ejecutable independiente del Configurador
-├── PlayNexus_Launcher.exe    # Ejecutable independiente del Frontend / Jugador
 ├── PlayNexus.bat             # Menú interactivo de selección (.bat)
 ├── PlayNexus_Config.bat      # Lanzador directo del Modo Configurador (.bat)
 ├── PlayNexus_Launcher.bat    # Lanzador directo del Modo Frontend / Jugador (.bat)
-├── build_executables.py      # Script de compilación PyInstaller para generar los .exe
+├── build_executables.py      # Script de compilación y ensamblado de la carpeta bin/ limpia
 ├── entry_config.py           # Punto de entrada para PlayNexus_Config.exe
 ├── entry_launcher.py         # Punto de entrada para PlayNexus_Launcher.exe
 ├── PlayNexus_Logo.png        # Logotipo del proyecto
-├── config/                   # Configuración global del sistema (settings.txt, emulator_templates.txt)
-├── emulators/                # Archivos .txt independientes por cada emulador registrado
-├── lists/                    # Archivos .txt independientes por lista/menú y sus juegos
+├── bin/                      # Distribución independiente 100% limpia y portable (.exe y recursos)
+│   ├── PlayNexus_Config.exe  # Ejecutable del Configurador
+│   ├── PlayNexus_Launcher.exe# Ejecutable del Frontend / Jugador
+│   ├── PlayNexus_Logo.png    # Logotipo del aplicativo
+│   ├── config/               # Configuración limpia (settings.txt, emulator_templates.txt)
+│   ├── emulators/            # Directorio limpio para registrar emuladores
+│   ├── lists/                # Directorio limpio para listas de juegos
+│   ├── icons/                # Iconos de consolas y arcades
+│   └── Layouts/              # Diseños y temas visuales nativos
+├── config/                   # Configuración del entorno de desarrollo
+├── emulators/                # Archivos .txt de emuladores del entorno local
+├── lists/                    # Archivos .txt de listas del entorno local
 ├── icons/                    # Logotipos e iconos de consolas y arcades (.png)
 ├── Layouts/                  # Carpetas de temas y layouts dedicados por consola
 └── playnexus/
