@@ -165,10 +165,12 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
 - **Ocultamiento de transiciones de Windows:** Al iniciar un juego o cerrarlo, se despliega una pantalla de carga a pantalla completa (`TOPMOST`) que enmascara los parpadeos del escritorio, cambios de resolución y demoras del emulador.
 - **Tiempos configurables por Emulador:**
   - **Apertura (In):** Segundos que se mantiene la pantalla al arrancar el emulador antes de desvanecerse suavemente.
-  - **Cierre (Out):** Segundos que se mantiene la pantalla al pulsar Escape o combo de mando mientras el emulador se cierra y el layout de PlayNexus recupera el foco.
-- **Personalización por Lista de Juegos:**
-  - Cada lista permite asignar su propia imagen o carpeta de apertura (`loading_in_path`) y de cierre (`loading_out_path`).
-  - Si una lista no tiene imagen propia asignada, utiliza de manera transparente el arte general de `splash/loading.jpg` (o PNG).
+  - **Cierre (Out):** Segundos que se mantiene la pantalla al pulsar la tecla o combo de cierre mientras el emulador finaliza y el layout de PlayNexus recupera el foco.
+- **Carpeta única por Lista de Juegos (`loading_path`) con jerarquía de prioridad:**
+  - Cada lista permite configurar una única carpeta de Loading Screens, la cual se organiza de forma modular:
+    1. **Prioridad 1 (Por juego / ROM):** Subcarpeta con el nombre de la ROM conteniendo `nombrerom_i.<ext>` (apertura) y `nombrerom_o.<ext>` (cierre).
+    2. **Prioridad 2 (Por defecto del sistema / lista):** Subcarpeta `default/` conteniendo `default_i.<ext>` y `default_o.<ext>`.
+    3. **Prioridad 3 (Genérico global):** Si no existe arte asignado en la lista, recurre automáticamente a la imagen predeterminada en `splash/loading.jpg` (o PNG/WebP).
 
 ### 13. Confirmación Segura de Salida del Sistema
 - **Diálogo modal arcade con confirmación:** Al pulsar la tecla configurada para cerrar el frontend (por defecto `Escape`) o combo de mando (`Back+Start`), se despliega una ventana interactiva de confirmación que evita salidas involuntarias.
@@ -254,4 +256,4 @@ PlayNexus almacena toda la información de manera legible y portable en archivos
 - **`config/settings.txt`**: Ajustes generales, controles asignados, modos de video y preferencias.
 - **`config/emulator_templates.txt`**: Catálogo de plantillas rápidas de emuladores (nombre, ejecutable, argumentos, plataforma, descripción, retardo/fade de Bezel y tiempos de Loading Screen).
 - **`emulators/<NombreEmulador>.txt`**: Parámetros de cada emulador (`executable`, `arguments`, `platform`, `bezel_delay`, `bezel_fade`, `loading_time`, `exit_loading_time`).
-- **`lists/<NombreLista>.txt`**: Configuración de cada lista (`[List]`: rutas de ROMs, layout, icono, filtros, medios, Bezel HUD, pantallas de carga `loading_in_path` y `loading_out_path`) y catálogo completo de juegos (`[Games]`: título, archivo, emulador individual, modo de Bezel HUD, metadatos).
+- **`lists/<NombreLista>.txt`**: Configuración de cada lista (`[List]`: rutas de ROMs, layout, icono, filtros, medios, Bezel HUD, carpeta única de carga `loading_path`) y catálogo completo de juegos (`[Games]`: título, archivo, emulador individual, modo de Bezel HUD, metadatos).

@@ -406,37 +406,28 @@ class ListDialog(QDialog):
 
         scroll_layout.addWidget(bezel_hud_group)
 
-        # 6. Pantallas de Carga / Loading HUD (Apertura y Cierre)
-        loading_group = QGroupBox("Pantalla de Carga / Loading HUD (Apertura y Cierre)")
+        # 6. Pantalla de Carga / Loading HUD
+        loading_group = QGroupBox("Pantalla de Carga / Loading HUD")
         loading_layout = QFormLayout(loading_group)
         loading_layout.setSpacing(8)
 
-        self.loading_in_path_edit = QLineEdit()
-        self.loading_in_path_edit.setPlaceholderText("Imagen fija o carpeta con imágenes de carga (ej: splash/loading.jpg)")
-        browse_load_in_btn = QPushButton("Examinar…")
-        browse_load_in_btn.clicked.connect(self.pick_loading_in)
-        load_in_box = QHBoxLayout()
-        load_in_box.addWidget(self.loading_in_path_edit, 1)
-        load_in_box.addWidget(browse_load_in_btn)
-        load_in_holder = QWidget()
-        load_in_holder.setLayout(load_in_box)
-        loading_layout.addRow("Pantalla Apertura (In):", load_in_holder)
-
-        self.loading_out_path_edit = QLineEdit()
-        self.loading_out_path_edit.setPlaceholderText("Imagen fija o carpeta para el cierre (si se deja vacía usa la de apertura)")
-        browse_load_out_btn = QPushButton("Examinar…")
-        browse_load_out_btn.clicked.connect(self.pick_loading_out)
-        load_out_box = QHBoxLayout()
-        load_out_box.addWidget(self.loading_out_path_edit, 1)
-        load_out_box.addWidget(browse_load_out_btn)
-        load_out_holder = QWidget()
-        load_out_holder.setLayout(load_out_box)
-        loading_layout.addRow("Pantalla Cierre (Out):", load_out_holder)
+        self.loading_path_edit = QLineEdit()
+        self.loading_path_edit.setPlaceholderText("Carpeta de Loading Screens (ej: D:/Media/Loading)")
+        browse_load_btn = QPushButton("Examinar…")
+        browse_load_btn.clicked.connect(self.pick_loading_path)
+        load_box = QHBoxLayout()
+        load_box.addWidget(self.loading_path_edit, 1)
+        load_box.addWidget(browse_load_btn)
+        load_holder = QWidget()
+        load_holder.setLayout(load_box)
+        loading_layout.addRow("Carpeta de Loading Screens:", load_holder)
 
         lbl_load_hint = QLabel(
-            "<i>Cubren transiciones de pantalla completa al arrancar y salir del emulador. "
-            "Si se dejan vacías, se utiliza automáticamente la imagen predeterminada de <b>splash/loading.jpg</b>. "
-            "Los tiempos de duración se configuran individualmente en cada emulador.</i>"
+            "<i>Estructura de la carpeta:</i><br>"
+            "• <b>Prioridad 1 (Por juego):</b> Subcarpeta con el nombre de la ROM conteniendo <code>&lt;rom&gt;_i.ext</code> (apertura) y <code>&lt;rom&gt;_o.ext</code> (cierre).<br>"
+            "• <b>Prioridad 2 (Por defecto del sistema):</b> Subcarpeta <code>default</code> conteniendo <code>default_i.ext</code> y <code>default_o.ext</code>.<br>"
+            "• <b>Prioridad 3 (Genérico global):</b> Si no se encuentra, se utiliza automáticamente <code>splash/loading.jpg</code>.<br>"
+            "<i>(Los tiempos de duración de entrada y salida se calibran individualmente en cada emulador).</i>"
         )
         lbl_load_hint.setStyleSheet("color: #8f9aa9; font-size: 8.5pt;")
         lbl_load_hint.setWordWrap(True)
@@ -493,10 +484,10 @@ class ListDialog(QDialog):
             self.bezel_hud_enabled_cb.setChecked(hud_en)
             if existing.get("bezel_hud_path"):
                 self.bezel_hud_path_edit.setText(self._normalize_path(existing["bezel_hud_path"]))
-            if existing.get("loading_in_path"):
-                self.loading_in_path_edit.setText(self._normalize_path(existing["loading_in_path"]))
-            if existing.get("loading_out_path"):
-                self.loading_out_path_edit.setText(self._normalize_path(existing["loading_out_path"]))
+            if existing.get("loading_path"):
+                self.loading_path_edit.setText(self._normalize_path(existing["loading_path"]))
+            elif existing.get("loading_in_path"):
+                self.loading_path_edit.setText(self._normalize_path(existing["loading_in_path"]))
             for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel"):
                 field_name = f"{k}_path"
                 if field_name in existing.keys() and existing[field_name]:
@@ -928,29 +919,16 @@ class ListDialog(QDialog):
         if path:
             self.bezel_hud_path_edit.setText(self._normalize_path(path))
 
-    def pick_loading_in(self):
-        """Abre un selector para elegir una imagen o carpeta de apertura."""
-        current = self.loading_in_path_edit.text().strip() if hasattr(self, "loading_in_path_edit") else ""
-        initial_dir = current if (current and Path(current).is_dir()) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Seleccionar imagen de carga (Apertura)",
-            initial_dir,
-            "Imágenes (*.png *.jpg *.jpeg *.webp);;Todos los archivos (*.*)"
+    def pick_loading_path(self):
+        """Abre un selector para elegir la carpeta de pantallas de carga (Loading HUD)."""
+        current = self.loading_path_edit.text().strip() if hasattr(self, "loading_path_edit") else ""
+        initial_dir = current if (current and Path(current).is_dir()) else str(APP_DIR)
+        path = QFileDialog.getExistingDirectory(
+            self, "Seleccionar carpeta de Loading Screens",
+            initial_dir
         )
         if path:
-            self.loading_in_path_edit.setText(self._normalize_path(path))
-
-    def pick_loading_out(self):
-        """Abre un selector para elegir una imagen o carpeta de cierre."""
-        current = self.loading_out_path_edit.text().strip() if hasattr(self, "loading_out_path_edit") else ""
-        initial_dir = current if (current and Path(current).is_dir()) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Seleccionar imagen de carga (Cierre)",
-            initial_dir,
-            "Imágenes (*.png *.jpg *.jpeg *.webp);;Todos los archivos (*.*)"
-        )
-        if path:
-            self.loading_out_path_edit.setText(self._normalize_path(path))
+            self.loading_path_edit.setText(self._normalize_path(path))
 
     def pick_folder(self):
         current_folders = self.get_rom_folders()
@@ -1167,8 +1145,8 @@ class ListDialog(QDialog):
             icon_path,
             "true" if self.bezel_hud_enabled_cb.isChecked() else "false",
             self._normalize_path(self.bezel_hud_path_edit.text().strip()),
-            self._normalize_path(self.loading_in_path_edit.text().strip()),
-            self._normalize_path(self.loading_out_path_edit.text().strip()),
+            self._normalize_path(self.loading_path_edit.text().strip()),
+            self._normalize_path(self.loading_path_edit.text().strip()),
         )
 
 

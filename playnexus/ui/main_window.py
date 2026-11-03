@@ -580,10 +580,7 @@ class MainWindow(QMainWindow):
             icon_path = vals[24] if len(vals) > 24 else ""
             bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
             bezel_hud_path = vals[26] if len(vals) > 26 else ""
-            loading_in_path = vals[27] if len(vals) > 27 else ""
-            loading_out_path = vals[28] if len(vals) > 28 else ""
-            loading_in_path = vals[27] if len(vals) > 27 else ""
-            loading_out_path = vals[28] if len(vals) > 28 else ""
+            loading_path = vals[27] if len(vals) > 27 else ""
             try:
                 list_id = self.db.add_list(
                     name=name,
@@ -611,8 +608,7 @@ class MainWindow(QMainWindow):
                     icon_path=icon_path,
                     bezel_hud_enabled=str(bezel_hud_enabled).lower(),
                     bezel_hud_path=bezel_hud_path,
-                    loading_in_path=loading_in_path,
-                    loading_out_path=loading_out_path,
+                    loading_path=loading_path,
                 )
                 clear_media_cache()
                 if list_type == "menu":
@@ -685,8 +681,7 @@ class MainWindow(QMainWindow):
             icon_path = vals[24] if len(vals) > 24 else ""
             bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
             bezel_hud_path = vals[26] if len(vals) > 26 else ""
-            loading_in_path = vals[27] if len(vals) > 27 else ""
-            loading_out_path = vals[28] if len(vals) > 28 else ""
+            loading_path = vals[27] if len(vals) > 27 else ""
             old_roms_path = format_rom_folders(row["roms_path"] if "roms_path" in row.keys() else "")
             old_exts = (row["allowed_extensions"] if "allowed_extensions" in row.keys() else "") or ""
             old_scan_sub = str(row.get("scan_subfolders", "true")).strip().lower() in ("true", "1")
@@ -733,8 +728,7 @@ class MainWindow(QMainWindow):
                     icon_path=icon_path,
                     bezel_hud_enabled=str(bezel_hud_enabled).lower(),
                     bezel_hud_path=bezel_hud_path,
-                    loading_in_path=loading_in_path,
-                    loading_out_path=loading_out_path,
+                    loading_path=loading_path,
                 )
                 clear_media_cache()
                 if list_type == "menu":

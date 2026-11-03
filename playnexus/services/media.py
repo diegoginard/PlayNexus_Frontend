@@ -464,13 +464,25 @@ def resolve_game_bezel(db, game: dict | None, list_row: dict | None = None) -> s
 def resolve_loading_image(db, game: dict | None, is_exit: bool = False, list_row: dict | None = None) -> str | None:
     """
     Resuelve la imagen para la pantalla de carga (apertura o cierre):
-    1. Si list_row tiene 'loading_out_path' (para cierre) o 'loading_in_path' (para apertura) configurado:
-       - Si es archivo existente: lo retorna.
-       - Si es carpeta: busca <stem>.<ext>, <rom_name>.<ext>, o default/loading.<ext>.
-    2. Si es de cierre y no hay 'loading_out_path', prueba con 'loading_in_path'.
-    3. Si la lista no tiene imagen específica, busca en la carpeta splash/:
-       - Si es de cierre: busca splash/exit.<ext> o splash/loading_out.<ext>.
-       - Si no existe: busca splash/loading.<ext> (ej: splash/loading.jpg).
+    1. Si la lista tiene 'loading_path' configurado (o retrocompatible 'loading_in_path'):
+       - Prioridad 1 (Por ROM / juego):
+         Busca dentro de una subcarpeta nombrada como la ROM (<rom_name> o <stem>):
+           - Apertura (is_exit=False): <nombrerom>_i.<ext>, <stem>_i.<ext>, default_i.<ext>, loading_i.<ext>, etc.
+           - Cierre (is_exit=True): <nombrerom>_o.<ext>, <stem>_o.<ext>, default_o.<ext>, loading_o.<ext>, exit.<ext>, etc.
+         También busca directamente en la raíz de loading_path con sufijo _i / _o:
+           - Apertura: <nombrerom>_i.<ext>
+           - Cierre: <nombrerom>_o.<ext>
+       - Prioridad 2 (Por defecto del sistema / lista):
+         Busca dentro de la subcarpeta 'default' (o 'Default'):
+           - Apertura: default_i.<ext>, loading_i.<ext>, default_in.<ext>, default.<ext>
+           - Cierre: default_o.<ext>, loading_o.<ext>, default_out.<ext>, exit.<ext>
+         También busca directamente en la raíz de loading_path:
+           - Apertura: default_i.<ext>
+           - Cierre: default_o.<ext>
+    2. Prioridad 3 (Genérico global en splash/):
+       - Si es de cierre: busca splash/exit.<ext>, splash/loading_out.<ext>, splash/loading_o.<ext>, splash/outro.<ext>.
+       - Si no se encuentra cierre específico o es de apertura:
+         busca splash/loading.<ext>, splash/loading_in.<ext>, splash/loading_i.<ext>, splash/splash.<ext>.
     """
     if list_row is None and db and game:
         lid = game.get("list_id")
@@ -484,36 +496,80 @@ def resolve_loading_image(db, game: dict | None, is_exit: bool = False, list_row
     stem = Path(rom_path).stem if rom_path else ""
     rom_name = (game.get("rom_name") or "") if game else ""
 
-    cand_keys = ["loading_out_path", "loading_in_path"] if is_exit else ["loading_in_path"]
+    loading_folder = ""
     if list_row:
-        for k in cand_keys:
-            raw_path = str(list_row.get(k) or "").strip()
-            if not raw_path:
-                continue
-            p = Path(raw_path)
-            if p.is_file():
-                return str(p.resolve()).replace("\\", "/")
-            if p.is_dir():
-                for name in (stem, rom_name):
-                    if name:
-                        found = find_media_file(p, name, IMAGE_EXTS)
+        loading_folder = str(list_row.get("loading_path") or list_row.get("loading_in_path") or "").strip()
+
+    if loading_folder:
+        p_root = Path(loading_folder)
+        if p_root.is_file():
+            return str(p_root.resolve()).replace("\\", "/")
+        if p_root.is_dir():
+            # 1. Prioridad 1: Subcarpeta con el nombre de la ROM conteniendo nombrerom_i / nombrerom_o
+            cand_rom_names = []
+            for n in (rom_name, stem):
+                if n and n not in cand_rom_names:
+                    cand_rom_names.append(n)
+
+            for r_name in cand_rom_names:
+                sub_dir = p_root / r_name
+                if sub_dir.is_dir():
+                    if not is_exit:
+                        cand_files = [f"{r_name}_i", f"{stem}_i", f"{r_name}_in", "default_i", "loading_i", "loading", r_name]
+                    else:
+                        cand_files = [f"{r_name}_o", f"{stem}_o", f"{r_name}_out", "default_o", "loading_o", "exit", r_name]
+
+                    for fname in cand_files:
+                        found = find_media_file(sub_dir, fname, IMAGE_EXTS)
                         if found:
                             return found.replace("\\", "/")
-                for fb in ("default", "loading", "intro", "outro", "exit"):
-                    found = find_media_file(p, fb, IMAGE_EXTS)
+
+                # Búsqueda suelta directamente en la raíz de loading_folder
+                direct_candidates = [f"{r_name}_o", f"{stem}_o"] if is_exit else [f"{r_name}_i", f"{stem}_i"]
+                for fname in direct_candidates:
+                    found = find_media_file(p_root, fname, IMAGE_EXTS)
                     if found:
                         return found.replace("\\", "/")
 
-    # Fallback global en splash/
+            # 2. Prioridad 2: Subcarpeta 'default' con default_i / default_o
+            def_sub_dir = p_root / "default"
+            if not def_sub_dir.is_dir():
+                def_sub_dir = p_root / "Default"
+
+            if def_sub_dir.is_dir():
+                if not is_exit:
+                    cand_def = ["default_i", "default_in", "loading_i", "loading", "default"]
+                else:
+                    cand_def = ["default_o", "default_out", "loading_o", "exit", "default"]
+
+                for fname in cand_def:
+                    found = find_media_file(def_sub_dir, fname, IMAGE_EXTS)
+                    if found:
+                        return found.replace("\\", "/")
+
+                # Si es de cierre y no hay default_o, fallback a default_i en la carpeta default
+                if is_exit:
+                    found = find_media_file(def_sub_dir, "default_i", IMAGE_EXTS)
+                    if found:
+                        return found.replace("\\", "/")
+
+            # Si no hay subcarpeta default, probar default_i / default_o sueltas en loading_folder
+            direct_def = ["default_o", "exit", "loading_out", "default_i"] if is_exit else ["default_i", "loading", "default_in", "default"]
+            for fname in direct_def:
+                found = find_media_file(p_root, fname, IMAGE_EXTS)
+                if found:
+                    return found.replace("\\", "/")
+
+    # 3. Prioridad 3: Fallback global genérico en splash/
     splash_dir = APP_DIR / "splash"
     if splash_dir.is_dir():
         if is_exit:
-            for cand_exit in ("exit", "loading_out", "outro"):
+            for cand_exit in ("exit", "loading_out", "loading_o", "outro"):
                 found = find_media_file(splash_dir, cand_exit, IMAGE_EXTS)
                 if found:
                     return found.replace("\\", "/")
 
-        for cand_load in ("loading", "loading_in", "splash"):
+        for cand_load in ("loading", "loading_in", "loading_i", "splash"):
             found = find_media_file(splash_dir, cand_load, IMAGE_EXTS)
             if found:
                 return found.replace("\\", "/")

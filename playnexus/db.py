@@ -112,6 +112,7 @@ LIST_DEFAULTS = {
     "bezel_path": "",
     "bezel_hud_enabled": "true",
     "bezel_hud_path": "",
+    "loading_path": "",
     "loading_in_path": "",
     "loading_out_path": "",
     "xml_path": "",
@@ -299,9 +300,11 @@ class _PlainTextStore:
                     lst[k] = data.get(k, def_v)
                 for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
                            "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
-                           "loading_in_path", "loading_out_path"):
+                           "loading_path", "loading_in_path", "loading_out_path"):
                     if lst.get(pk):
                         lst[pk] = str(lst[pk]).strip().replace("\\", "/")
+                if not lst.get("loading_path") and lst.get("loading_in_path"):
+                    lst["loading_path"] = lst["loading_in_path"]
                 if lst.get("roms_path"):
                     lst["roms_path"] = ";".join(
                         p.strip().replace("\\", "/")
@@ -788,9 +791,11 @@ class Database:
                 lst[k] = def_v
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
                    "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
-                   "loading_in_path", "loading_out_path"):
+                   "loading_path", "loading_in_path", "loading_out_path"):
             if lst.get(pk):
                 lst[pk] = str(lst[pk]).strip().replace("\\", "/")
+        if not lst.get("loading_path") and lst.get("loading_in_path"):
+            lst["loading_path"] = lst["loading_in_path"]
         if lst.get("roms_path"):
             lst["roms_path"] = ";".join(
                 p.strip().replace("\\", "/")
@@ -829,7 +834,7 @@ class Database:
             updates["name"] = new_name
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
                    "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
-                   "loading_in_path", "loading_out_path"):
+                   "loading_path", "loading_in_path", "loading_out_path"):
             if pk in updates and updates[pk] is not None:
                 updates[pk] = str(updates[pk]).strip().replace("\\", "/")
         if "roms_path" in updates and updates["roms_path"] is not None:

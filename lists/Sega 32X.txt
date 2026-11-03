@@ -21,6 +21,10 @@ cartart_path = D:/Roms/Sega 32X/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = D:/Roms/Sega 32X/media/bezel
+loading_in_path = 
+loading_out_path = 
 xml_path = 
 created_at = 2026-10-26 22:50:11
 source_list_id = 
@@ -29,34 +33,34 @@ filter_match_mode = all
 menu_items = 
 
 [Games]
-# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile
-2310;After Burner Complete (E);After Burner Complete (E);D:\\Roms\\Sega 32X\\Roms\\After Burner Complete (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2311;Amazing Spider-Man, The - Web of Fire (U);Amazing Spider-Man, The - Web of Fire (U);D:\\Roms\\Sega 32X\\Roms\\Amazing Spider-Man, The - Web of Fire (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2312;BC Racers (U);BC Racers (U);D:\\Roms\\Sega 32X\\Roms\\BC Racers (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2313;Blackthorne (U);Blackthorne (U);D:\\Roms\\Sega 32X\\Roms\\Blackthorne (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2314;Brutal Unleashed - Above the Claw (U);Brutal Unleashed - Above the Claw (U);D:\\Roms\\Sega 32X\\Roms\\Brutal Unleashed - Above the Claw (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2315;Cosmic Carnage (E);Cosmic Carnage (E);D:\\Roms\\Sega 32X\\Roms\\Cosmic Carnage (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2316;Darxide (E);Darxide (E);D:\\Roms\\Sega 32X\\Roms\\Darxide (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2317;Doom (J,U);Doom (J,U);D:\\Roms\\Sega 32X\\Roms\\Doom (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2318;FIFA Soccer '96 (E);FIFA Soccer '96 (E);D:\\Roms\\Sega 32X\\Roms\\FIFA Soccer '96 (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2319;Golf Magazine 36 Great Holes Starring Fred Couples (J,U);Golf Magazine 36 Great Holes Starring Fred Couples (J,U);D:\\Roms\\Sega 32X\\Roms\\Golf Magazine 36 Great Holes Starring Fred Couples (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2320;Knuckles' Chaotix (E);Knuckles' Chaotix (E);D:\\Roms\\Sega 32X\\Roms\\Knuckles' Chaotix (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2321;Kolibri (U,E);Kolibri (U,E);D:\\Roms\\Sega 32X\\Roms\\Kolibri (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2322;Metal Head (J,U);Metal Head (J,U);D:\\Roms\\Sega 32X\\Roms\\Metal Head (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2323;Mortal Kombat II (J,U);Mortal Kombat II (J,U);D:\\Roms\\Sega 32X\\Roms\\Mortal Kombat II (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2324;Motocross Championship (U);Motocross Championship (U);D:\\Roms\\Sega 32X\\Roms\\Motocross Championship (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2325;NBA Jam - Tournament Edition (W);NBA Jam - Tournament Edition (W);D:\\Roms\\Sega 32X\\Roms\\NBA Jam - Tournament Edition (W).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2326;Parasquad - Zaxxon's Motherbase 2000 (J,U);Parasquad - Zaxxon's Motherbase 2000 (J,U);D:\\Roms\\Sega 32X\\Roms\\Parasquad - Zaxxon's Motherbase 2000 (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2327;Pitfall - The Mayan Adventure (U);Pitfall - The Mayan Adventure (U);D:\\Roms\\Sega 32X\\Roms\\Pitfall - The Mayan Adventure (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2328;Primal Rage (U,E);Primal Rage (U,E);D:\\Roms\\Sega 32X\\Roms\\Primal Rage (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2329;Shadow Squadron - Stellar Assault (U,E);Shadow Squadron - Stellar Assault (U,E);D:\\Roms\\Sega 32X\\Roms\\Shadow Squadron - Stellar Assault (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2330;Space Harrier (J,U);Space Harrier (J,U);D:\\Roms\\Sega 32X\\Roms\\Space Harrier (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2331;Star Trek Starfleet Academy - Starship Bridge Simulator (U);Star Trek Starfleet Academy - Starship Bridge Simulator (U);D:\\Roms\\Sega 32X\\Roms\\Star Trek Starfleet Academy - Starship Bridge Simulator (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2332;Star Wars Arcade (U);Star Wars Arcade (U);D:\\Roms\\Sega 32X\\Roms\\Star Wars Arcade (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2333;T-Mek (U,E);T-Mek (U,E);D:\\Roms\\Sega 32X\\Roms\\T-Mek (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2334;Tempo (J,U);Tempo (J,U);D:\\Roms\\Sega 32X\\Roms\\Tempo (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2335;Toughman Contest (W);Toughman Contest (W);D:\\Roms\\Sega 32X\\Roms\\Toughman Contest (W).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2336;Virtua Fighter (J,U);Virtua Fighter (J,U);D:\\Roms\\Sega 32X\\Roms\\Virtua Fighter (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2337;Virtua Racing Deluxe (U);Virtua Racing Deluxe (U);D:\\Roms\\Sega 32X\\Roms\\Virtua Racing Deluxe (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2338;WWF Raw (W);WWF Raw (W);D:\\Roms\\Sega 32X\\Roms\\WWF Raw (W).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
-2339;WWF WrestleMania - The Arcade Game (U);WWF WrestleMania - The Arcade Game (U);D:\\Roms\\Sega 32X\\Roms\\WWF WrestleMania - The Arcade Game (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+2310;After Burner Complete (E);After Burner Complete (E);D:\\Roms\\Sega 32X\\Roms\\After Burner Complete (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2311;Amazing Spider-Man, The - Web of Fire (U);Amazing Spider-Man, The - Web of Fire (U);D:\\Roms\\Sega 32X\\Roms\\Amazing Spider-Man, The - Web of Fire (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2312;BC Racers (U);BC Racers (U);D:\\Roms\\Sega 32X\\Roms\\BC Racers (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2313;Blackthorne (U);Blackthorne (U);D:\\Roms\\Sega 32X\\Roms\\Blackthorne (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2314;Brutal Unleashed - Above the Claw (U);Brutal Unleashed - Above the Claw (U);D:\\Roms\\Sega 32X\\Roms\\Brutal Unleashed - Above the Claw (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2315;Cosmic Carnage (E);Cosmic Carnage (E);D:\\Roms\\Sega 32X\\Roms\\Cosmic Carnage (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2316;Darxide (E);Darxide (E);D:\\Roms\\Sega 32X\\Roms\\Darxide (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2317;Doom (J,U);Doom (J,U);D:\\Roms\\Sega 32X\\Roms\\Doom (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2318;FIFA Soccer '96 (E);FIFA Soccer '96 (E);D:\\Roms\\Sega 32X\\Roms\\FIFA Soccer '96 (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2319;Golf Magazine 36 Great Holes Starring Fred Couples (J,U);Golf Magazine 36 Great Holes Starring Fred Couples (J,U);D:\\Roms\\Sega 32X\\Roms\\Golf Magazine 36 Great Holes Starring Fred Couples (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2320;Knuckles' Chaotix (E);Knuckles' Chaotix (E);D:\\Roms\\Sega 32X\\Roms\\Knuckles' Chaotix (E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2321;Kolibri (U,E);Kolibri (U,E);D:\\Roms\\Sega 32X\\Roms\\Kolibri (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2322;Metal Head (J,U);Metal Head (J,U);D:\\Roms\\Sega 32X\\Roms\\Metal Head (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2323;Mortal Kombat II (J,U);Mortal Kombat II (J,U);D:\\Roms\\Sega 32X\\Roms\\Mortal Kombat II (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2324;Motocross Championship (U);Motocross Championship (U);D:\\Roms\\Sega 32X\\Roms\\Motocross Championship (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2325;NBA Jam - Tournament Edition (W);NBA Jam - Tournament Edition (W);D:\\Roms\\Sega 32X\\Roms\\NBA Jam - Tournament Edition (W).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2326;Parasquad - Zaxxon's Motherbase 2000 (J,U);Parasquad - Zaxxon's Motherbase 2000 (J,U);D:\\Roms\\Sega 32X\\Roms\\Parasquad - Zaxxon's Motherbase 2000 (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2327;Pitfall - The Mayan Adventure (U);Pitfall - The Mayan Adventure (U);D:\\Roms\\Sega 32X\\Roms\\Pitfall - The Mayan Adventure (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2328;Primal Rage (U,E);Primal Rage (U,E);D:\\Roms\\Sega 32X\\Roms\\Primal Rage (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2329;Shadow Squadron - Stellar Assault (U,E);Shadow Squadron - Stellar Assault (U,E);D:\\Roms\\Sega 32X\\Roms\\Shadow Squadron - Stellar Assault (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2330;Space Harrier (J,U);Space Harrier (J,U);D:\\Roms\\Sega 32X\\Roms\\Space Harrier (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2331;Star Trek Starfleet Academy - Starship Bridge Simulator (U);Star Trek Starfleet Academy - Starship Bridge Simulator (U);D:\\Roms\\Sega 32X\\Roms\\Star Trek Starfleet Academy - Starship Bridge Simulator (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2332;Star Wars Arcade (U);Star Wars Arcade (U);D:\\Roms\\Sega 32X\\Roms\\Star Wars Arcade (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2333;T-Mek (U,E);T-Mek (U,E);D:\\Roms\\Sega 32X\\Roms\\T-Mek (U,E).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2334;Tempo (J,U);Tempo (J,U);D:\\Roms\\Sega 32X\\Roms\\Tempo (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2335;Toughman Contest (W);Toughman Contest (W);D:\\Roms\\Sega 32X\\Roms\\Toughman Contest (W).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2336;Virtua Fighter (J,U);Virtua Fighter (J,U);D:\\Roms\\Sega 32X\\Roms\\Virtua Fighter (J,U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2337;Virtua Racing Deluxe (U);Virtua Racing Deluxe (U);D:\\Roms\\Sega 32X\\Roms\\Virtua Racing Deluxe (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2338;WWF Raw (W);WWF Raw (W);D:\\Roms\\Sega 32X\\Roms\\WWF Raw (W).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
+2339;WWF WrestleMania - The Arcade Game (U);WWF WrestleMania - The Arcade Game (U);D:\\Roms\\Sega 32X\\Roms\\WWF WrestleMania - The Arcade Game (U).zip;;;;;;;;;;;;{};2026-10-26 22:50:11;;
