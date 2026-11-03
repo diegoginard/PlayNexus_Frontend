@@ -189,7 +189,8 @@ PlayNexus_Frontend/
 ├── entry_config.py           # Punto de entrada para PlayNexus_Config.exe
 ├── entry_launcher.py         # Punto de entrada para PlayNexus_Launcher.exe
 ├── PlayNexus_Logo.png        # Logotipo del proyecto
-├── app_icon.ico              # Icono principal de la aplicación
+├── PlayNexus_icon.png        # Icono maestro de alta resolución (1254x1254)
+├── app_icon.ico              # Icono multi-resolución de Windows (256, 128, 64, 48, 32, 24, 16 px)
 ├── splash/                   # Carpeta de videos de presentación (Splash Screen)
 ├── dist/                     # Distribución independiente 100% limpia y portable (.exe y recursos)
 │   ├── PlayNexus_Config.exe  # Ejecutable del Configurador

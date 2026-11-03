@@ -172,9 +172,13 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(DARK_STYLESHEET)
 
         root_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent.parent
-        logo_path = root_dir / "PlayNexus_Logo.png"
-        if logo_path.exists():
-            self.setWindowIcon(QIcon(str(logo_path)))
+        icon_path = root_dir / "app_icon.ico"
+        if not icon_path.exists():
+            icon_path = root_dir / "PlayNexus_icon.png"
+        if not icon_path.exists():
+            icon_path = root_dir / "PlayNexus_Logo.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         self._build_ui()
         self.refresh_lists()

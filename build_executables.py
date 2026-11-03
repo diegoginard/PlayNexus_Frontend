@@ -14,6 +14,7 @@ empaquetar la distribución limpia y completa en la carpeta dist/:
 """
 import sys
 import shutil
+import struct
 import subprocess
 from pathlib import Path
 
@@ -71,6 +72,11 @@ def setup_clean_environment(dist_dir: Path):
     if icon_file.exists():
         shutil.copy2(icon_file, dist_dir / "app_icon.ico")
         print(" [OK] Icono: app_icon.ico copiado.")
+
+    icon_png = ROOT_DIR / "PlayNexus_icon.png"
+    if icon_png.exists():
+        shutil.copy2(icon_png, dist_dir / "PlayNexus_icon.png")
+        print(" [OK] Icono PNG: PlayNexus_icon.png copiado.")
 
     # 2. Carpeta config/ con archivos limpios
     config_dir = dist_dir / "config"
@@ -152,7 +158,52 @@ def setup_clean_environment(dist_dir: Path):
                 pass
 
 
+def ensure_icon():
+    """Genera o actualiza app_icon.ico con todas las resoluciones estándar de Windows (256, 128, 64, 48, 32, 24, 16 px)."""
+    src_png = ROOT_DIR / "PlayNexus_icon.png"
+    ico_dest = ROOT_DIR / "app_icon.ico"
+    if not src_png.exists():
+        return
+    try:
+        from PySide6.QtCore import Qt, QBuffer, QIODevice
+        from PySide6.QtGui import QImage
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication(sys.argv)
+        src = QImage(str(src_png))
+        if src.isNull():
+            return
+        sizes = [256, 128, 64, 48, 32, 24, 16]
+        png_buffers = []
+        for s in sizes:
+            scaled = src.scaled(s, s, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            buf = QBuffer()
+            buf.open(QIODevice.WriteOnly)
+            scaled.save(buf, "PNG")
+            png_buffers.append((s, bytes(buf.data())))
+
+        header = struct.pack("<HHH", 0, 1, len(sizes))
+        offset = 6 + (len(sizes) * 16)
+        entries_bytes = bytearray()
+        data_bytes = bytearray()
+        for s, data in png_buffers:
+            w = 0 if s == 256 else s
+            h = 0 if s == 256 else s
+            entry = struct.pack("<BBBBHHII", w, h, 0, 0, 1, 32, len(data), offset)
+            entries_bytes.extend(entry)
+            data_bytes.extend(data)
+            offset += len(data)
+
+        with open(ico_dest, "wb") as f:
+            f.write(header)
+            f.write(entries_bytes)
+            f.write(data_bytes)
+        print(" [OK] Icono multi-resolución generado (256, 128, 64, 48, 32, 24, 16 px).")
+    except Exception as e:
+        print(f" [!] Advertencia al generar icono: {e}")
+
+
 def build():
+    ensure_icon()
     pyinstaller_exe = ROOT_DIR / ".venv" / "Scripts" / "pyinstaller.exe"
     if not pyinstaller_exe.exists():
         pyinstaller_exe = Path(sys.executable).parent / "pyinstaller.exe"
