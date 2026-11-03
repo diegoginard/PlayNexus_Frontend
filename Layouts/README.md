@@ -138,10 +138,10 @@ Define qué carpetas de medios necesita el layout. El sistema las detecta autom�
     BOXART_IMAGE        = LAYOUT_DIR / "boxart.png"         # o None si no existe
     WHEEL_IMAGE         = LAYOUT_DIR / "wheel.png"
     POINTER_IMAGE       = LAYOUT_DIR / "pointers" / "default.png"
-    FONT_FILES = [
-        "Handel Gothic BT.ttf",   # relativo a LAYOUT_DIR
-        "BebasNeue Bold.otf",
-    ]
+    # Tipografías del tema (declaradas directamente al inicio para modificarlas fácilmente)
+    FONT_TITLE_FILE = "BebasNeue Bold.otf"    # Fuente para títulos principales
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"   # Fuente para info general, contadores y año
+    FONT_FILES      = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # Recursos compartidos desde gtc-common
     WHEEL_SHADOW_IMAGE = COMMON_DIR / "wheel" / "wheel_shadow.png"
