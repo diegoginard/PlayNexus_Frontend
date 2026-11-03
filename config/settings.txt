@@ -1,6 +1,6 @@
 # Configuración del Sistema PlayNexus (Texto Plano)
-control_close_emulator = Escape
-control_close_frontend = F4
+control_close_emulator = F4
+control_close_frontend = Escape
 control_mute_video = M
 control_nav_back = Backspace
 control_nav_down = Down
@@ -13,6 +13,7 @@ control_page_down = PageDown
 control_page_up = PageUp
 control_select_game = Return
 control_toggle_fps = F10
+emulator_bezel_overlay = true
 emulator_gamepad_exit = true
 emulator_global_exit = true
 emulator_mute_video = true

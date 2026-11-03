@@ -208,7 +208,7 @@ ACTION_ALIASES = {
     ACTION_NAV_LETTER_FWD: [Qt.Key_Right, Qt.Key_D],
     ACTION_NAV_STEP5_BACK: [Qt.Key_PageUp],
     ACTION_NAV_STEP5_FWD: [Qt.Key_PageDown],
-    ACTION_NAV_BACK: [Qt.Key_Backspace, Qt.Key_Escape],
+    ACTION_NAV_BACK: [Qt.Key_Backspace],
     ACTION_SELECT: [Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space],
     ACTION_CLOSE_FRONTEND: [Qt.Key_Escape],
     ACTION_CLOSE_EMULATOR: [Qt.Key_Escape],

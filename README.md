@@ -169,6 +169,10 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
   - Cada lista permite asignar su propia imagen o carpeta de apertura (`loading_in_path`) y de cierre (`loading_out_path`).
   - Si una lista no tiene imagen propia asignada, utiliza de manera transparente el arte general de `splash/loading.jpg` (o PNG).
 
+### 13. Confirmación Segura de Salida del Sistema
+- **Diálogo modal arcade con confirmación:** Al pulsar la tecla configurada para cerrar el frontend (por defecto `Escape`) o combo de mando (`Back+Start`), se despliega una ventana interactiva de confirmación que evita salidas involuntarias.
+- **Navegación completa por Joystick y Teclado:** Se puede alternar entre «Cancelar» y «Salir del Frontend» mediante las flechas o D-Pad, confirmar con Enter/Botón A o cancelar directamente con Escape/Botón B.
+
 ---
 
 ## 🗂 Estructura del proyecto

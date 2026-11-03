@@ -113,9 +113,6 @@ class PlayerWindow(QMainWindow):
         self._fps_shortcut = QShortcut(QKeySequence(fps_key_str), self, self.toggle_fps_counter)
         if fps_key_str.strip().upper() != "F3":
             self._fps_shortcut_alt = QShortcut(QKeySequence(Qt.Key_F3), self, self.toggle_fps_counter)
-        # Escape y Backspace para retroceder / salir
-        QShortcut(QKeySequence(Qt.Key_Escape), self, self.go_back)
-        QShortcut(QKeySequence(Qt.Key_Backspace), self, self.go_back)
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Paint:
@@ -250,28 +247,30 @@ class PlayerWindow(QMainWindow):
                             pass
 
     def go_back(self):
-        """Retrocede en el historial de navegación (listas de listas o menús). Si está en la raíz, no sale del sistema."""
-        if not self.navigation_history:
+        """Retrocede en el historial de navegación (listas de listas o menús). Si está en la raíz, solicita confirmación para salir."""
+        if self.navigation_history:
+            # Detener inmediatamente el audio y video de TODOS los layouts antes de retroceder
+            self.stop_all_active_media()
+
+            prev_entry = self.navigation_history.pop()
+            prev_lid = None
+            prev_gid = None
+            if isinstance(prev_entry, (tuple, list)):
+                prev_lid = prev_entry[0]
+                if len(prev_entry) > 1:
+                    prev_gid = prev_entry[1]
+            elif isinstance(prev_entry, dict):
+                prev_lid = prev_entry.get("list_id") or prev_entry.get("id")
+                prev_gid = prev_entry.get("selected_game_id")
+            elif isinstance(prev_entry, int):
+                prev_lid = prev_entry
+
+            if prev_lid:
+                self.select_list(int(prev_lid), push_history=False, restore_game_id=prev_gid)
             return
 
-        # Detener inmediatamente el audio y video de TODOS los layouts antes de retroceder
-        self.stop_all_active_media()
-
-        prev_entry = self.navigation_history.pop()
-        prev_lid = None
-        prev_gid = None
-        if isinstance(prev_entry, (tuple, list)):
-            prev_lid = prev_entry[0]
-            if len(prev_entry) > 1:
-                prev_gid = prev_entry[1]
-        elif isinstance(prev_entry, dict):
-            prev_lid = prev_entry.get("list_id") or prev_entry.get("id")
-            prev_gid = prev_entry.get("selected_game_id")
-        elif isinstance(prev_entry, int):
-            prev_lid = prev_entry
-
-        if prev_lid:
-            self.select_list(int(prev_lid), push_history=False, restore_game_id=prev_gid)
+        # Si ya estamos en la raíz (menú principal o lista raíz), abrir confirmación de salida
+        self.prompt_exit_confirmation()
 
     def keyPressEvent(self, event):
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
@@ -283,24 +282,15 @@ class PlayerWindow(QMainWindow):
             event.accept()
             return
         elif matches_action(event, ACTION_CLOSE_FRONTEND, self.db):
-            self.close()
+            self.prompt_exit_confirmation()
             event.accept()
             return
         elif matches_action(event, ACTION_NAV_BACK, self.db):
-            if self.navigation_history:
-                self.go_back()
-                event.accept()
-                return
-            # Si estamos en la raíz y la tecla coincide específicamente con cerrar frontend o emulador
-            if matches_action(event, ACTION_CLOSE_FRONTEND, self.db) or matches_action(event, ACTION_CLOSE_EMULATOR, self.db):
-                self.close()
-                event.accept()
-                return
-            # Si es la tecla/botón asignado para volver atrás, no salir del frontend
+            self.go_back()
             event.accept()
             return
         elif matches_action(event, ACTION_CLOSE_EMULATOR, self.db):
-            self.close()
+            self.prompt_exit_confirmation()
             event.accept()
             return
         elif matches_action(event, ACTION_NAV_LETTER_BACK, self.db):
@@ -379,14 +369,13 @@ class PlayerWindow(QMainWindow):
             self.toggle_fps_counter()
             return
         elif action_id == ACTION_CLOSE_FRONTEND:
-            self.close()
+            self.prompt_exit_confirmation()
             return
         elif action_id == ACTION_NAV_BACK:
-            if self.navigation_history:
-                self.go_back()
+            self.go_back()
             return
         elif action_id == ACTION_CLOSE_EMULATOR:
-            self.close()
+            self.prompt_exit_confirmation()
             return
 
         current_layout = self.layout_stack.currentWidget()
@@ -845,8 +834,27 @@ class PlayerWindow(QMainWindow):
             self.resume_active_media()
             QMessageBox.critical(self, "No se pudo iniciar el juego", str(e))
 
+    def prompt_exit_confirmation(self):
+        """Muestra una ventana modal de confirmación con estilo arcade antes de cerrar el frontend."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            return
+        from playnexus.ui.exit_confirm_dialog import ExitConfirmDialog
+        dlg = ExitConfirmDialog(self, db=self.db)
+        if dlg.exec():
+            self._confirmed_exit = True
+            self.close()
+
     def closeEvent(self, event):
         """Detiene cualquier reproducción activa y el hilo de mandos antes de cerrar la ventana."""
+        if not getattr(self, "_confirmed_exit", False):
+            from playnexus.services.emulator_manager import EMULATOR_MANAGER
+            if not EMULATOR_MANAGER.is_launching_or_running():
+                from playnexus.ui.exit_confirm_dialog import ExitConfirmDialog
+                dlg = ExitConfirmDialog(self, db=self.db)
+                if not dlg.exec():
+                    event.ignore()
+                    return
         self.stop_all_active_media()
         if hasattr(self, "splash_screen") and self.splash_screen:
             try:
