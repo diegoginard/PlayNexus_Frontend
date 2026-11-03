@@ -33,13 +33,13 @@ menu_items =
 [Games]
 # id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
 32355;3 Ninjas Kick Back (U);3 Ninjas Kick Back (U);D:\\Roms\\Super Nintendo\\Roms\\3 Ninjas Kick Back (U).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
-32356;3x3 Eyes - Juuma Houkan (J)[Ting];3x3 Eyes - Juuma Houkan (J)[Ting];D:\\Roms\\Super Nintendo\\Roms\\3x3 Eyes - Juuma Houkan (J)[Ting].zip;;;;;;;;2;;;;{};2026-11-02 15:16:45;;
+32356;3x3 Eyes - Juuma Houkan (J)[Ting];3x3 Eyes - Juuma Houkan (J)[Ting];D:\\Roms\\Super Nintendo\\Roms\\3x3 Eyes - Juuma Houkan (J)[Ting].zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32357;7th Saga, The (U);7th Saga, The (U);D:\\Roms\\Super Nintendo\\Roms\\7th Saga, The (U).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32358;90 Minutes - European Prime Goal (E);90 Minutes - European Prime Goal (E);D:\\Roms\\Super Nintendo\\Roms\\90 Minutes - European Prime Goal (E).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32359;A.S.P. - Air Strike Patrol (U);A.S.P. - Air Strike Patrol (U);D:\\Roms\\Super Nintendo\\Roms\\A.S.P. - Air Strike Patrol (U).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32360;AAAHH!!! Real Monsters (U);AAAHH!!! Real Monsters (U);D:\\Roms\\Super Nintendo\\Roms\\AAAHH!!! Real Monsters (U).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32361;Accele Brid (J)[Ting];Accele Brid (J)[Ting];D:\\Roms\\Super Nintendo\\Roms\\Accele Brid (J)[Ting].zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
-32362;Acrobat Mission (J);Acrobat Mission (J);D:\\Roms\\Super Nintendo\\Roms\\Acrobat Mission (J).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
+32362;Acrobat Mission (J);Acrobat Mission (J);D:\\Roms\\Super Nintendo\\Roms\\Acrobat Mission (J).zip;;;;;;;;19;;;;{};2026-11-02 15:16:45;;
 32363;Act Raiser (U);Act Raiser (U);D:\\Roms\\Super Nintendo\\Roms\\Act Raiser (U).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32364;Act Raiser 2 (U);Act Raiser 2 (U);D:\\Roms\\Super Nintendo\\Roms\\Act Raiser 2 (U).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;
 32365;Action Pachio (J);Action Pachio (J);D:\\Roms\\Super Nintendo\\Roms\\Action Pachio (J).zip;;;;;;;;;;;;{};2026-11-02 15:16:45;;

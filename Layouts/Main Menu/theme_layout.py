@@ -269,9 +269,8 @@ class ThemeLayout(BaseLayout):
 
     def resume_media(self):
         """Reanuda la reproducción multimedia al regresar al menú principal."""
-        if not self.isVisible():
-            return
         self._want_video_playing = True
+        self._ensure_player_initialized()
         if self.audio_output:
             try:
                 self.audio_output.setMuted(self._media_muted)
@@ -280,10 +279,23 @@ class ThemeLayout(BaseLayout):
                 pass
         if self.player:
             try:
-                self.player.play()
-                self._video_watchdog_timer.start()
+                if self.player.source().isEmpty() or self.player.playbackState() != QMediaPlayer.PlayingState:
+                    self._play_debounced_video()
+                else:
+                    self.player.play()
+                    self._video_watchdog_timer.start()
             except Exception:
                 pass
+        elif getattr(self, "_pending_video_path", None):
+            self._play_debounced_video()
+
+    def showEvent(self, event):
+        """Asegura que el video del tema comience al hacerse visible la ventana."""
+        super().showEvent(event)
+        if getattr(self, "_pending_video_play_on_show", False) or not self.player or self.player.source().isEmpty():
+            self._play_debounced_video()
+        else:
+            self.resume_media()
 
     def stop_media(self):
         """Detiene completamente la reproducción multimedia."""
@@ -401,7 +413,9 @@ class ThemeLayout(BaseLayout):
     def _play_debounced_video(self):
         """Reproduce el video de fondo una vez que la ruleta se estabiliza."""
         if not self.isVisible():
+            self._pending_video_play_on_show = True
             return
+        self._pending_video_play_on_show = False
         video_to_play = getattr(self, "_pending_video_path", None)
         if video_to_play and os.path.isfile(video_to_play):
             self._want_video_playing = True
@@ -834,10 +848,10 @@ class ThemeLayout(BaseLayout):
             return
 
         key = event.key()
-        if matches_action(event, ACTION_NAV_UP):
+        if matches_action(event, ACTION_NAV_UP) or key in (Qt.Key_Up,):
             self._navigate_steps(-1)
             event.accept()
-        elif matches_action(event, ACTION_NAV_DOWN):
+        elif matches_action(event, ACTION_NAV_DOWN) or key in (Qt.Key_Down,):
             self._navigate_steps(1)
             event.accept()
         elif matches_action(event, ACTION_NAV_STEP5_BACK) or matches_action(event, ACTION_PAGE_UP):

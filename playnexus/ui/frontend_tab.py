@@ -9,14 +9,16 @@ Permite configurar:
 5. Lanzamiento directo del Frontend en pantalla completa.
 """
 
+import sys
+from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QSpinBox, QGroupBox, QFrame, QScrollArea, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox
+    QHeaderView, QMessageBox, QCheckBox, QLineEdit, QFileDialog
 )
-from playnexus.db import Database
+from playnexus.db import Database, APP_DIR
 from playnexus.ui.layouts import get_available_layouts
 from playnexus.ui.settings_tab import SCREEN_MODES, RESOLUTIONS_LIST
 
@@ -243,7 +245,54 @@ class FrontendSettingsWidget(QWidget):
         layout.addWidget(grp_video)
 
         # -------------------------------------------------------------
-        # 5. BOTÓN DE INICIO DEL FRONTEND
+        # 5. PANTALLA DE BIENVENIDA (SPLASH SCREEN DE VIDEO)
+        # -------------------------------------------------------------
+        grp_splash = QGroupBox("🎬 Pantalla de Bienvenida (Splash Screen de Video)")
+        v_splash = QVBoxLayout(grp_splash)
+        v_splash.setSpacing(10)
+
+        self.chk_splash = QCheckBox("Reproducir video de presentación al iniciar el Frontend")
+        self.chk_splash.setStyleSheet("font-weight: 500; font-size: 10pt;")
+        self.chk_splash.toggled.connect(self._on_splash_toggled)
+        v_splash.addWidget(self.chk_splash)
+
+        self.splash_container = QWidget()
+        v_splash_box = QVBoxLayout(self.splash_container)
+        v_splash_box.setContentsMargins(0, 0, 0, 0)
+        v_splash_box.setSpacing(8)
+
+        v_splash_box.addWidget(QLabel("<b>Ruta del archivo de video (.mp4, .mkv, .webm, etc.):</b>"))
+
+        row_splash_path = QHBoxLayout()
+        self.splash_path_edit = QLineEdit()
+        self.splash_path_edit.setPlaceholderText("Ej: splash/splash-1920x1080.mp4")
+        self.splash_path_edit.textChanged.connect(self._save_splash_settings)
+        row_splash_path.addWidget(self.splash_path_edit, 1)
+
+        btn_browse_splash = QPushButton("Examinar…")
+        btn_browse_splash.clicked.connect(self._browse_splash_video)
+        row_splash_path.addWidget(btn_browse_splash)
+
+        btn_test_splash = QPushButton("▶ Probar video")
+        btn_test_splash.clicked.connect(self._test_splash_video)
+        row_splash_path.addWidget(btn_test_splash)
+
+        v_splash_box.addLayout(row_splash_path)
+
+        lbl_splash_hint = QLabel(
+            "💡 <i>El video se reproducirá a pantalla completa al arrancar el Frontend antes de entrar a la biblioteca. "
+            "Cualquier tecla, botón del gamepad o clic de ratón lo salteará al instante para ingresar directamente.</i>"
+        )
+        lbl_splash_hint.setStyleSheet("color: #718096; font-size: 8.5pt;")
+        lbl_splash_hint.setWordWrap(True)
+        v_splash_box.addWidget(lbl_splash_hint)
+
+        v_splash.addWidget(self.splash_container)
+        self.splash_container.setVisible(False)
+        layout.addWidget(grp_splash)
+
+        # -------------------------------------------------------------
+        # 6. BOTÓN DE INICIO DEL FRONTEND
         # -------------------------------------------------------------
         btn_bar = QHBoxLayout()
         btn_bar.addStretch(1)
@@ -361,6 +410,22 @@ class FrontendSettingsWidget(QWidget):
             self.spin_custom_h.setValue(custom_h)
             self.custom_res_container.setVisible(self.res_combo.currentData() == "custom")
             self._update_system_res_label()
+
+            # 4. Cargar configuración de Splash Screen
+            splash_en = self.db.get_setting("frontend_splash_enabled", "false").strip().lower() in ("true", "1", "yes")
+            self.chk_splash.setChecked(splash_en)
+            self.splash_container.setVisible(splash_en)
+
+            saved_splash = self.db.get_setting("frontend_splash_video", "").strip()
+            if not saved_splash:
+                from playnexus.ui.splash_screen import resolve_splash_video
+                auto_vid = resolve_splash_video(self.db)
+                if auto_vid:
+                    try:
+                        saved_splash = str(auto_vid.relative_to(APP_DIR)).replace("\\", "/")
+                    except ValueError:
+                        saved_splash = str(auto_vid).replace("\\", "/")
+            self.splash_path_edit.setText(saved_splash)
 
         finally:
             self._updating = False
@@ -566,7 +631,67 @@ class FrontendSettingsWidget(QWidget):
             self.db.set_setting("video_custom_width", str(self.spin_custom_w.value()))
             self.db.set_setting("video_custom_height", str(self.spin_custom_h.value()))
 
+    def _on_splash_toggled(self, checked: bool):
+        self.splash_container.setVisible(checked)
+        if checked and not self.splash_path_edit.text().strip():
+            from playnexus.ui.splash_screen import resolve_splash_video
+            auto_vid = resolve_splash_video(self.db)
+            if auto_vid:
+                try:
+                    rel = str(auto_vid.relative_to(APP_DIR)).replace("\\", "/")
+                except ValueError:
+                    rel = str(auto_vid).replace("\\", "/")
+                self.splash_path_edit.setText(rel)
+        self._save_splash_settings()
+
+    def _save_splash_settings(self):
+        if self._updating:
+            return
+        enabled = self.chk_splash.isChecked()
+        video_path = self.splash_path_edit.text().strip()
+        self.db.set_setting("frontend_splash_enabled", "true" if enabled else "false")
+        self.db.set_setting("frontend_splash_video", video_path)
+
+    def _browse_splash_video(self):
+        splash_dir = APP_DIR / "splash"
+        start_dir = str(splash_dir if splash_dir.is_dir() else APP_DIR)
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar video de presentación",
+            start_dir,
+            "Archivos de video (*.mp4 *.mkv *.avi *.webm *.mov *.wmv);;Todos los archivos (*.*)"
+        )
+        if path:
+            p = Path(path)
+            try:
+                rel = p.relative_to(APP_DIR)
+                self.splash_path_edit.setText(str(rel).replace("\\", "/"))
+            except ValueError:
+                self.splash_path_edit.setText(str(p).replace("\\", "/"))
+
+    def _test_splash_video(self):
+        path = self.splash_path_edit.text().strip()
+        from playnexus.ui.splash_screen import resolve_splash_video, VideoSplashScreen
+        video_file = resolve_splash_video(self.db, path)
+        if not video_file or not video_file.is_file():
+            QMessageBox.warning(self, "Video no encontrado", "No se encontró ningún archivo de video en la ruta especificada.")
+            return
+        geo = None
+        mon_idx = self.screen_combo.currentData()
+        screens = QGuiApplication.screens()
+        if screens and isinstance(mon_idx, int) and 0 <= mon_idx < len(screens):
+            geo = screens[mon_idx].geometry()
+        elif screens:
+            geo = screens[0].geometry()
+
+        self._test_splash = VideoSplashScreen(video_file, target_geo=geo, db=self.db)
+        self._test_splash.showFullScreen()
+        self._test_splash.raise_()
+        self._test_splash.activateWindow()
+        self._test_splash.start_playback()
+
     def _on_launch_clicked(self):
         self._save_video_settings()
+        self._save_splash_settings()
         self.launch_requested.emit()
 

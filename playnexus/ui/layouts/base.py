@@ -1,6 +1,7 @@
 from pathlib import Path
-from PySide6.QtCore import Signal, QPoint
+from PySide6.QtCore import Signal, QPoint, Qt
 from PySide6.QtWidgets import QWidget
+from PySide6.QtMultimedia import QMediaPlayer
 from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_SELECT,
     ACTION_NAV_LETTER, ACTION_NAV_STEP5,
@@ -27,6 +28,7 @@ class BaseLayout(QWidget):
 
     def __init__(self, parent=None, theme_name: str | None = None, **kwargs):
         super().__init__(parent)
+        self.setFocusPolicy(Qt.StrongFocus)
         self.theme_name = theme_name
         self.games = []
         self.current_game_id = None
@@ -190,6 +192,28 @@ class BaseLayout(QWidget):
         except Exception:
             pass
 
+    def showEvent(self, event):
+        """Asegura que el video snap o tema comience al hacerse visible este layout."""
+        super().showEvent(event)
+        if getattr(self, "_pending_video_play_on_show", False):
+            self._pending_video_play_on_show = False
+            if hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
+                self._play_debounced_video()
+                return
+            elif hasattr(self, "_update_current_selection") and callable(self._update_current_selection):
+                self._update_current_selection()
+                return
+        for player_name in ("player", "game_player", "bg_player", "_player"):
+            if hasattr(self, player_name):
+                p = getattr(self, player_name)
+                if p and (p.source().isEmpty() or p.playbackState() != QMediaPlayer.PlayingState):
+                    if hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
+                        self._play_debounced_video()
+                        break
+                    elif hasattr(self, "_update_current_selection") and callable(self._update_current_selection):
+                        self._update_current_selection()
+                        break
+
     def resume_media(self):
         """Reanuda la reproducción multimedia y el audio cuando el emulador finaliza."""
         self._is_emulator_running = False
@@ -213,7 +237,16 @@ class BaseLayout(QWidget):
                 if p:
                     try:
                         from PySide6.QtMultimedia import QMediaPlayer
-                        if p.playbackState() != QMediaPlayer.PlayingState:
+                        if p.source().isEmpty() or p.playbackState() != QMediaPlayer.PlayingState:
+                            if hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
+                                self._play_debounced_video()
+                                break
+                            elif hasattr(self, "_update_current_selection") and callable(self._update_current_selection):
+                                self._update_current_selection()
+                                break
+                            else:
+                                p.play()
+                        else:
                             p.play()
                     except Exception:
                         pass

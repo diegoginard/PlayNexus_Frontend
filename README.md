@@ -10,17 +10,19 @@
 
 PlayNexus puede ejecutarse directamente mediante sus **ejecutables independientes** (sin necesidad de tener Python instalado), mediante scripts `.bat` automatizados o desde la consola de comandos.
 
-### 1. Ejecutables independientes en carpeta `bin/` (Distribución 100% limpia y portable)
-Al ejecutar `python build_executables.py`, se compilan y ensamblan todos los archivos necesarios dentro de la carpeta **`bin/`**, lista para usarse de forma autónoma en limpio (o comprimirse en `.zip` para llevar a cualquier equipo):
-- **`bin/PlayNexus_Config.exe`**: Abre directamente el **Configurador de Biblioteca** sin requerir Python ni dependencias externas.
-- **`bin/PlayNexus_Launcher.exe`**: Inicia directamente el **Modo Frontend / Reproductor** en pantalla completa.
-- **Estructura autónoma incluida en `bin/`**:
-  - `bin/config/`: `settings.txt` con ajustes limpios de fábrica y `emulator_templates.txt` con el catálogo de plantillas rápidas.
-  - `bin/emulators/`: Carpeta limpia preparada para dar de alta emuladores.
-  - `bin/lists/`: Carpeta limpia preparada para tus listas de juegos.
-  - `bin/icons/`: Logotipos e iconos de consolas y arcades.
-  - `bin/Layouts/`: Temas y diseños visuales listos para usar (CRT tv, consolas, wheel, showcase, etc.).
-  - `bin/PlayNexus_Logo.png`: Logotipo de la aplicación para cabeceras y ventanas.
+### 1. Ejecutables independientes en carpeta `dist/` (Distribución 100% limpia y portable)
+Al ejecutar `python build_executables.py`, se compilan y ensamblan todos los archivos necesarios dentro de la carpeta **`dist/`**, lista para usarse de forma autónoma en limpio (o comprimirse en `.zip` para llevar a cualquier equipo):
+- **`dist/PlayNexus_Config.exe`**: Abre directamente el **Configurador de Biblioteca** sin requerir Python ni dependencias externas.
+- **`dist/PlayNexus_Launcher.exe`**: Inicia directamente el **Modo Frontend / Reproductor** en pantalla completa.
+- **Estructura autónoma incluida en `dist/`**:
+  - `dist/config/`: `settings.txt` con ajustes limpios de fábrica y `emulator_templates.txt` con el catálogo de plantillas rápidas.
+  - `dist/emulators/`: Carpeta limpia preparada para dar de alta emuladores.
+  - `dist/lists/`: Carpeta limpia preparada para tus listas de juegos.
+  - `dist/icons/`: Logotipos e iconos de consolas y arcades.
+  - `dist/Layouts/`: Temas y diseños visuales listos para usar (CRT tv, consolas, wheel, showcase, etc.).
+  - `dist/splash/`: Carpeta preparada para el video de presentación (Splash Screen).
+  - `dist/PlayNexus_Logo.png` y `dist/app_icon.ico`: Logotipo e icono de la aplicación.
+  *(Nota: La carpeta `dist/` se encuentra excluida del repositorio Git mediante `.gitignore` para mantener limpio el control de versiones).*
 
 ### 2. Lanzadores por scripts (.bat)
 - **`PlayNexus.bat`**: Menú selector interactivo que te permite elegir entre iniciar el Frontend o el Configurador.
@@ -136,6 +138,10 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
      - Para juegos con pantalla horizontal estándar: busca estrictamente **`default.png`**.
   3. Si ninguno de los archivos existe, no se proyecta ningún bezel.
   *(No busca en ninguna otra carpeta ni utiliza heurísticas de nombres alternativos).*
+- **Retardo (`bezel_delay`) y fundido (`bezel_fade`) configurable por emulador:**
+  - En la edición de cada emulador se puede calibrar el tiempo de espera en segundos (`Retardo de inicio del Bezel HUD`) para que emuladores que demoran en arrancar o cambiar de modo de video abran limpiamente antes de proyectar el marco.
+  - Duración de animación de fundido suave configurable (`Duración del Fade-in`).
+  - **Protección anti-crasheos:** Los comandos de cierre de salida forzada quedan bloqueados durante la inicialización del bezel para evitar cierres prematuros de emuladores durante transiciones gráficas delicadas.
 - **Control por lista y anulación (override) por ROM:**
   - Se puede activar o desactivar el HUD para toda la lista de juegos.
   - Cada juego cuenta con una opción individual en el panel de detalles y edición para:
@@ -143,7 +149,16 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
     - *Activar Bezel HUD (Forzar)*: muestra el bezel aunque la lista lo tenga desactivado.
     - *Desactivar Bezel HUD*: oculta el bezel para esta ROM aunque la lista lo tenga activado.
 - **Tecnología Click-Through (Win32 Overlay):** El marco se dibuja en una ventana sin bordes en primer plano con atributos `WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE`. El mouse, teclado y joystick traspasan la ventana hacia el emulador sin perder el foco ni sufrir pérdida de rendimiento.
-- **Ciclo de vida automático:** Se proyecta automáticamente al detectar el proceso del emulador y se destruye de inmediato cuando el juego finaliza o se presiona la tecla de salida global.
+- **Ciclo de vida y recuperación de primer plano limpio:** Se proyecta automáticamente y se destruye de inmediato al terminar el juego, devolviendo el foco a PlayNexus mediante `AttachThreadInput` sin alterar modificadores del teclado ni activar menús del sistema.
+
+### 11. Pantalla de Bienvenida con Video (Splash Screen de Intro)
+- **Video cinematográfico al iniciar:** Permite reproducir un video de introducción a pantalla completa al arrancar el Frontend (`PlayNexus_Launcher.exe`) antes de cargar la biblioteca.
+- **Configuración en la pestaña Modo Frontend:**
+  - Casilla para activar o desactivar la pantalla de bienvenida.
+  - Campo de ruta para el video (soporta `.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`, etc.).
+  - Botón **«Examinar…»** y botón de prueba en vivo **«▶ Probar video»** en el monitor de destino.
+- **Salto instantáneo (Skip):** Cualquier pulsación de tecla, botón del gamepad o clic de ratón saltea el video al instante para entrar directamente a la biblioteca.
+- **Sincronización fluida:** Al terminar o saltar la intro, el layout activo comienza de inmediato la reproducción de su video de fondo o snaps temáticos sin requerir mover la ruleta.
 
 ---
 
@@ -156,19 +171,23 @@ PlayNexus_Frontend/
 ├── PlayNexus.bat             # Menú interactivo de selección (.bat)
 ├── PlayNexus_Config.bat      # Lanzador directo del Modo Configurador (.bat)
 ├── PlayNexus_Launcher.bat    # Lanzador directo del Modo Frontend / Jugador (.bat)
-├── build_executables.py      # Script de compilación y ensamblado de la carpeta bin/ limpia
+├── build_executables.py      # Script de compilación y ensamblado de la carpeta dist/ limpia
 ├── entry_config.py           # Punto de entrada para PlayNexus_Config.exe
 ├── entry_launcher.py         # Punto de entrada para PlayNexus_Launcher.exe
 ├── PlayNexus_Logo.png        # Logotipo del proyecto
-├── bin/                      # Distribución independiente 100% limpia y portable (.exe y recursos)
+├── app_icon.ico              # Icono principal de la aplicación
+├── splash/                   # Carpeta de videos de presentación (Splash Screen)
+├── dist/                     # Distribución independiente 100% limpia y portable (.exe y recursos)
 │   ├── PlayNexus_Config.exe  # Ejecutable del Configurador
 │   ├── PlayNexus_Launcher.exe# Ejecutable del Frontend / Jugador
 │   ├── PlayNexus_Logo.png    # Logotipo del aplicativo
+│   ├── app_icon.ico          # Icono del aplicativo
 │   ├── config/               # Configuración limpia (settings.txt, emulator_templates.txt)
 │   ├── emulators/            # Directorio limpio para registrar emuladores
 │   ├── lists/                # Directorio limpio para listas de juegos
 │   ├── icons/                # Iconos de consolas y arcades
-│   └── Layouts/              # Diseños y temas visuales nativos
+│   ├── Layouts/              # Diseños y temas visuales nativos
+│   └── splash/               # Video de presentación (Splash Screen)
 ├── config/                   # Configuración del entorno de desarrollo
 ├── emulators/                # Archivos .txt de emuladores del entorno local
 ├── lists/                    # Archivos .txt de listas del entorno local
@@ -181,7 +200,7 @@ PlayNexus_Frontend/
     ├── services/
     │   ├── __init__.py
     │   ├── controls.py       # Mapeo y gestión de controles de teclado
-    │   ├── emulator_manager.py # Monitoreo de procesos, silenciamiento y salida global
+    │   ├── emulator_manager.py # Monitoreo de procesos, retardos, fade, HUD y salida global
     │   ├── emulator_templates.py # Carga, edición y persistencia de plantillas rápidas
     │   ├── gamepad.py        # Lectura y eventos de joystick / gamepad
     │   ├── launcher.py       # Resolución de emuladores, comodines Attract-Mode y ejecución
@@ -190,13 +209,14 @@ PlayNexus_Frontend/
     │   └── themes.py         # Carga y detección de temas personalizados por consola
     └── ui/
         ├── __init__.py
-        ├── bezel_overlay.py  # Ventana de overlay transparente para Bezel HUD sobre emuladores
+        ├── bezel_overlay.py  # Ventana de overlay transparente para Bezel HUD con fade
         ├── cover_utils.py    # Generador procedural de carátulas dinámicas y carga de arte
-        ├── dialogs.py        # Diálogos: Listas, Emuladores, Escaneo con Debug, Filtros
-        ├── frontend_tab.py   # Pestaña de configuración de video y pantalla
+        ├── dialogs.py        # Diálogos: Listas, Emuladores (retardo/fade), Escaneo, Filtros
+        ├── frontend_tab.py   # Configuración de video, pantalla y Splash Screen
         ├── main_window.py    # Ventana principal del Configurador
         ├── player_window.py  # Ventana del Modo Frontend / Jugador (pantalla completa)
         ├── settings_tab.py   # Pestaña de configuración general y controles
+        ├── splash_screen.py  # Reproductor a pantalla completa del video de bienvenida
         └── layouts/          # Fábrica y modos de layouts
             ├── __init__.py
             ├── base.py       # Clase base abstracta BaseLayout

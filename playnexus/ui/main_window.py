@@ -258,6 +258,7 @@ class MainWindow(QMainWindow):
 
         # Control de sonido al probar layouts en configuración
         self.sound_checkbox = QCheckBox("🔊 Sonido")
+        self.sound_checkbox.setFocusPolicy(Qt.NoFocus)
         self.sound_checkbox.setToolTip("Activar o desactivar sonido y efectos al probar diseños visuales")
         self.sound_checkbox.setStyleSheet("margin-left: 10px; font-weight: 500;")
         sound_pref = self.db.get_setting("layout_preview_sound", "true").strip().lower() in ("true", "1")
@@ -920,11 +921,17 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
         cur = self.layout_stack.currentWidget()
-        if cur and hasattr(cur, "set_media_muted") and callable(cur.set_media_muted):
-            try:
-                cur.set_media_muted(muted)
-            except Exception:
-                pass
+        if cur:
+            if hasattr(cur, "set_media_muted") and callable(cur.set_media_muted):
+                try:
+                    cur.set_media_muted(muted)
+                except Exception:
+                    pass
+            # Restaurar el foco inmediatamente para que la rueda de juegos y el layout sigan respondiendo al teclado
+            if hasattr(cur, "wheel_list") and cur.wheel_list:
+                cur.wheel_list.setFocus()
+            else:
+                cur.setFocus()
 
     def _sync_layout_sound(self, inst):
         """Aplica el estado actual de silencio/sonido a la instancia del layout."""
@@ -1675,6 +1682,25 @@ class MainWindow(QMainWindow):
         if current_layout:
             current_layout.db = self.db
         self.statusBar().showMessage("Configuración del sistema actualizada correctamente.", 3500)
+
+    def keyPressEvent(self, event):
+        """Reenvía la navegación por teclado al layout visual activo en la Biblioteca de Juegos."""
+        if hasattr(self, "main_tabs") and self.main_tabs.currentIndex() == 0:
+            fw = self.focusWidget()
+            from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit
+            # Si no se está escribiendo texto en un campo de búsqueda o edición ni navegando la lista de listas
+            if fw != getattr(self, "list_widget", None) and not isinstance(fw, (QLineEdit, QTextEdit, QPlainTextEdit)):
+                cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
+                if cur:
+                    if hasattr(cur, "keyPressEvent"):
+                        cur.keyPressEvent(event)
+                        if event.isAccepted():
+                            return
+                    elif hasattr(cur, "wheel_list") and cur.wheel_list:
+                        cur.wheel_list.keyPressEvent(event)
+                        if event.isAccepted():
+                            return
+        super().keyPressEvent(event)
 
     def closeEvent(self, event):
         """Detiene cualquier reproducción activa antes de cerrar la ventana para evitar errores de Media Foundation."""

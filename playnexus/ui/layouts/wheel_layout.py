@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from PySide6.QtCore import Qt, QSize, QUrl, QRect, QPoint, QTimer, QModelIndex
+from PySide6.QtCore import Qt, QSize, QUrl, QRect, QPoint, QTimer, QModelIndex, QEvent
 from PySide6.QtGui import (
     QFont, QColor, QPainter, QPainterPath, QPixmap, QIcon, QBrush, QPen
 )
@@ -138,6 +138,7 @@ class WheelLayout(BaseLayout):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setFocusPolicy(Qt.StrongFocus)
         self.current_media = {}
         self._player_initialized = False  # Flag: media player aún no creado
         self.player = None
@@ -194,6 +195,7 @@ class WheelLayout(BaseLayout):
         video_bar = QHBoxLayout()
         self.mute_btn = QPushButton("🔊 Silenciar video")
         self.mute_btn.setCheckable(True)
+        self.mute_btn.setFocusPolicy(Qt.NoFocus)
         self.mute_btn.setStyleSheet("""
             QPushButton {
                 background-color: #1e2333;
@@ -272,6 +274,8 @@ class WheelLayout(BaseLayout):
         right_layout.addWidget(wheel_header)
 
         self.wheel_list = QListWidget()
+        self.wheel_list.setFocusPolicy(Qt.StrongFocus)
+        self.wheel_list.installEventFilter(self)
         self.wheel_list.setStyleSheet("""
             QListWidget {
                 background: transparent;
@@ -343,6 +347,7 @@ class WheelLayout(BaseLayout):
             from PySide6.QtMultimediaWidgets import QVideoWidget
 
             self.video_widget = QVideoWidget()
+            self.video_widget.setFocusPolicy(Qt.NoFocus)
             self.video_widget.setStyleSheet("background-color: #000000;")
             self._video_stack.addWidget(self.video_widget)  # índice 1
 
@@ -681,11 +686,26 @@ class WheelLayout(BaseLayout):
                 print(f"[WheelLayout] Error al reproducir video: {e}")
 
     def _toggle_mute(self):
-        if not self.audio_output:
-            return
         is_muted = self.mute_btn.isChecked()
-        self.audio_output.setMuted(is_muted)
-        self.mute_btn.setText("🔇 Con sonido" if is_muted else "🔊 Silenciar video")
+        self.set_media_muted(is_muted)
+        if hasattr(self, "wheel_list") and self.wheel_list:
+            self.wheel_list.setFocus()
+        else:
+            self.setFocus()
+
+    def eventFilter(self, watched, event):
+        if watched == getattr(self, "wheel_list", None) and event.type() == QEvent.KeyPress:
+            self.keyPressEvent(event)
+            if event.isAccepted():
+                return True
+        return super().eventFilter(watched, event)
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if hasattr(self, "wheel_list") and self.wheel_list:
+            self.wheel_list.setFocus()
+        else:
+            self.setFocus()
 
     def _on_wheel_double_clicked(self, item):
         if item:
@@ -765,6 +785,16 @@ class WheelLayout(BaseLayout):
                 self.audio_output.setVolume(0.0 if muted else 0.35)
             except Exception:
                 pass
+        if hasattr(self, "sound_effect") and self.sound_effect:
+            try:
+                self.sound_effect.setMuted(muted)
+            except Exception:
+                pass
+        if hasattr(self, "select_effect") and self.select_effect:
+            try:
+                self.select_effect.setMuted(muted)
+            except Exception:
+                pass
         if hasattr(self, "mute_btn") and self.mute_btn:
             try:
                 self.mute_btn.blockSignals(True)
@@ -773,6 +803,9 @@ class WheelLayout(BaseLayout):
                 self.mute_btn.blockSignals(False)
             except Exception:
                 pass
+        # Garantizar que el foco permanezca en la rueda de juegos para responder al teclado
+        if hasattr(self, "wheel_list") and self.wheel_list:
+            self.wheel_list.setFocus()
 
     def stop_media(self):
         """Detiene el reproductor de video al cambiar de layout."""

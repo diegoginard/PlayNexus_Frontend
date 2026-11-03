@@ -110,6 +110,7 @@ class ShowcaseLayout(BaseLayout):
 
         btn_row = QHBoxLayout()
         self.play_btn = QPushButton("Play JUGAR AHORA")
+        self.play_btn.setFocusPolicy(Qt.NoFocus)
         self.play_btn.setMinimumHeight(44)
         self.play_btn.setFixedWidth(200)
         self.play_btn.setStyleSheet("""

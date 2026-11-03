@@ -504,6 +504,40 @@ class PlayerWindow(QMainWindow):
         self.configured_window_size = QSize(w, h)
 
     def _apply_show(self):
+        """Aplica la configuración de visualización y reproduce splash screen si está habilitado."""
+        splash_enabled = (self.db.get_setting("frontend_splash_enabled", "false").strip().lower() in ("true", "1", "yes"))
+        if splash_enabled and not getattr(self, "_splash_played", False):
+            from playnexus.ui.splash_screen import resolve_splash_video, VideoSplashScreen
+            video_file = resolve_splash_video(self.db)
+            if video_file and video_file.is_file():
+                self._splash_played = True
+                geo = getattr(self, "_pending_geo", None)
+                if not geo:
+                    try:
+                        mon_idx = int(self.db.get_setting("video_monitor", "0"))
+                    except Exception:
+                        mon_idx = 0
+                    screens = QGuiApplication.screens()
+                    if 0 <= mon_idx < len(screens):
+                        geo = screens[mon_idx].geometry()
+                    elif screens:
+                        geo = screens[0].geometry()
+
+                self.splash_screen = VideoSplashScreen(video_file, target_geo=geo, db=self.db)
+                self.splash_screen.finished.connect(self._on_splash_finished)
+                self.splash_screen.showFullScreen()
+                self.splash_screen.raise_()
+                self.splash_screen.activateWindow()
+                self.splash_screen.start_playback()
+                return
+
+        self._apply_show_direct()
+
+    def _on_splash_finished(self):
+        """Se ejecuta tras concluir o saltar el video de splash screen."""
+        self._apply_show_direct()
+
+    def _apply_show_direct(self):
         """Aplica la configuración de visualización a pantalla completa."""
         mode = getattr(self, "_pending_mode", "fullscreen")
         geo = getattr(self, "_pending_geo", None)
@@ -545,6 +579,35 @@ class PlayerWindow(QMainWindow):
             self.showFullScreen()
             self.raise_()
             self.activateWindow()
+
+        self.resume_active_media()
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.setFocus()
+            if hasattr(cur, "wheel_list") and cur.wheel_list:
+                cur.wheel_list.setFocus()
+            # Asegurar que el video del tema / snap comience de inmediato al mostrarse el frontend
+            QTimer.singleShot(60, lambda: self._ensure_current_layout_media_playing(cur))
+
+    def _ensure_current_layout_media_playing(self, layout):
+        """Garantiza la reproducción de video en el layout visible una vez desplegada la ventana."""
+        if not layout:
+            return
+        if hasattr(layout, "_play_debounced_video") and callable(layout._play_debounced_video):
+            try:
+                layout._play_debounced_video()
+            except Exception:
+                pass
+        elif hasattr(layout, "_update_current_selection") and callable(layout._update_current_selection):
+            try:
+                layout._update_current_selection()
+            except Exception:
+                pass
+        elif hasattr(layout, "resume_media") and callable(layout.resume_media):
+            try:
+                layout.resume_media()
+            except Exception:
+                pass
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
@@ -785,6 +848,13 @@ class PlayerWindow(QMainWindow):
     def closeEvent(self, event):
         """Detiene cualquier reproducción activa y el hilo de mandos antes de cerrar la ventana."""
         self.stop_all_active_media()
+        if hasattr(self, "splash_screen") and self.splash_screen:
+            try:
+                self.splash_screen.close()
+                self.splash_screen.deleteLater()
+            except Exception:
+                pass
+            self.splash_screen = None
         if hasattr(self, "gamepad_manager") and self.gamepad_manager:
             self.gamepad_manager.stop()
         super().closeEvent(event)

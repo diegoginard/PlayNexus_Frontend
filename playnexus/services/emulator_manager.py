@@ -10,7 +10,7 @@ import sys
 import time
 import ctypes
 import subprocess
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, QTimer, Signal, Qt
 from playnexus.services.controls import get_binding, key_name_to_vk, ACTION_CLOSE_EMULATOR
 
 # Estructuras para XInput (mando de juegos en Windows)
@@ -357,17 +357,28 @@ class EmulatorManager(QObject):
             except Exception:
                 pass
 
-        # 3. En Windows: asegurar liberación de captura nativa y forzar primer plano
+        # 3. En Windows: asegurar liberación de captura nativa y forzar primer plano de forma limpia sin Alt
         if sys.platform == "win32":
             try:
                 ctypes.windll.user32.ReleaseCapture()
                 if self.parent_window:
                     hwnd = int(self.parent_window.winId())
-                    ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)
-                    ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
-                    ctypes.windll.user32.AllowSetForegroundWindow(-1)
-                    ctypes.windll.user32.SetForegroundWindow(hwnd)
-                    ctypes.windll.user32.BringWindowToTop(hwnd)
+                    fg_hwnd = ctypes.windll.user32.GetForegroundWindow()
+                    if fg_hwnd and fg_hwnd != hwnd:
+                        fg_thread = ctypes.windll.user32.GetWindowThreadProcessId(fg_hwnd, None)
+                        app_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+                        if fg_thread != app_thread:
+                            ctypes.windll.user32.AttachThreadInput(fg_thread, app_thread, True)
+                            ctypes.windll.user32.AllowSetForegroundWindow(-1)
+                            ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            ctypes.windll.user32.BringWindowToTop(hwnd)
+                            ctypes.windll.user32.AttachThreadInput(fg_thread, app_thread, False)
+                        else:
+                            ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            ctypes.windll.user32.BringWindowToTop(hwnd)
+                    else:
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+                        ctypes.windll.user32.BringWindowToTop(hwnd)
             except Exception:
                 pass
 
@@ -377,7 +388,7 @@ class EmulatorManager(QObject):
             target_layout = self.parent_window.layout_stack.currentWidget()
         if target_layout:
             try:
-                target_layout.setFocus()
+                target_layout.setFocus(Qt.OtherFocusReason)
             except Exception:
                 pass
 
@@ -387,8 +398,10 @@ class EmulatorManager(QObject):
                 if self.parent_window and hasattr(self.parent_window, "layout_stack"):
                     cur = self.parent_window.layout_stack.currentWidget()
                     if cur:
-                        cur.setFocus()
-            QTimer.singleShot(60, _ensure_layout_focus)
+                        cur.setFocus(Qt.OtherFocusReason)
+            QTimer.singleShot(50, _ensure_layout_focus)
+            QTimer.singleShot(150, _ensure_layout_focus)
+            QTimer.singleShot(300, _ensure_layout_focus)
 
         self.emulator_finished.emit(return_code)
 

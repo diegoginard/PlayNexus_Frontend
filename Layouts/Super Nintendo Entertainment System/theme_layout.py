@@ -744,7 +744,9 @@ class ThemeLayout(BaseLayout):
     def _play_debounced_video(self):
         """Reproduce el video snap una vez que la ruleta se ha detenido para maximizar la fluidez."""
         if not self.isVisible():
+            self._pending_video_play_on_show = True
             return
+        self._pending_video_play_on_show = False
         self._load_pending_art()
         self.update()
         video_to_play = getattr(self, "_pending_video_path", None)
@@ -1236,10 +1238,10 @@ class ThemeLayout(BaseLayout):
             event.accept()
             return
         key = event.key()
-        if matches_action(event, ACTION_NAV_UP):
+        if matches_action(event, ACTION_NAV_UP) or key in (Qt.Key_Up,):
             self._navigate_steps(-1)
             event.accept()
-        elif matches_action(event, ACTION_NAV_DOWN):
+        elif matches_action(event, ACTION_NAV_DOWN) or key in (Qt.Key_Down,):
             self._navigate_steps(1)
             event.accept()
         elif matches_action(event, ACTION_PAGE_UP):

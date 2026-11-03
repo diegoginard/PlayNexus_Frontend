@@ -1,15 +1,16 @@
 """
 Script automatizado para compilar los ejecutables de PlayNexus y
-empaquetar la distribución limpia y completa en la carpeta bin/:
-- bin/PlayNexus_Config.exe (Configurador)
-- bin/PlayNexus_Launcher.exe (Frontend / Jugador)
-- bin/PlayNexus_Logo.png
-- bin/app_icon.ico
-- bin/config/ (settings.txt limpio, emulator_templates.txt)
-- bin/emulators/
-- bin/lists/
-- bin/icons/
-- bin/Layouts/
+empaquetar la distribución limpia y completa en la carpeta dist/:
+- dist/PlayNexus_Config.exe (Configurador)
+- dist/PlayNexus_Launcher.exe (Frontend / Jugador)
+- dist/PlayNexus_Logo.png
+- dist/app_icon.ico
+- dist/config/ (settings.txt limpio, emulator_templates.txt)
+- dist/emulators/
+- dist/lists/
+- dist/icons/
+- dist/Layouts/
+- dist/splash/
 """
 import sys
 import shutil
@@ -17,7 +18,7 @@ import subprocess
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
-BIN_DIR = ROOT_DIR / "bin"
+DIST_DIR = ROOT_DIR / "dist"
 
 CLEAN_SETTINGS = """# Configuración del Sistema PlayNexus (Limpio)
 video_mode = fullscreen
@@ -51,26 +52,26 @@ gamepad_page_down = RB
 gamepad_toggle_fps = R-Thumb
 """
 
-def setup_clean_environment(bin_dir: Path):
-    """Crea la estructura limpia y copia todos los recursos necesarios dentro de bin/."""
+def setup_clean_environment(dist_dir: Path):
+    """Crea la estructura limpia y copia todos los recursos necesarios dentro de dist/."""
     print("\n==================================================")
-    print("3/3: Ensamblando entorno limpio en bin/...")
+    print("3/3: Ensamblando entorno limpio en dist/...")
     print("==================================================")
-    bin_dir.mkdir(parents=True, exist_ok=True)
+    dist_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Copiar logotipo e icono
     logo_file = ROOT_DIR / "PlayNexus_Logo.png"
     if logo_file.exists():
-        shutil.copy2(logo_file, bin_dir / "PlayNexus_Logo.png")
+        shutil.copy2(logo_file, dist_dir / "PlayNexus_Logo.png")
         print(" [OK] Logotipo: PlayNexus_Logo.png copiado.")
 
     icon_file = ROOT_DIR / "app_icon.ico"
     if icon_file.exists():
-        shutil.copy2(icon_file, bin_dir / "app_icon.ico")
+        shutil.copy2(icon_file, dist_dir / "app_icon.ico")
         print(" [OK] Icono: app_icon.ico copiado.")
 
     # 2. Carpeta config/ con archivos limpios
-    config_dir = bin_dir / "config"
+    config_dir = dist_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
 
     tmpl_src = ROOT_DIR / "config" / "emulator_templates.txt"
@@ -84,13 +85,13 @@ def setup_clean_environment(bin_dir: Path):
         print(" [OK] Configuración: config/settings.txt inicial creado.")
 
     # 3. Carpetas vacías emulators/ y lists/
-    (bin_dir / "emulators").mkdir(parents=True, exist_ok=True)
-    (bin_dir / "lists").mkdir(parents=True, exist_ok=True)
+    (dist_dir / "emulators").mkdir(parents=True, exist_ok=True)
+    (dist_dir / "lists").mkdir(parents=True, exist_ok=True)
     print(" [OK] Directorios limpios: emulators/ y lists/ preparados.")
 
     # 4. Copiar icons/
     icons_src = ROOT_DIR / "icons"
-    icons_dest = bin_dir / "icons"
+    icons_dest = dist_dir / "icons"
     if icons_src.exists():
         if icons_dest.exists():
             shutil.rmtree(icons_dest)
@@ -99,7 +100,7 @@ def setup_clean_environment(bin_dir: Path):
 
     # 5. Copiar Layouts/ (excluyendo Media y cachés para mantener limpio y ligero)
     layouts_src = ROOT_DIR / "Layouts"
-    layouts_dest = bin_dir / "Layouts"
+    layouts_dest = dist_dir / "Layouts"
     if layouts_src.exists():
         if layouts_dest.exists():
             shutil.rmtree(layouts_dest)
@@ -110,20 +111,33 @@ def setup_clean_environment(bin_dir: Path):
         )
         print(" [OK] Temas y Diseños: carpeta Layouts/ copiada (limpia).")
 
-    # 6. Copiar ejecutables desde dist/ hacia bin/
-    dist_dir = ROOT_DIR / "dist"
+    # 5b. Copiar splash/
+    splash_src = ROOT_DIR / "splash"
+    splash_dest = dist_dir / "splash"
+    if splash_src.exists():
+        if splash_dest.exists():
+            shutil.rmtree(splash_dest)
+        shutil.copytree(splash_src, splash_dest)
+        print(" [OK] Splash Screen: carpeta splash/ copiada.")
+
+    # 6. Verificar ejecutables en dist/
     config_exe = dist_dir / "PlayNexus_Config.exe"
     launcher_exe = dist_dir / "PlayNexus_Launcher.exe"
 
     if config_exe.exists():
-        dest_config = bin_dir / "PlayNexus_Config.exe"
-        shutil.copy2(config_exe, dest_config)
-        print(f" [OK] Ejecutable: {dest_config}")
+        print(f" [OK] Ejecutable: {config_exe}")
 
     if launcher_exe.exists():
-        dest_launcher = bin_dir / "PlayNexus_Launcher.exe"
-        shutil.copy2(launcher_exe, dest_launcher)
-        print(f" [OK] Ejecutable: {dest_launcher}")
+        print(f" [OK] Ejecutable: {launcher_exe}")
+
+    # Remover carpeta bin/ obsoleta si existe
+    old_bin = ROOT_DIR / "bin"
+    if old_bin.exists():
+        try:
+            shutil.rmtree(old_bin)
+            print(" [OK] Carpeta obsoleta bin/ eliminada.")
+        except Exception:
+            pass
 
     # Remover ejecutables obsoletos de la raíz si existen
     for old_name in ("PlayNexus_Config.exe", "PlayNexus_Launcher.exe"):
@@ -193,10 +207,10 @@ def build():
         print("Error al compilar PlayNexus_Launcher.exe")
         sys.exit(res_launcher.returncode)
 
-    # Configurar y poblar la carpeta bin/ limpia
-    setup_clean_environment(BIN_DIR)
+    # Configurar y poblar la carpeta dist/ limpia
+    setup_clean_environment(DIST_DIR)
 
-    print("\n¡Distribución limpia generada con éxito en la carpeta bin/!")
+    print("\n¡Distribución limpia generada con éxito en la carpeta dist/!")
 
 
 if __name__ == "__main__":
