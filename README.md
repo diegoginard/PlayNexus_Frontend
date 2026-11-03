@@ -2,7 +2,9 @@
 
 ![PlayNexus Logo](PlayNexus_Logo.png)
 
-**PlayNexus** es un frontend modular, rápido y elegante para organizar, visualizar y ejecutar videojuegos retro y modernos mediante emuladores y lanzadores en Windows 10 y Windows 11. Desarrollado con **Python 3.11+**, **PySide6** (Qt) y almacenamiento 100% portable en **Texto Plano (`.txt`)**.
+**PlayNexus** es un frontend modular, rápido y elegante para organizar, visualizar y ejecutar videojuegos retro y modernos mediante emuladores y lanzadores en Windows 10 y Windows 11. Desarrollado con **Python 3.11+**, **PySide6** (Qt) y almacenamiento 100% portable en **texto plano (`.txt`)**.
+
+Su desarrollo toma como referencia funcionalidades y conceptos de **Attract-Mode** y **RocketLauncher**, especialmente en la organización de bibliotecas de videojuegos, gestión de emuladores, configuración de sistemas y automatización del lanzamiento de juegos, incorporando una arquitectura propia, modular y orientada a la portabilidad.
 
 ---
 
@@ -107,7 +109,7 @@ Disponible tanto para **Listas Filtradas** como para **Listas Comunes**:
 
 ### 7. Motor de Layouts y Temas por Sistema
 PlayNexus ofrece un sistema modular y nativo de presentación visual en PySide6 (`playnexus/ui/layouts/`) con múltiples estilos:
-- **Temas por Consola (`Layouts/<Sistema>/`):** Diseños gráficos dedicados con renderizado de televisores CRT (`tv.png`), consola física (`console.png`), cartuchos/discos, mandos, video snaps y fondos temáticos (`bkg.jpg`).
+- **Temas por Consola (`Layouts/<Sistema>/`):** Diseños gráficos dedicados con renderizado de televisores CRT (`tv.png`), consola física (`console.png`), cartuchos/discos, mandos, video snaps y fondos temáticos (`bkg.jpg`). Incluye soporte autónomo completo para **NEC TurboGrafx-16** (inserción de HuCard en consola), **NEC TurboGrafx-CD** (disco CD-ROM giratorio a 60 FPS), **NEC PC-FX** (disco CD giratorio y avatar Zenki animado), **Atari Jaguar**, **Atari Jaguar CD**, **Sega Genesis**, **Sega CD**, **Sega 32X**, **Sega Saturn**, **Sony Playstation**, **Nintendo 64** y **Super Nintendo**.
 - **Wheel (Rueda Arcade Clásica):** Rueda curva de logos transparentes con previsualización de video en vivo y carga asíncrona de arte (`wheel_worker.py`).
 - **Grid (Estantería / Cuadrícula):** Cuadrícula de carátulas dinámicas o personalizadas con control deslizante de zoom en vivo.
 - **Showcase (Modo Cinemático / Big Screen):** Vista cinematográfica con banner superior, tipografía destacada y carrusel inferior de selección rápida.

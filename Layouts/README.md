@@ -298,3 +298,23 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 - [ ] Eventos `keyPressEvent`, `wheelEvent`, `mousePressEvent`, `mouseReleaseEvent` con check de `EMULATOR_MANAGER`
 - [ ] Señales `game_selected`, `game_activated`, `nav_back_requested` emitidas correctamente
 - [ ] `py_compile` sin errores: `.\.venv\Scripts\python.exe -m py_compile Layouts/<NombreTema>/theme_layout.py`
+
+---
+
+## 11. Catálogo de Layouts Oficiales Activos
+
+| Layout | Tipo de Soporte | Medios Requeridos | Elementos Destacados |
+|--------|-----------------|-------------------|----------------------|
+| **NEC TurboGrafx-16** | Cartucho (HuCard) | `video`, `wheel`, `cartart` | TV CRT, animación de inserción vertical en consola, tapa de ranura, nave espacial animada |
+| **NEC TurboGrafx-CD** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, nave espacial animada |
+| **NEC PC-FX** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, avatar animado de Zenki |
+| **Atari Jaguar** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción tridimensional en ranura de consola, mecha robot animado |
+| **Atari Jaguar CD** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación de CD de 60 FPS, avatar robot animado |
+| **Sega Genesis** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción en ranura, avatar Sonic animado |
+| **Sega CD** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación de CD a 60 FPS, avatar Sonic animado |
+| **Sega 32X** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción en add-on 32X, avatar Knuckles animado |
+| **Sega Saturn** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación continua de CD, avatar animado |
+| **Sony Playstation** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación de disco negro PlayStation, avatar Crash Bandicoot |
+| **Nintendo 64** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción frontal, avatar Mario 64 |
+| **Super Nintendo** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción vertical en SNES, avatar Mario animado |
+
