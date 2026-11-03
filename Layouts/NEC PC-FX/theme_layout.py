@@ -82,21 +82,20 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # RECURSOS LOCALES PROPIOS DEL LAYOUT
     # -------------------------------------------------------------------------
-    BKG_IMAGE = LAYOUT_DIR / "bkg.jpg" if (LAYOUT_DIR / "bkg.jpg").is_file() else (LAYOUT_DIR / "bg.jpg")
+    BKG_IMAGE = LAYOUT_DIR / "bg.jpg" if (LAYOUT_DIR / "bg.jpg").is_file() else (LAYOUT_DIR / "bkg.jpg")
     TV_IMAGE = LAYOUT_DIR / "tv.png"
     CONSOLE_IMAGE = LAYOUT_DIR / "console.png"
     CONSOLE_COVER_IMAGE = None
     JOYSTICK_IMAGE = None
-    AVATAR_IMAGE = LAYOUT_DIR / "zenki.png"
+    AVATAR_IMAGE = LAYOUT_DIR / "avatar.png" if (LAYOUT_DIR / "avatar.png").is_file() else (LAYOUT_DIR / "zenki.png")
     LOGO_IMAGE = LAYOUT_DIR / "logo.png"
-    CARTART_IMAGE = LAYOUT_DIR / "cartart.png"
+    CARTART_IMAGE = LAYOUT_DIR / "discart.png" if (LAYOUT_DIR / "discart.png").is_file() else (LAYOUT_DIR / "cartart.png")
     BOXART_IMAGE = None
     WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
-    POINTER_IMAGE = LAYOUT_DIR / "default.png" if (LAYOUT_DIR / "default.png").is_file() else (LAYOUT_DIR / "pointers" / "default.png")
+    POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png" if (LAYOUT_DIR / "pointers" / "default.png").is_file() else (LAYOUT_DIR / "default.png")
     FONT_FILES = [
-        "Industria_Solid.ttf",
+        "Handel Gothic BT.ttf",
         "BebasNeue Bold.otf",
-        "TrajanPro-Bold.otf",
     ]
 
     # -------------------------------------------------------------------------
@@ -221,7 +220,7 @@ class ThemeLayout(BaseLayout):
         self.theme_info = {
             "name": self.theme_name,
             "folder": str(LAYOUT_DIR),
-            "bkg": str(self.BKG_IMAGE),
+            "bg": str(self.BKG_IMAGE),
             "tv": str(self.TV_IMAGE),
             "console": str(self.CONSOLE_IMAGE),
             "console_cover": None,
@@ -1006,13 +1005,10 @@ class ThemeLayout(BaseLayout):
 
             # Capa 10: Sombra / fondo de la ruleta (desde gtc-common)
             if self._pix_wheel_shadow:
-                painter.save()
-                painter.setOpacity(0.85)
-                shadow_w = int(sw * 0.45)
-                shadow_h = sh
-                shadow_x = sx + sw - shadow_w
-                painter.drawPixmap(shadow_x, sy, shadow_w, shadow_h, self._pix_wheel_shadow)
-                painter.restore()
+                if getattr(self, "_cached_wheel_shadow_size", None) != (sw, sh):
+                    self._cached_wheel_shadow_pix = self._pix_wheel_shadow.scaled(sw, sh, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    self._cached_wheel_shadow_size = (sw, sh)
+                painter.drawPixmap(sx, sy, self._cached_wheel_shadow_pix)
 
             # Capa 11: Ruleta curva interactiva
             if self.games:
@@ -1395,3 +1391,4 @@ class ThemeLayout(BaseLayout):
         self._wheel_pixmaps.clear()
         if hasattr(self, '_wheel_worker') and self._wheel_worker:
             self._wheel_worker.clear()
+

@@ -1,0 +1,42 @@
+# Lista de PlayNexus: NEC PC-FX
+[List]
+id = 19
+name = NEC PC-FX
+list_type = games
+platform = NEC PC-FX
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/NEC PC-FX.png
+default_emulator_id = 20
+default_emulator = Retroarch PC-FX
+layout = NEC PC-FX
+allowed_extensions = .chd
+roms_path = D:/Roms/Nec PC-FX/Roms
+scan_subfolders = false
+exclude_folder_if_zip = false
+media_path = 
+boxart_path = D:/Roms/Nec PC-FX/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Nec PC-FX/media/wheel
+video_path = D:/Roms/Nec PC-FX/media/videos
+cartart_path = D:/Roms/Nec PC-FX/media/cartart
+cabinet_path = 
+marquee_path = 
+bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = 
+loading_path = 
+loading_in_path = 
+loading_out_path = 
+xml_path = 
+created_at = 2026-11-03 16:24:56
+source_list_id = 
+filter_rules = []
+filter_match_mode = any
+menu_items = 
+
+[Games]
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+35520;Chip Chan Kick;Chip Chan Kick;D:\\Roms\\Nec PC-FX\\Roms\\Chip Chan Kick.chd;;;;;;;;;;;;{};2026-11-03 16:26:42;;
+35521;Farland Story FX (J)[Ting];Farland Story FX (J)[Ting];D:\\Roms\\Nec PC-FX\\Roms\\Farland Story FX (J)[Ting].chd;;;;;;;;;;;;{};2026-11-03 16:26:42;;
+35522;Kishin Douji Zenki FX Vajura Fight;Kishin Douji Zenki FX Vajura Fight;D:\\Roms\\Nec PC-FX\\Roms\\Kishin Douji Zenki FX Vajura Fight.chd;;;;;;;;;;;;{};2026-11-03 16:26:42;;
+35523;Ruruli Ra Rura (J)[Ting];Ruruli Ra Rura (J)[Ting];D:\\Roms\\Nec PC-FX\\Roms\\Ruruli Ra Rura (J)[Ting].chd;;;;;;;;;;;;{};2026-11-03 16:26:42;;
+35524;Tyoushin Heiki Zeroigar (J)[Ting];Tyoushin Heiki Zeroigar (J)[Ting];D:\\Roms\\Nec PC-FX\\Roms\\Tyoushin Heiki Zeroigar (J)[Ting].chd;;;;;;;;;;;;{};2026-11-03 16:26:42;;

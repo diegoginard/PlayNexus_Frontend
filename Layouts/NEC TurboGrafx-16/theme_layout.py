@@ -1007,13 +1007,10 @@ class ThemeLayout(BaseLayout):
 
             # Capa 12: Sombra / fondo de la ruleta (desde gtc-common)
             if self._pix_wheel_shadow:
-                painter.save()
-                painter.setOpacity(0.85)
-                shadow_w = int(sw * 0.45)
-                shadow_h = sh
-                shadow_x = sx + sw - shadow_w
-                painter.drawPixmap(shadow_x, sy, shadow_w, shadow_h, self._pix_wheel_shadow)
-                painter.restore()
+                if getattr(self, "_cached_wheel_shadow_size", None) != (sw, sh):
+                    self._cached_wheel_shadow_pix = self._pix_wheel_shadow.scaled(sw, sh, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                    self._cached_wheel_shadow_size = (sw, sh)
+                painter.drawPixmap(sx, sy, self._cached_wheel_shadow_pix)
 
             # Capa 13: Ruleta curva interactiva
             if self.games:
@@ -1387,3 +1384,4 @@ class ThemeLayout(BaseLayout):
         self._wheel_pixmaps.clear()
         if hasattr(self, '_wheel_worker') and self._wheel_worker:
             self._wheel_worker.clear()
+

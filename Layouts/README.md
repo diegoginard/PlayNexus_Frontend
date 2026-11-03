@@ -307,7 +307,7 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 |--------|-----------------|-------------------|----------------------|
 | **NEC TurboGrafx-16** | Cartucho (HuCard) | `video`, `wheel`, `cartart` | TV CRT, animación de inserción vertical en consola, tapa de ranura, nave espacial animada |
 | **NEC TurboGrafx-CD** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, nave espacial animada |
-| **NEC PC-FX** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, avatar animado de Zenki |
+| **NEC PC-FX** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, avatar temático animado |
 | **Atari Jaguar** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción tridimensional en ranura de consola, mecha robot animado |
 | **Atari Jaguar CD** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación de CD de 60 FPS, avatar robot animado |
 | **Sega Genesis** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción en ranura, avatar Sonic animado |
