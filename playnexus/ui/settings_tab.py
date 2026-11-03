@@ -360,19 +360,17 @@ class SystemSettingsWidget(QWidget):
         v_controls.addWidget(lbl_c_info)
 
         self.controls_table = QTableWidget()
-        self.controls_table.setColumnCount(6)
+        self.controls_table.setColumnCount(4)
         self.controls_table.setHorizontalHeaderLabels([
-            "Acción", "Descripción", "Tecla Teclado", "Asignar Tecla", "Botón Mando", "Asignar Mando"
+            "Acción", "Descripción", "Tecla (Teclado)", "Mando / Joystick"
         ])
         self.controls_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.controls_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.controls_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.controls_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.controls_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.controls_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.controls_table.setSelectionMode(QAbstractItemView.NoSelection)
         self.controls_table.verticalHeader().setVisible(False)
-        self.controls_table.setMinimumHeight(280)
+        self.controls_table.verticalHeader().setDefaultSectionSize(36)
         v_controls.addWidget(self.controls_table)
 
         row_c_btns = QHBoxLayout()
@@ -397,6 +395,7 @@ class SystemSettingsWidget(QWidget):
 
         lbl_mute_hint = QLabel("Al salir del emulador, el sonido del video snap en el diseño visual se reanuda de inmediato.")
         lbl_mute_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
+        lbl_mute_hint.setWordWrap(True)
         v_emu.addWidget(lbl_mute_hint)
 
         self.chk_global_exit = QCheckBox("Permitir cerrar el emulador en ejecución con la tecla asignada (ej: Escape)")
@@ -405,6 +404,7 @@ class SystemSettingsWidget(QWidget):
 
         lbl_exit_hint = QLabel("Monitorea globalmente en Windows la tecla configurada y cierra el emulador de forma limpia al presionarla.")
         lbl_exit_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
+        lbl_exit_hint.setWordWrap(True)
         v_emu.addWidget(lbl_exit_hint)
 
         self.chk_gamepad_exit = QCheckBox("Permitir cerrar el emulador con combo de control / gamepad (Back + Start)")
@@ -421,6 +421,7 @@ class SystemSettingsWidget(QWidget):
             "en la tabla de controles (por defecto F11 o L-Thumb) para acceder libremente a menús y opciones del emulador."
         )
         lbl_bezel_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
+        lbl_bezel_hint.setWordWrap(True)
         v_emu.addWidget(lbl_bezel_hint)
 
         layout.addWidget(grp_emu)
@@ -511,6 +512,7 @@ class SystemSettingsWidget(QWidget):
 
         lbl_driver_hint = QLabel("💡 <i>Nota: El cambio de motor gráfico (DirectX 11, DirectX 12, OpenGL o Vulkan) se aplicará la próxima vez que inicies PlayNexus.</i>")
         lbl_driver_hint.setStyleSheet("color: #9aa5b8; font-size: 8.5pt;")
+        lbl_driver_hint.setWordWrap(True)
         v_video.addWidget(lbl_driver_hint)
 
         # Opción para activar / desactivar contador de FPS en el frontend
@@ -523,6 +525,7 @@ class SystemSettingsWidget(QWidget):
             "Podés activarlo/desactivarlo aquí o en cualquier momento mediante la tecla o botón asignado en la tabla de controles superior."
         )
         lbl_fps_hint.setStyleSheet("color: #718096; font-size: 8.5pt; margin-left: 24px;")
+        lbl_fps_hint.setWordWrap(True)
         v_video.addWidget(lbl_fps_hint)
 
         layout.addWidget(grp_video)
@@ -607,7 +610,7 @@ class SystemSettingsWidget(QWidget):
         self.load_settings()
 
     def refresh_controls_table(self):
-        """Llena la tabla de asignación de teclas y mandos."""
+        """Llena la tabla compacta de asignación de teclas y mandos."""
         bindings = get_all_bindings(self.db)
         self.controls_table.setRowCount(len(bindings))
 
@@ -622,33 +625,59 @@ class SystemSettingsWidget(QWidget):
             item_desc.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.controls_table.setItem(row, 1, item_desc)
 
-            # Teclado
+            # Teclado (Botón interactivo que muestra la tecla y abre captura al hacer clic)
             key_text = info['key'] if info['key'] else "Sin asignar"
-            key_badge = QTableWidgetItem(f"  {key_text}  ")
-            key_badge.setTextAlignment(Qt.AlignCenter)
-            key_badge.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            key_badge.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if not info['key'] or info['key'] == "Sin asignar":
-                key_badge.setForeground(Qt.gray)
-            self.controls_table.setItem(row, 2, key_badge)
+            btn_key = QPushButton(f"⌨  {key_text}")
+            btn_key.setCursor(Qt.PointingHandCursor)
+            btn_key.setToolTip("Hacé clic para cambiar la tecla asignada")
+            btn_key.setStyleSheet("""
+                QPushButton {
+                    background-color: #242938;
+                    color: #a5b4fc;
+                    border: 1px solid #4f46e5;
+                    border-radius: 6px;
+                    padding: 4px 14px;
+                    font-weight: bold;
+                    font-size: 9pt;
+                }
+                QPushButton:hover {
+                    background-color: #3730a3;
+                    color: #ffffff;
+                    border-color: #6366f1;
+                }
+            """)
+            btn_key.clicked.connect(lambda checked=False, i=info: self._prompt_key_change(i["id"], i["name"]))
+            self.controls_table.setCellWidget(row, 2, btn_key)
 
-            btn_change_key = QPushButton("Cambiar Tecla…")
-            btn_change_key.clicked.connect(lambda checked=False, i=info: self._prompt_key_change(i["id"], i["name"]))
-            self.controls_table.setCellWidget(row, 3, btn_change_key)
-
-            # Mando / Joystick
+            # Mando / Joystick (Botón interactivo que muestra el control y abre captura al hacer clic)
             pad_text = info['pad'] if info['pad'] else "Sin asignar"
-            pad_badge = QTableWidgetItem(f"  {pad_text}  ")
-            pad_badge.setTextAlignment(Qt.AlignCenter)
-            pad_badge.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            pad_badge.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if not info['pad'] or info['pad'] == "Sin asignar":
-                pad_badge.setForeground(Qt.gray)
-            self.controls_table.setItem(row, 4, pad_badge)
+            btn_pad = QPushButton(f"🎮  {pad_text}")
+            btn_pad.setCursor(Qt.PointingHandCursor)
+            btn_pad.setToolTip("Hacé clic para cambiar el botón o combo de mando asignado")
+            btn_pad.setStyleSheet("""
+                QPushButton {
+                    background-color: #242938;
+                    color: #38bdf8;
+                    border: 1px solid #0284c7;
+                    border-radius: 6px;
+                    padding: 4px 14px;
+                    font-weight: bold;
+                    font-size: 9pt;
+                }
+                QPushButton:hover {
+                    background-color: #0369a1;
+                    color: #ffffff;
+                    border-color: #38bdf8;
+                }
+            """)
+            btn_pad.clicked.connect(lambda checked=False, i=info: self._prompt_gamepad_change(i["id"], i["name"]))
+            self.controls_table.setCellWidget(row, 3, btn_pad)
 
-            btn_change_pad = QPushButton("Cambiar Mando…")
-            btn_change_pad.clicked.connect(lambda checked=False, i=info: self._prompt_gamepad_change(i["id"], i["name"]))
-            self.controls_table.setCellWidget(row, 5, btn_change_pad)
+        # Ajustar altura de la tabla para que quepan todas las filas sin scrollbar interno vertical
+        header_h = self.controls_table.horizontalHeader().height() or 28
+        row_h = self.controls_table.verticalHeader().defaultSectionSize() or 36
+        total_h = header_h + (len(bindings) * row_h) + 6
+        self.controls_table.setFixedHeight(total_h)
 
     def _prompt_key_change(self, action_id: str, action_name: str):
         dialog = KeyCaptureDialog(action_name, self)
