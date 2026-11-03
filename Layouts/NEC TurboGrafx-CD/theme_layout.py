@@ -82,20 +82,20 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # RECURSOS LOCALES PROPIOS DEL LAYOUT
     # -------------------------------------------------------------------------
-    BKG_IMAGE = LAYOUT_DIR / "bkg.jpg" if (LAYOUT_DIR / "bkg.jpg").is_file() else (LAYOUT_DIR / "bg.jpg")
+    BKG_IMAGE = LAYOUT_DIR / "bg.jpg" 
     TV_IMAGE = LAYOUT_DIR / "tv.png"
     CONSOLE_IMAGE = LAYOUT_DIR / "console.png"
     CONSOLE_COVER_IMAGE = None
     JOYSTICK_IMAGE = None
     AVATAR_IMAGE = LAYOUT_DIR / "spaceship.png"
     LOGO_IMAGE = LAYOUT_DIR / "logo.png"
-    CARTART_IMAGE = LAYOUT_DIR / "cartart.png"
+    CARTART_IMAGE = LAYOUT_DIR / "discart.png"
     BOXART_IMAGE = None
     WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
-    POINTER_IMAGE = LAYOUT_DIR / "default.png" if (LAYOUT_DIR / "default.png").is_file() else (LAYOUT_DIR / "pointers" / "default.png")
+    POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png"
     # Tipografías del tema (declaradas al inicio para modificarlas fácilmente)
     FONT_TITLE_FILE = "BebasNeue Bold.otf"    # Fuente para títulos destacados del juego
-    FONT_MAIN_FILE  = "Industria_Solid.ttf"   # Fuente para contadores, año, desarrollador e info general
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"   # Fuente para contadores, año, desarrollador e info general
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # -------------------------------------------------------------------------

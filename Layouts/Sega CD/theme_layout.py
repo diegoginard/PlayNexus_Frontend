@@ -87,10 +87,10 @@ class ThemeLayout(BaseLayout):
     BOXART_IMAGE = None
     WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
     POINTER_IMAGE = LAYOUT_DIR / "pointers/default.png"
-    FONT_FILES = [
-        "Handel Gothic BT.ttf",
-        "BebasNeue Bold.otf",
-    ]
+    # Tipografías del tema (declaradas al inicio para modificarlas fácilmente)
+    FONT_TITLE_FILE = "BebasNeue Bold.otf"    # Fuente para títulos destacados del juego
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"   # Fuente para contadores, año, desarrollador e info general
+    FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # -------------------------------------------------------------------------
     # CONFIGURACIÓN GEOMÉTRICA DE SEGA CD
@@ -298,28 +298,25 @@ class ThemeLayout(BaseLayout):
     # RECURSOS TIPOGRÁFICOS Y EFECTOS DE SONIDO
     # -------------------------------------------------------------------------
 
+    def _load_font_family(self, font_name: str | Path | None) -> str:
+        """Carga una fuente desde el archivo especificado en el layout y retorna su nombre de familia."""
+        if not font_name:
+            return "sans-serif"
+        font_path = LAYOUT_DIR / Path(font_name).name
+        if font_path.is_file():
+            fid = QFontDatabase.addApplicationFont(str(font_path))
+            if fid != -1:
+                families = QFontDatabase.applicationFontFamilies(fid)
+                if families:
+                    return families[0]
+        return "sans-serif"
+
     def _load_theme_fonts(self):
-        """Registra las fuentes tipográficas TrueType/OpenType del sistema en la base de datos de fuentes de Qt."""
-        font_paths = []
-        for f_rel in getattr(self, "FONT_FILES", []):
-            resolved = str(LAYOUT_DIR / f_rel)
-            if Path(resolved).is_file():
-                font_paths.append(resolved)
-
-        for f_path in font_paths:
-            if os.path.isfile(f_path):
-                fid = QFontDatabase.addApplicationFont(f_path)
-                if fid != -1:
-                    families = QFontDatabase.applicationFontFamilies(fid)
-                    if families:
-                        fname = os.path.basename(f_path).lower()
-                        if "handel" in fname or "nise" in fname:
-                            self._font_handel = families[0]
-                        elif "bebas" in fname:
-                            self._font_bebas = families[0]
-                        else:
-                            self._font_handel = families[0]
-
+        """Carga automáticamente las 2 fuentes declaradas en la cabecera (título e información principal)."""
+        self._font_bebas  = self._load_font_family(getattr(self, "FONT_TITLE_FILE", None))
+        self._font_title  = self._font_bebas
+        self._font_handel = self._load_font_family(getattr(self, "FONT_MAIN_FILE", None))
+        self._font_main   = self._font_handel
     def _play_wheel_sound(self):
         """Reproduce el efecto de sonido táctil de giro o navegación de la ruleta."""
         try:
