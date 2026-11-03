@@ -406,6 +406,44 @@ class ListDialog(QDialog):
 
         scroll_layout.addWidget(bezel_hud_group)
 
+        # 6. Pantallas de Carga / Loading HUD (Apertura y Cierre)
+        loading_group = QGroupBox("Pantalla de Carga / Loading HUD (Apertura y Cierre)")
+        loading_layout = QFormLayout(loading_group)
+        loading_layout.setSpacing(8)
+
+        self.loading_in_path_edit = QLineEdit()
+        self.loading_in_path_edit.setPlaceholderText("Imagen fija o carpeta con imágenes de carga (ej: splash/loading.jpg)")
+        browse_load_in_btn = QPushButton("Examinar…")
+        browse_load_in_btn.clicked.connect(self.pick_loading_in)
+        load_in_box = QHBoxLayout()
+        load_in_box.addWidget(self.loading_in_path_edit, 1)
+        load_in_box.addWidget(browse_load_in_btn)
+        load_in_holder = QWidget()
+        load_in_holder.setLayout(load_in_box)
+        loading_layout.addRow("Pantalla Apertura (In):", load_in_holder)
+
+        self.loading_out_path_edit = QLineEdit()
+        self.loading_out_path_edit.setPlaceholderText("Imagen fija o carpeta para el cierre (si se deja vacía usa la de apertura)")
+        browse_load_out_btn = QPushButton("Examinar…")
+        browse_load_out_btn.clicked.connect(self.pick_loading_out)
+        load_out_box = QHBoxLayout()
+        load_out_box.addWidget(self.loading_out_path_edit, 1)
+        load_out_box.addWidget(browse_load_out_btn)
+        load_out_holder = QWidget()
+        load_out_holder.setLayout(load_out_box)
+        loading_layout.addRow("Pantalla Cierre (Out):", load_out_holder)
+
+        lbl_load_hint = QLabel(
+            "<i>Cubren transiciones de pantalla completa al arrancar y salir del emulador. "
+            "Si se dejan vacías, se utiliza automáticamente la imagen predeterminada de <b>splash/loading.jpg</b>. "
+            "Los tiempos de duración se configuran individualmente en cada emulador.</i>"
+        )
+        lbl_load_hint.setStyleSheet("color: #8f9aa9; font-size: 8.5pt;")
+        lbl_load_hint.setWordWrap(True)
+        loading_layout.addRow(lbl_load_hint)
+
+        scroll_layout.addWidget(loading_group)
+
         scroll.setWidget(scroll_content)
         main_layout.addWidget(scroll, 1)
 
@@ -455,6 +493,10 @@ class ListDialog(QDialog):
             self.bezel_hud_enabled_cb.setChecked(hud_en)
             if existing.get("bezel_hud_path"):
                 self.bezel_hud_path_edit.setText(self._normalize_path(existing["bezel_hud_path"]))
+            if existing.get("loading_in_path"):
+                self.loading_in_path_edit.setText(self._normalize_path(existing["loading_in_path"]))
+            if existing.get("loading_out_path"):
+                self.loading_out_path_edit.setText(self._normalize_path(existing["loading_out_path"]))
             for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel"):
                 field_name = f"{k}_path"
                 if field_name in existing.keys() and existing[field_name]:
@@ -886,6 +928,30 @@ class ListDialog(QDialog):
         if path:
             self.bezel_hud_path_edit.setText(self._normalize_path(path))
 
+    def pick_loading_in(self):
+        """Abre un selector para elegir una imagen o carpeta de apertura."""
+        current = self.loading_in_path_edit.text().strip() if hasattr(self, "loading_in_path_edit") else ""
+        initial_dir = current if (current and Path(current).is_dir()) else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar imagen de carga (Apertura)",
+            initial_dir,
+            "Imágenes (*.png *.jpg *.jpeg *.webp);;Todos los archivos (*.*)"
+        )
+        if path:
+            self.loading_in_path_edit.setText(self._normalize_path(path))
+
+    def pick_loading_out(self):
+        """Abre un selector para elegir una imagen o carpeta de cierre."""
+        current = self.loading_out_path_edit.text().strip() if hasattr(self, "loading_out_path_edit") else ""
+        initial_dir = current if (current and Path(current).is_dir()) else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar imagen de carga (Cierre)",
+            initial_dir,
+            "Imágenes (*.png *.jpg *.jpeg *.webp);;Todos los archivos (*.*)"
+        )
+        if path:
+            self.loading_out_path_edit.setText(self._normalize_path(path))
+
     def pick_folder(self):
         current_folders = self.get_rom_folders()
         initial_dir = current_folders[-1] if current_folders else ""
@@ -1101,6 +1167,8 @@ class ListDialog(QDialog):
             icon_path,
             "true" if self.bezel_hud_enabled_cb.isChecked() else "false",
             self._normalize_path(self.bezel_hud_path_edit.text().strip()),
+            self._normalize_path(self.loading_in_path_edit.text().strip()),
+            self._normalize_path(self.loading_out_path_edit.text().strip()),
         )
 
 
@@ -1174,6 +1242,34 @@ class EmulatorDialog(QDialog):
         bezel_holder.setLayout(bezel_anim_row)
         form.addRow("Bezel HUD (Aparición)", bezel_holder)
 
+        # Configuración de tiempos de Loading Screen (Apertura y Cierre)
+        self.loading_time_spin = QDoubleSpinBox()
+        self.loading_time_spin.setRange(0.0, 30.0)
+        self.loading_time_spin.setSingleStep(0.5)
+        self.loading_time_spin.setDecimals(1)
+        self.loading_time_spin.setSuffix(" seg")
+        self.loading_time_spin.setValue(1.5)
+        self.loading_time_spin.setToolTip("Tiempo que se muestra la pantalla de carga al iniciar el emulador (0 para desactivar).")
+
+        self.exit_loading_time_spin = QDoubleSpinBox()
+        self.exit_loading_time_spin.setRange(0.0, 30.0)
+        self.exit_loading_time_spin.setSingleStep(0.5)
+        self.exit_loading_time_spin.setDecimals(1)
+        self.exit_loading_time_spin.setSuffix(" seg")
+        self.exit_loading_time_spin.setValue(1.0)
+        self.exit_loading_time_spin.setToolTip("Tiempo que se muestra la pantalla de carga al cerrar el emulador mientras vuelve el layout.")
+
+        loading_row = QHBoxLayout()
+        loading_row.addWidget(QLabel("Apertura (In):"))
+        loading_row.addWidget(self.loading_time_spin, 1)
+        loading_row.addSpacing(16)
+        loading_row.addWidget(QLabel("Cierre (Out):"))
+        loading_row.addWidget(self.exit_loading_time_spin, 1)
+
+        loading_holder = QWidget()
+        loading_holder.setLayout(loading_row)
+        form.addRow("Pantalla de Carga (HUD)", loading_holder)
+
         lockout_hint = QLabel(
             "🔒 <i>Protección contra congelamiento: El botón o comando de salida (Escape / Back+Start) permanece bloqueado "
             "durante la inicialización hasta que el Bezel termine de aparecer.</i>"
@@ -1214,6 +1310,14 @@ class EmulatorDialog(QDialog):
                 self.bezel_fade_spin.setValue(float(existing.get("bezel_fade", 0.3) if existing.get("bezel_fade") is not None else 0.3))
             except Exception:
                 self.bezel_fade_spin.setValue(0.3)
+            try:
+                self.loading_time_spin.setValue(float(existing.get("loading_time", 1.5) if existing.get("loading_time") is not None else 1.5))
+            except Exception:
+                self.loading_time_spin.setValue(1.5)
+            try:
+                self.exit_loading_time_spin.setValue(float(existing.get("exit_loading_time", 1.0) if existing.get("exit_loading_time") is not None else 1.0))
+            except Exception:
+                self.exit_loading_time_spin.setValue(1.0)
 
     def _load_presets(self):
         try:
@@ -1242,6 +1346,16 @@ class EmulatorDialog(QDialog):
         if "bezel_fade" in tmpl:
             try:
                 self.bezel_fade_spin.setValue(float(tmpl["bezel_fade"]))
+            except Exception:
+                pass
+        if "loading_time" in tmpl:
+            try:
+                self.loading_time_spin.setValue(float(tmpl["loading_time"]))
+            except Exception:
+                pass
+        if "exit_loading_time" in tmpl:
+            try:
+                self.exit_loading_time_spin.setValue(float(tmpl["exit_loading_time"]))
             except Exception:
                 pass
 
@@ -1295,6 +1409,8 @@ class EmulatorDialog(QDialog):
             self.platform.text().strip(),
             float(self.bezel_delay_spin.value()),
             float(self.bezel_fade_spin.value()),
+            float(self.loading_time_spin.value()),
+            float(self.exit_loading_time_spin.value()),
         )
 
 
@@ -1356,6 +1472,35 @@ class TemplateEditDialog(QDialog):
         anim_holder = QWidget()
         anim_holder.setLayout(anim_row)
 
+        self.loading_time_spin = QDoubleSpinBox()
+        self.loading_time_spin.setRange(0.0, 30.0)
+        self.loading_time_spin.setSingleStep(0.5)
+        self.loading_time_spin.setDecimals(1)
+        self.loading_time_spin.setSuffix(" seg")
+        try:
+            self.loading_time_spin.setValue(float(existing.get("loading_time", 1.5) if existing and existing.get("loading_time") is not None else 1.5))
+        except Exception:
+            self.loading_time_spin.setValue(1.5)
+
+        self.exit_loading_time_spin = QDoubleSpinBox()
+        self.exit_loading_time_spin.setRange(0.0, 30.0)
+        self.exit_loading_time_spin.setSingleStep(0.5)
+        self.exit_loading_time_spin.setDecimals(1)
+        self.exit_loading_time_spin.setSuffix(" seg")
+        try:
+            self.exit_loading_time_spin.setValue(float(existing.get("exit_loading_time", 1.0) if existing and existing.get("exit_loading_time") is not None else 1.0))
+        except Exception:
+            self.exit_loading_time_spin.setValue(1.0)
+
+        load_anim_row = QHBoxLayout()
+        load_anim_row.addWidget(QLabel("Apertura (In):"))
+        load_anim_row.addWidget(self.loading_time_spin, 1)
+        load_anim_row.addSpacing(16)
+        load_anim_row.addWidget(QLabel("Cierre (Out):"))
+        load_anim_row.addWidget(self.exit_loading_time_spin, 1)
+        load_anim_holder = QWidget()
+        load_anim_holder.setLayout(load_anim_row)
+
         form = QFormLayout()
         form.addRow("Nombre de la plantilla *", self.name_edit)
         form.addRow("Ejecutable (.exe / comando) *", exe_holder)
@@ -1363,6 +1508,7 @@ class TemplateEditDialog(QDialog):
         form.addRow("Plataforma", self.plat_edit)
         form.addRow("Descripción", self.desc_edit)
         form.addRow("Bezel HUD (Aparición)", anim_holder)
+        form.addRow("Pantalla de Carga (HUD)", load_anim_holder)
 
         hint = QLabel(
             "<b>Comodines de argumentos admitidos:</b><br>"
@@ -1414,6 +1560,8 @@ class TemplateEditDialog(QDialog):
             "description": self.desc_edit.text().strip(),
             "bezel_delay": f"{self.bezel_delay_spin.value():.1f}",
             "bezel_fade": f"{self.bezel_fade_spin.value():.1f}",
+            "loading_time": f"{self.loading_time_spin.value():.1f}",
+            "exit_loading_time": f"{self.exit_loading_time_spin.value():.1f}",
         }
 
 
@@ -1453,9 +1601,9 @@ class EmulatorManagerWidget(QWidget):
             layout.addWidget(header_card)
 
         # Tabla de emuladores
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
-            "Nombre", "Plataforma", "Ejecutable", "Argumentos", "Retardo Bezel", "Fade Bezel"
+            "Nombre", "Plataforma", "Ejecutable", "Argumentos", "Retardo Bezel", "Fade Bezel", "Carga (In)", "Cierre (Out)"
         ])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -1463,6 +1611,8 @@ class EmulatorManagerWidget(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -1501,6 +1651,8 @@ class EmulatorManagerWidget(QWidget):
 
             d_raw = row.get("bezel_delay", "0.0")
             f_raw = row.get("bezel_fade", "0.3")
+            load_raw = row.get("loading_time", "1.5")
+            exit_load_raw = row.get("exit_loading_time", "1.0")
             try:
                 d_str = f"{float(d_raw):.1f} s"
             except Exception:
@@ -1509,6 +1661,14 @@ class EmulatorManagerWidget(QWidget):
                 f_str = f"{float(f_raw):.1f} s"
             except Exception:
                 f_str = "0.3 s"
+            try:
+                load_str = f"{float(load_raw):.1f} s"
+            except Exception:
+                load_str = "1.5 s"
+            try:
+                exit_load_str = f"{float(exit_load_raw):.1f} s"
+            except Exception:
+                exit_load_str = "1.0 s"
 
             item_d = QTableWidgetItem(d_str)
             item_d.setTextAlignment(Qt.AlignCenter)
@@ -1517,6 +1677,14 @@ class EmulatorManagerWidget(QWidget):
             item_f = QTableWidgetItem(f_str)
             item_f.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(i, 5, item_f)
+
+            item_load = QTableWidgetItem(load_str)
+            item_load.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 6, item_load)
+
+            item_exit_load = QTableWidgetItem(exit_load_str)
+            item_exit_load.setTextAlignment(Qt.AlignCenter)
+            self.table.setItem(i, 7, item_exit_load)
 
     def _get_selected_id(self):
         selected = self.table.selectionModel().selectedRows()
@@ -1531,6 +1699,8 @@ class EmulatorManagerWidget(QWidget):
             name, exe, args, plat = vals[:4]
             delay = vals[4] if len(vals) > 4 else 0.0
             fade = vals[5] if len(vals) > 5 else 0.3
+            load_t = vals[6] if len(vals) > 6 else 1.5
+            exit_load_t = vals[7] if len(vals) > 7 else 1.0
             try:
                 self.db.add_emulator(
                     name=name,
@@ -1539,6 +1709,8 @@ class EmulatorManagerWidget(QWidget):
                     platform=plat,
                     bezel_delay=delay,
                     bezel_fade=fade,
+                    loading_time=load_t,
+                    exit_loading_time=exit_load_t,
                 )
                 self.refresh()
                 self.emulators_changed.emit()
@@ -1559,6 +1731,8 @@ class EmulatorManagerWidget(QWidget):
             name, exe, args, plat = vals[:4]
             delay = vals[4] if len(vals) > 4 else 0.0
             fade = vals[5] if len(vals) > 5 else 0.3
+            load_t = vals[6] if len(vals) > 6 else 1.5
+            exit_load_t = vals[7] if len(vals) > 7 else 1.0
             try:
                 self.db.update_emulator(
                     emu_id,
@@ -1568,6 +1742,8 @@ class EmulatorManagerWidget(QWidget):
                     platform=plat,
                     bezel_delay=delay,
                     bezel_fade=fade,
+                    loading_time=load_t,
+                    exit_loading_time=exit_load_t,
                 )
                 self.refresh()
                 self.emulators_changed.emit()

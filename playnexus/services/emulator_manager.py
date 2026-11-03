@@ -53,6 +53,10 @@ class EmulatorManager(QObject):
         self.global_exit_enabled = True
         self.gamepad_exit_enabled = True
         self.bezel_overlay = None
+        self.loading_overlay = None
+        self.exit_loading_overlay = None
+        self._current_emulator = None
+        self._current_game = None
         self._tick_counter = 0
         self._exit_locked = False
         self._bezel_delay_timer: QTimer | None = None
@@ -105,6 +109,8 @@ class EmulatorManager(QObject):
         self.active_layout = layout
         self.parent_window = parent_window
         self.db = db
+        self._current_emulator = emulator
+        self._current_game = game
         self._exit_locked = True
 
         # Detener temporizadores previos si existieran
@@ -113,16 +119,19 @@ class EmulatorManager(QObject):
         if self._unlock_timer and self._unlock_timer.isActive():
             self._unlock_timer.stop()
 
-        # Resolver emulador para extraer retardo y fade configurados
+        # Resolver emulador para extraer retardo, fade y tiempos de loading
         if emulator is None and db and game:
             try:
                 from playnexus.services.launcher import resolve_emulator
                 emulator, _ = resolve_emulator(db, game)
+                self._current_emulator = emulator
             except Exception:
                 emulator = None
 
         delay_sec = 0.0
         fade_sec = 0.3
+        loading_time = 1.5
+        exit_loading_time = 1.0
         if emulator:
             try:
                 delay_sec = max(0.0, float(emulator.get("bezel_delay", 0.0) or 0.0))
@@ -132,6 +141,38 @@ class EmulatorManager(QObject):
                 fade_sec = max(0.0, float(emulator.get("bezel_fade", 0.3) if emulator.get("bezel_fade") is not None else 0.3))
             except (ValueError, TypeError):
                 fade_sec = 0.3
+            try:
+                loading_time = max(0.0, float(emulator.get("loading_time", 1.5) if emulator.get("loading_time") is not None else 1.5))
+            except (ValueError, TypeError):
+                loading_time = 1.5
+            try:
+                exit_loading_time = max(0.0, float(emulator.get("exit_loading_time", 1.0) if emulator.get("exit_loading_time") is not None else 1.0))
+            except (ValueError, TypeError):
+                exit_loading_time = 1.0
+
+        target_screen = 0
+        if db:
+            try:
+                target_screen = int(db.get_setting("target_screen", db.get_setting("video_monitor", "0")))
+            except Exception:
+                target_screen = 0
+
+        # Desplegar pantalla de carga (Loading HUD) de apertura si está habilitada (> 0 seg)
+        if loading_time > 0.0:
+            try:
+                from playnexus.services.media import resolve_loading_image
+                from playnexus.ui.loading_overlay import LoadingOverlayWindow
+                img_in = resolve_loading_image(db, game, is_exit=False)
+                if img_in:
+                    self.loading_overlay = LoadingOverlayWindow(
+                        img_in,
+                        target_screen_idx=target_screen,
+                        duration=loading_time,
+                        fade_duration=0.3
+                    )
+                    self.loading_overlay.start_display()
+            except Exception:
+                pass
 
         # Leer configuración de la base de datos
         self.exit_key_name = get_binding(db, ACTION_CLOSE_EMULATOR)
@@ -277,6 +318,20 @@ class EmulatorManager(QObject):
             self._unlock_timer.stop()
         self._exit_locked = False
 
+        if self.loading_overlay:
+            try:
+                self.loading_overlay.dismiss_now()
+            except Exception:
+                pass
+            self.loading_overlay = None
+
+        if self.loading_overlay:
+            try:
+                self.loading_overlay.dismiss_now()
+            except Exception:
+                pass
+            self.loading_overlay = None
+
         if self.bezel_overlay:
             try:
                 self.bezel_overlay.stop_fade()
@@ -285,6 +340,66 @@ class EmulatorManager(QObject):
             except Exception:
                 pass
             self.bezel_overlay = None
+
+        # Si el proceso terminó por su cuenta (ej: saliendo desde el propio menú del emulador)
+        # y no se había lanzado la pantalla de cierre, lanzarla ahora
+        if not self.exit_loading_overlay:
+            exit_time = 1.0
+            if self._current_emulator:
+                try:
+                    exit_time = max(0.0, float(self._current_emulator.get("exit_loading_time", 1.0) if self._current_emulator.get("exit_loading_time") is not None else 1.0))
+                except (ValueError, TypeError):
+                    exit_time = 1.0
+
+            if exit_time > 0.0 and self.db:
+                try:
+                    from playnexus.services.media import resolve_loading_image
+                    from playnexus.ui.loading_overlay import LoadingOverlayWindow
+                    img_out = resolve_loading_image(self.db, self._current_game, is_exit=True)
+                    if img_out:
+                        target_screen = 0
+                        try:
+                            target_screen = int(self.db.get_setting("target_screen", self.db.get_setting("video_monitor", "0")))
+                        except Exception:
+                            target_screen = 0
+                        self.exit_loading_overlay = LoadingOverlayWindow(
+                            img_out,
+                            target_screen_idx=target_screen,
+                            duration=exit_time,
+                            fade_duration=0.3
+                        )
+                        self.exit_loading_overlay.start_display()
+                except Exception:
+                    pass
+
+        # Mostrar de inmediato la pantalla de cierre (Out) si está configurada
+        exit_time = 1.0
+        if self._current_emulator:
+            try:
+                exit_time = max(0.0, float(self._current_emulator.get("exit_loading_time", 1.0) if self._current_emulator.get("exit_loading_time") is not None else 1.0))
+            except (ValueError, TypeError):
+                exit_time = 1.0
+
+        if exit_time > 0.0 and self.db:
+            try:
+                from playnexus.services.media import resolve_loading_image
+                from playnexus.ui.loading_overlay import LoadingOverlayWindow
+                img_out = resolve_loading_image(self.db, self._current_game, is_exit=True)
+                if img_out:
+                    target_screen = 0
+                    try:
+                        target_screen = int(self.db.get_setting("target_screen", self.db.get_setting("video_monitor", "0")))
+                    except Exception:
+                        target_screen = 0
+                    self.exit_loading_overlay = LoadingOverlayWindow(
+                        img_out,
+                        target_screen_idx=target_screen,
+                        duration=exit_time,
+                        fade_duration=0.3
+                    )
+                    self.exit_loading_overlay.start_display()
+            except Exception:
+                pass
 
         proc = self.active_proc
         if not proc:
@@ -317,6 +432,13 @@ class EmulatorManager(QObject):
             self._unlock_timer.stop()
         self._exit_locked = False
 
+        if self.loading_overlay:
+            try:
+                self.loading_overlay.dismiss_now()
+            except Exception:
+                pass
+            self.loading_overlay = None
+
         if self.bezel_overlay:
             try:
                 self.bezel_overlay.stop_fade()
@@ -325,6 +447,37 @@ class EmulatorManager(QObject):
             except Exception:
                 pass
             self.bezel_overlay = None
+
+        # Si el proceso terminó por su cuenta (ej: saliendo desde el propio menú del emulador)
+        # y no se había lanzado la pantalla de cierre, lanzarla ahora
+        if not self.exit_loading_overlay:
+            exit_time = 1.0
+            if self._current_emulator:
+                try:
+                    exit_time = max(0.0, float(self._current_emulator.get("exit_loading_time", 1.0) if self._current_emulator.get("exit_loading_time") is not None else 1.0))
+                except (ValueError, TypeError):
+                    exit_time = 1.0
+
+            if exit_time > 0.0 and self.db:
+                try:
+                    from playnexus.services.media import resolve_loading_image
+                    from playnexus.ui.loading_overlay import LoadingOverlayWindow
+                    img_out = resolve_loading_image(self.db, self._current_game, is_exit=True)
+                    if img_out:
+                        target_screen = 0
+                        try:
+                            target_screen = int(self.db.get_setting("target_screen", self.db.get_setting("video_monitor", "0")))
+                        except Exception:
+                            target_screen = 0
+                        self.exit_loading_overlay = LoadingOverlayWindow(
+                            img_out,
+                            target_screen_idx=target_screen,
+                            duration=exit_time,
+                            fade_duration=0.3
+                        )
+                        self.exit_loading_overlay.start_display()
+                except Exception:
+                    pass
 
         # 1. Reanudar video y audio en el layout activo y liberar bloqueos de clic
         if self.active_layout:

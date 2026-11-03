@@ -1,7 +1,13 @@
 import json
 import os
 import re
+import sys
 from pathlib import Path
+
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys.executable).resolve().parent
+else:
+    APP_DIR = Path(__file__).resolve().parent.parent.parent
 
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 VIDEO_EXTS = (".mp4", ".mkv", ".avi", ".webm", ".m4v")
@@ -453,3 +459,64 @@ def resolve_game_bezel(db, game: dict | None, list_row: dict | None = None) -> s
         return str(default_cand).replace("\\", "/")
 
     return None
+
+
+def resolve_loading_image(db, game: dict | None, is_exit: bool = False, list_row: dict | None = None) -> str | None:
+    """
+    Resuelve la imagen para la pantalla de carga (apertura o cierre):
+    1. Si list_row tiene 'loading_out_path' (para cierre) o 'loading_in_path' (para apertura) configurado:
+       - Si es archivo existente: lo retorna.
+       - Si es carpeta: busca <stem>.<ext>, <rom_name>.<ext>, o default/loading.<ext>.
+    2. Si es de cierre y no hay 'loading_out_path', prueba con 'loading_in_path'.
+    3. Si la lista no tiene imagen específica, busca en la carpeta splash/:
+       - Si es de cierre: busca splash/exit.<ext> o splash/loading_out.<ext>.
+       - Si no existe: busca splash/loading.<ext> (ej: splash/loading.jpg).
+    """
+    if list_row is None and db and game:
+        lid = game.get("list_id")
+        if lid:
+            try:
+                list_row = db.get_list(lid)
+            except Exception:
+                pass
+
+    rom_path = (game.get("rom_path") or "") if game else ""
+    stem = Path(rom_path).stem if rom_path else ""
+    rom_name = (game.get("rom_name") or "") if game else ""
+
+    cand_keys = ["loading_out_path", "loading_in_path"] if is_exit else ["loading_in_path"]
+    if list_row:
+        for k in cand_keys:
+            raw_path = str(list_row.get(k) or "").strip()
+            if not raw_path:
+                continue
+            p = Path(raw_path)
+            if p.is_file():
+                return str(p.resolve()).replace("\\", "/")
+            if p.is_dir():
+                for name in (stem, rom_name):
+                    if name:
+                        found = find_media_file(p, name, IMAGE_EXTS)
+                        if found:
+                            return found.replace("\\", "/")
+                for fb in ("default", "loading", "intro", "outro", "exit"):
+                    found = find_media_file(p, fb, IMAGE_EXTS)
+                    if found:
+                        return found.replace("\\", "/")
+
+    # Fallback global en splash/
+    splash_dir = APP_DIR / "splash"
+    if splash_dir.is_dir():
+        if is_exit:
+            for cand_exit in ("exit", "loading_out", "outro"):
+                found = find_media_file(splash_dir, cand_exit, IMAGE_EXTS)
+                if found:
+                    return found.replace("\\", "/")
+
+        for cand_load in ("loading", "loading_in", "splash"):
+            found = find_media_file(splash_dir, cand_load, IMAGE_EXTS)
+            if found:
+                return found.replace("\\", "/")
+
+    return None
+

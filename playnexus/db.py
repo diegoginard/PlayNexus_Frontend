@@ -112,6 +112,8 @@ LIST_DEFAULTS = {
     "bezel_path": "",
     "bezel_hud_enabled": "true",
     "bezel_hud_path": "",
+    "loading_in_path": "",
+    "loading_out_path": "",
     "xml_path": "",
     "created_at": "",
     "source_list_id": None,
@@ -126,6 +128,8 @@ EMULATOR_DEFAULTS = {
     "platform": "",
     "bezel_delay": "0.0",
     "bezel_fade": "0.3",
+    "loading_time": "1.5",
+    "exit_loading_time": "1.0",
     "created_at": "",
 }
 
@@ -294,7 +298,8 @@ class _PlainTextStore:
                 for k, def_v in LIST_DEFAULTS.items():
                     lst[k] = data.get(k, def_v)
                 for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                           "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path"):
+                           "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
+                           "loading_in_path", "loading_out_path"):
                     if lst.get(pk):
                         lst[pk] = str(lst[pk]).strip().replace("\\", "/")
                 if lst.get("roms_path"):
@@ -481,7 +486,7 @@ class _PlainTextStore:
             f"# Configuración de Emulador: {emu.get('name', '')}",
             f"id = {eid}",
         ]
-        for k in ("name", "executable", "arguments", "platform", "bezel_delay", "bezel_fade", "created_at"):
+        for k in ("name", "executable", "arguments", "platform", "bezel_delay", "bezel_fade", "loading_time", "exit_loading_time", "created_at"):
             val = str(emu.get(k) or "").replace("\r", "").replace("\n", "\\n")
             lines.append(f"{k} = {val}")
 
@@ -670,6 +675,8 @@ class Database:
         platform: str = "",
         bezel_delay: float | str = 0.0,
         bezel_fade: float | str = 0.3,
+        loading_time: float | str = 1.5,
+        exit_loading_time: float | str = 1.0,
     ) -> int:
         """Registra un nuevo emulador y crea su archivo .txt en emulators/."""
         clean_name = str(name or "").strip()
@@ -687,6 +694,8 @@ class Database:
             "platform": str(platform or ""),
             "bezel_delay": str(bezel_delay if bezel_delay is not None else "0.0"),
             "bezel_fade": str(bezel_fade if bezel_fade is not None else "0.3"),
+            "loading_time": str(loading_time if loading_time is not None else "1.5"),
+            "exit_loading_time": str(exit_loading_time if exit_loading_time is not None else "1.0"),
             "created_at": now_str,
         }
         self._store._dirty_emulators.add(eid)
@@ -708,6 +717,10 @@ class Database:
             updates["bezel_delay"] = str(updates["bezel_delay"])
         if "bezel_fade" in updates and updates["bezel_fade"] is not None:
             updates["bezel_fade"] = str(updates["bezel_fade"])
+        if "loading_time" in updates and updates["loading_time"] is not None:
+            updates["loading_time"] = str(updates["loading_time"])
+        if "exit_loading_time" in updates and updates["exit_loading_time"] is not None:
+            updates["exit_loading_time"] = str(updates["exit_loading_time"])
         self._store.emulators[eid].update(updates)
         self._store._dirty_emulators.add(eid)
         self._store.flush()
@@ -774,7 +787,8 @@ class Database:
             else:
                 lst[k] = def_v
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path"):
+                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
+                   "loading_in_path", "loading_out_path"):
             if lst.get(pk):
                 lst[pk] = str(lst[pk]).strip().replace("\\", "/")
         if lst.get("roms_path"):
@@ -814,7 +828,8 @@ class Database:
                     raise ValueError(f"Ya existe una lista con el nombre '{new_name}'.")
             updates["name"] = new_name
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path"):
+                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
+                   "loading_in_path", "loading_out_path"):
             if pk in updates and updates[pk] is not None:
                 updates[pk] = str(updates[pk]).strip().replace("\\", "/")
         if "roms_path" in updates and updates["roms_path"] is not None:

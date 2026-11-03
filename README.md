@@ -160,6 +160,15 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
 - **Salto instantáneo (Skip):** Cualquier pulsación de tecla, botón del gamepad o clic de ratón saltea el video al instante para entrar directamente a la biblioteca.
 - **Sincronización fluida:** Al terminar o saltar la intro, el layout activo comienza de inmediato la reproducción de su video de fondo o snaps temáticos sin requerir mover la ruleta.
 
+### 12. Pantallas de Carga y Cierre (Loading Screen HUD)
+- **Ocultamiento de transiciones de Windows:** Al iniciar un juego o cerrarlo, se despliega una pantalla de carga a pantalla completa (`TOPMOST`) que enmascara los parpadeos del escritorio, cambios de resolución y demoras del emulador.
+- **Tiempos configurables por Emulador:**
+  - **Apertura (In):** Segundos que se mantiene la pantalla al arrancar el emulador antes de desvanecerse suavemente.
+  - **Cierre (Out):** Segundos que se mantiene la pantalla al pulsar Escape o combo de mando mientras el emulador se cierra y el layout de PlayNexus recupera el foco.
+- **Personalización por Lista de Juegos:**
+  - Cada lista permite asignar su propia imagen o carpeta de apertura (`loading_in_path`) y de cierre (`loading_out_path`).
+  - Si una lista no tiene imagen propia asignada, utiliza de manera transparente el arte general de `splash/loading.jpg` (o PNG).
+
 ---
 
 ## 🗂 Estructura del proyecto
@@ -211,8 +220,9 @@ PlayNexus_Frontend/
         ├── __init__.py
         ├── bezel_overlay.py  # Ventana de overlay transparente para Bezel HUD con fade
         ├── cover_utils.py    # Generador procedural de carátulas dinámicas y carga de arte
-        ├── dialogs.py        # Diálogos: Listas, Emuladores (retardo/fade), Escaneo, Filtros
+        ├── dialogs.py        # Diálogos: Listas, Emuladores (retardo/fade/loading), Escaneo, Filtros
         ├── frontend_tab.py   # Configuración de video, pantalla y Splash Screen
+        ├── loading_overlay.py# Ventana a pantalla completa para Loading HUD (apertura/cierre)
         ├── main_window.py    # Ventana principal del Configurador
         ├── player_window.py  # Ventana del Modo Frontend / Jugador (pantalla completa)
         ├── settings_tab.py   # Pestaña de configuración general y controles
@@ -236,6 +246,6 @@ PlayNexus_Frontend/
 PlayNexus almacena toda la información de manera legible y portable en archivos de texto plano directamente dentro de la carpeta del proyecto, sin crear entradas en el registro ni carpetas ocultas en `AppData`:
 
 - **`config/settings.txt`**: Ajustes generales, controles asignados, modos de video y preferencias.
-- **`config/emulator_templates.txt`**: Catálogo de plantillas rápidas de emuladores (nombre, ejecutable, argumentos, plataforma, descripción).
-- **`emulators/<NombreEmulador>.txt`**: Parámetros de cada emulador (`executable`, `arguments`, `platform`).
-- **`lists/<NombreLista>.txt`**: Configuración de cada lista (`[List]`: rutas de ROMs, layout, icono, filtros, medios, Bezel HUD) y catálogo completo de juegos (`[Games]`: título, archivo, emulador individual, modo de Bezel HUD, metadatos).
+- **`config/emulator_templates.txt`**: Catálogo de plantillas rápidas de emuladores (nombre, ejecutable, argumentos, plataforma, descripción, retardo/fade de Bezel y tiempos de Loading Screen).
+- **`emulators/<NombreEmulador>.txt`**: Parámetros de cada emulador (`executable`, `arguments`, `platform`, `bezel_delay`, `bezel_fade`, `loading_time`, `exit_loading_time`).
+- **`lists/<NombreLista>.txt`**: Configuración de cada lista (`[List]`: rutas de ROMs, layout, icono, filtros, medios, Bezel HUD, pantallas de carga `loading_in_path` y `loading_out_path`) y catálogo completo de juegos (`[Games]`: título, archivo, emulador individual, modo de Bezel HUD, metadatos).

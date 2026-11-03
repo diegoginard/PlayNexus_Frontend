@@ -226,6 +226,8 @@ def load_emulator_templates(custom_dir: Path | str | None = None) -> list[dict[s
                 desc = parts[4].strip() if len(parts) > 4 else ""
                 delay = parts[5].strip() if len(parts) > 5 else "0.0"
                 fade = parts[6].strip() if len(parts) > 6 else "0.3"
+                loading_t = parts[7].strip() if len(parts) > 7 else "1.5"
+                exit_loading_t = parts[8].strip() if len(parts) > 8 else "1.0"
                 templates.append({
                     "name": name,
                     "executable": exe,
@@ -234,6 +236,8 @@ def load_emulator_templates(custom_dir: Path | str | None = None) -> list[dict[s
                     "description": desc,
                     "bezel_delay": delay,
                     "bezel_fade": fade,
+                    "loading_time": loading_t,
+                    "exit_loading_time": exit_loading_t,
                 })
     except Exception as e:
         print(f"Error al cargar {path}: {e}")
@@ -251,7 +255,7 @@ def save_emulator_templates(templates: list[dict[str, str]], custom_dir: Path | 
 
     header = [
         "# Plantillas Rápidas de Emuladores para PlayNexus (Texto Plano)",
-        "# Formato: nombre;ejecutable;argumentos;plataforma;descripcion;bezel_delay;bezel_fade",
+        "# Formato: nombre;ejecutable;argumentos;plataforma;descripcion;bezel_delay;bezel_fade;loading_time;exit_loading_time",
         "# Este archivo puede ser editado directamente o desde Configuración del Sistema en la aplicación.",
         "",
     ]
@@ -264,7 +268,9 @@ def save_emulator_templates(templates: list[dict[str, str]], custom_dir: Path | 
         desc = _escape(t.get("description", ""))
         delay = _escape(t.get("bezel_delay", "0.0"))
         fade = _escape(t.get("bezel_fade", "0.3"))
-        rows.append(f"{name};{exe};{args};{plat};{desc};{delay};{fade}")
+        load_t = _escape(t.get("loading_time", "1.5"))
+        exit_load_t = _escape(t.get("exit_loading_time", "1.0"))
+        rows.append(f"{name};{exe};{args};{plat};{desc};{delay};{fade};{load_t};{exit_load_t}")
 
     content = "\n".join(header + rows) + "\n"
     path.write_text(content, encoding="utf-8")

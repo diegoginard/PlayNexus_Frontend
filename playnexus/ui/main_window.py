@@ -576,6 +576,10 @@ class MainWindow(QMainWindow):
             icon_path = vals[24] if len(vals) > 24 else ""
             bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
             bezel_hud_path = vals[26] if len(vals) > 26 else ""
+            loading_in_path = vals[27] if len(vals) > 27 else ""
+            loading_out_path = vals[28] if len(vals) > 28 else ""
+            loading_in_path = vals[27] if len(vals) > 27 else ""
+            loading_out_path = vals[28] if len(vals) > 28 else ""
             try:
                 list_id = self.db.add_list(
                     name=name,
@@ -603,6 +607,8 @@ class MainWindow(QMainWindow):
                     icon_path=icon_path,
                     bezel_hud_enabled=str(bezel_hud_enabled).lower(),
                     bezel_hud_path=bezel_hud_path,
+                    loading_in_path=loading_in_path,
+                    loading_out_path=loading_out_path,
                 )
                 clear_media_cache()
                 if list_type == "menu":
@@ -675,6 +681,8 @@ class MainWindow(QMainWindow):
             icon_path = vals[24] if len(vals) > 24 else ""
             bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
             bezel_hud_path = vals[26] if len(vals) > 26 else ""
+            loading_in_path = vals[27] if len(vals) > 27 else ""
+            loading_out_path = vals[28] if len(vals) > 28 else ""
             old_roms_path = format_rom_folders(row["roms_path"] if "roms_path" in row.keys() else "")
             old_exts = (row["allowed_extensions"] if "allowed_extensions" in row.keys() else "") or ""
             old_scan_sub = str(row.get("scan_subfolders", "true")).strip().lower() in ("true", "1")
@@ -721,6 +729,8 @@ class MainWindow(QMainWindow):
                     icon_path=icon_path,
                     bezel_hud_enabled=str(bezel_hud_enabled).lower(),
                     bezel_hud_path=bezel_hud_path,
+                    loading_in_path=loading_in_path,
+                    loading_out_path=loading_out_path,
                 )
                 clear_media_cache()
                 if list_type == "menu":
@@ -1705,6 +1715,21 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Detiene cualquier reproducción activa antes de cerrar la ventana para evitar errores de Media Foundation."""
         self.stop_all_active_media()
+        # Cerrar y liberar hilos de layouts cargados en layout_stack
+        if hasattr(self, "layout_instances"):
+            for inst in self.layout_instances.values():
+                try:
+                    if hasattr(inst, "close"):
+                        inst.close()
+                except Exception:
+                    pass
+        # Detener gestor global de mandos si existiera
+        try:
+            from playnexus.services.gamepad import _GLOBAL_GAMEPAD_MANAGER
+            if _GLOBAL_GAMEPAD_MANAGER:
+                _GLOBAL_GAMEPAD_MANAGER.stop()
+        except Exception:
+            pass
         if hasattr(self, "player_window") and self.player_window:
             try:
                 self.player_window.close()
