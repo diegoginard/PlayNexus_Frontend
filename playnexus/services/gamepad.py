@@ -17,7 +17,7 @@ from playnexus.services.controls import (
     ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
     ACTION_NAV_BACK, ACTION_SELECT, ACTION_PAGE_UP, ACTION_PAGE_DOWN,
     ACTION_CLOSE_FRONTEND, ACTION_CLOSE_EMULATOR,
-    ACTION_MUTE, ACTION_TOGGLE_FPS, GAMEPAD_ACTION_ALIASES,
+    ACTION_MUTE, ACTION_TOGGLE_FPS, ACTION_TOGGLE_BEZEL, GAMEPAD_ACTION_ALIASES,
     get_gamepad_binding, matches_gamepad_action
 )
 
@@ -227,6 +227,7 @@ class GamepadPollingThread(QThread):
             ACTION_PAGE_DOWN,
             ACTION_MUTE,
             ACTION_TOGGLE_FPS,
+            ACTION_TOGGLE_BEZEL,
         ]
         bindings = {}
         for act in check_order:

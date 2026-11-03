@@ -149,6 +149,7 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
     - *Activar Bezel HUD (Forzar)*: muestra el bezel aunque la lista lo tenga desactivado.
     - *Desactivar Bezel HUD*: oculta el bezel para esta ROM aunque la lista lo tenga activado.
 - **Tecnología Click-Through (Win32 Overlay):** El marco se dibuja en una ventana sin bordes en primer plano con atributos `WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE`. El mouse, teclado y joystick traspasan la ventana hacia el emulador sin perder el foco ni sufrir pérdida de rendimiento.
+- **Alternar/Ocultar Bezel en tiempo real durante la emulación:** Se puede presionar en cualquier momento la tecla o botón de mando asignado en la pestaña de Controles de la Configuración del Sistema (por defecto `F11` en teclado o `L-Thumb`/`L3` en gamepad) para ocultar o restaurar el marco decorativo al instante. Esto permite visualizar y operar con comodidad los menús de pausa, configuraciones y barras de herramientas internas del emulador (ej: al pulsar Escape en DuckStation o menús en MAME/RetroArch) sin que el bezel tape ninguna opción.
 - **Ciclo de vida y recuperación de primer plano limpio:** Se proyecta automáticamente y se destruye de inmediato al terminar el juego, devolviendo el foco a PlayNexus mediante `AttachThreadInput` sin alterar modificadores del teclado ni activar menús del sistema.
 
 ### 11. Pantalla de Bienvenida con Video (Splash Screen de Intro)

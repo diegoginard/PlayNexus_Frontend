@@ -415,7 +415,11 @@ class SystemSettingsWidget(QWidget):
         self.chk_bezel_overlay.setStyleSheet("font-weight: 500; font-size: 10pt;")
         v_emu.addWidget(self.chk_bezel_overlay)
 
-        lbl_bezel_hint = QLabel("Superpone el marco decorativo (bezel) específico de la ROM o el de base/genérico por encima del emulador.")
+        lbl_bezel_hint = QLabel(
+            "Superpone el marco decorativo (bezel) específico de la ROM o el genérico por encima del emulador. "
+            "Podés ocultar o restaurar el bezel en cualquier momento durante la emulación usando la tecla o botón asignado "
+            "en la tabla de controles (por defecto F11 o L-Thumb) para acceder libremente a menús y opciones del emulador."
+        )
         lbl_bezel_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
         v_emu.addWidget(lbl_bezel_hint)
 

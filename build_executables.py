@@ -39,6 +39,7 @@ control_close_emulator = Escape
 control_mute_video = M
 control_close_frontend = F4
 control_toggle_fps = F10
+control_toggle_bezel = F11
 gamepad_nav_up = D-Pad Up
 gamepad_nav_down = D-Pad Down
 gamepad_nav_letter = D-Pad Left
@@ -50,6 +51,7 @@ gamepad_mute_video = Y
 gamepad_page_up = LB
 gamepad_page_down = RB
 gamepad_toggle_fps = R-Thumb
+gamepad_toggle_bezel = L-Thumb
 """
 
 def setup_clean_environment(dist_dir: Path):

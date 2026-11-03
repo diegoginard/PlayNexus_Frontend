@@ -19,6 +19,7 @@ ACTION_SELECT = "select_game"
 ACTION_NAV_BACK = "nav_back"
 ACTION_MUTE = "mute_video"
 ACTION_TOGGLE_FPS = "toggle_fps"
+ACTION_TOGGLE_BEZEL = "toggle_bezel"
 
 # Compatibilidad con identificadores anteriores
 ACTION_NAV_LETTER = ACTION_NAV_LETTER_FWD
@@ -111,6 +112,13 @@ ACTIONS_INFO = [
         "desc": "Alterna la visualización del contador de FPS, tiempo de render y resolución en pantalla",
         "default": "F10",
         "default_pad": "R-Thumb",
+    },
+    {
+        "id": ACTION_TOGGLE_BEZEL,
+        "name": "Activar / Ocultar Bezel (En emulación)",
+        "desc": "Muestra u oculta el marco decorativo (bezel) durante la emulación para ver menús del emulador",
+        "default": "F11",
+        "default_pad": "L-Thumb",
     },
 ]
 
@@ -213,6 +221,7 @@ ACTION_ALIASES = {
     ACTION_CLOSE_FRONTEND: [Qt.Key_Escape],
     ACTION_CLOSE_EMULATOR: [Qt.Key_Escape],
     ACTION_TOGGLE_FPS: [Qt.Key_F10, Qt.Key_F3],
+    ACTION_TOGGLE_BEZEL: [Qt.Key_F11, Qt.Key_B],
 }
 
 # Alias secundarios por defecto para mandos y joysticks
@@ -229,6 +238,7 @@ GAMEPAD_ACTION_ALIASES = {
     ACTION_CLOSE_EMULATOR: ["Back+Start"],
     ACTION_MUTE: ["Y", "Button 4"],
     ACTION_TOGGLE_FPS: ["R-Thumb", "Button 10", "R3", "RS"],
+    ACTION_TOGGLE_BEZEL: ["L-Thumb", "Button 9", "L3", "LS"],
 }
 
 

@@ -11,7 +11,10 @@ import time
 import ctypes
 import subprocess
 from PySide6.QtCore import QObject, QTimer, Signal, Qt
-from playnexus.services.controls import get_binding, key_name_to_vk, ACTION_CLOSE_EMULATOR
+from playnexus.services.controls import (
+    get_binding, key_name_to_vk, get_gamepad_binding,
+    ACTION_CLOSE_EMULATOR, ACTION_TOGGLE_BEZEL, GAMEPAD_ACTION_ALIASES
+)
 
 # Estructuras para XInput (mando de juegos en Windows)
 class _XINPUT_GAMEPAD(ctypes.Structure):
@@ -55,6 +58,10 @@ class EmulatorManager(QObject):
         self.bezel_overlay = None
         self.loading_overlay = None
         self.exit_loading_overlay = None
+        self.toggle_bezel_key_name: str | None = None
+        self.toggle_bezel_vk: int | None = None
+        self.toggle_bezel_pad_name: str | None = None
+        self._prev_toggle_bezel_down: bool = False
         self._current_emulator = None
         self._current_game = None
         self._tick_counter = 0
@@ -177,6 +184,10 @@ class EmulatorManager(QObject):
         # Leer configuración de la base de datos
         self.exit_key_name = get_binding(db, ACTION_CLOSE_EMULATOR)
         self.exit_vk = key_name_to_vk(self.exit_key_name)
+        self.toggle_bezel_key_name = get_binding(db, ACTION_TOGGLE_BEZEL) if db else "F11"
+        self.toggle_bezel_vk = key_name_to_vk(self.toggle_bezel_key_name)
+        self.toggle_bezel_pad_name = get_gamepad_binding(db, ACTION_TOGGLE_BEZEL) if db else "L-Thumb"
+        self._prev_toggle_bezel_down = False
 
         self.mute_on_run = (db.get_setting("emulator_mute_video", "true").lower() == "true") if db else True
         self.global_exit_enabled = (db.get_setting("emulator_global_exit", "true").lower() == "true") if db else True
@@ -309,6 +320,76 @@ class EmulatorManager(QObject):
                             return
             except Exception:
                 pass
+
+        # 4. Verificar tecla o botón de mando para alternar Bezel Overlay (ocultar / mostrar)
+        if self.bezel_overlay and sys.platform == "win32":
+            key_down = False
+            if self.toggle_bezel_vk:
+                try:
+                    state = ctypes.windll.user32.GetAsyncKeyState(self.toggle_bezel_vk)
+                    if state & 0x8000:
+                        parts = [p.strip().lower() for p in (self.toggle_bezel_key_name or "").split("+")]
+                        req_ctrl = "ctrl" in parts[:-1]
+                        req_alt = "alt" in parts[:-1]
+                        req_shift = "shift" in parts[:-1]
+
+                        ctrl_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x11) & 0x8000)
+                        alt_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x12) & 0x8000)
+                        shift_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x10) & 0x8000)
+
+                        if (req_ctrl == ctrl_pressed) and (req_alt == alt_pressed) and (req_shift == shift_pressed):
+                            key_down = True
+                except Exception:
+                    pass
+
+            pad_down = False
+            if self.toggle_bezel_pad_name:
+                try:
+                    from playnexus.services.gamepad import poll_raw_gamepad_inputs
+                    pressed_inputs = poll_raw_gamepad_inputs()
+                    if pressed_inputs:
+                        pad_down = self._is_gamepad_action_pressed(pressed_inputs, self.toggle_bezel_pad_name, ACTION_TOGGLE_BEZEL)
+                except Exception:
+                    pass
+
+            is_active = key_down or pad_down
+            if is_active and not getattr(self, "_prev_toggle_bezel_down", False):
+                self.toggle_bezel_overlay()
+            self._prev_toggle_bezel_down = is_active
+
+    def _is_gamepad_action_pressed(self, pressed_inputs: set[str], assigned: str, action: str) -> bool:
+        """Determina si las entradas actuales del mando coinciden con la asignación o sus alias."""
+        if not pressed_inputs or not assigned:
+            return False
+        if "+" in assigned:
+            parts = [p.strip() for p in assigned.split("+")]
+            if all(p in pressed_inputs for p in parts):
+                return True
+        elif assigned in pressed_inputs:
+            return True
+
+        if action in GAMEPAD_ACTION_ALIASES:
+            for alias in GAMEPAD_ACTION_ALIASES[action]:
+                if "+" in alias:
+                    parts = [p.strip() for p in alias.split("+")]
+                    if all(p in pressed_inputs for p in parts):
+                        return True
+                elif alias in pressed_inputs:
+                    return True
+        return False
+
+    def toggle_bezel_overlay(self):
+        """Alterna la visibilidad del marco decorativo (Bezel Overlay) durante la emulación."""
+        if not self.bezel_overlay:
+            return
+        try:
+            if self.bezel_overlay.isVisible():
+                self.bezel_overlay.hide()
+            else:
+                self.bezel_overlay.show()
+                self.bezel_overlay.bring_to_top()
+        except Exception:
+            pass
 
     def terminate_active_emulator(self):
         """Fuerza el cierre inmediato y limpio del proceso del emulador y sus subprocesos."""

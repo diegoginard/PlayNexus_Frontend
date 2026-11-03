@@ -176,3 +176,4 @@ class ExitConfirmDialog(QDialog):
             except Exception:
                 pass
         super().closeEvent(event)
+
