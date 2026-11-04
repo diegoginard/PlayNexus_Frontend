@@ -76,12 +76,12 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # ASIGNACIÓN DE ARCHIVOS PROPIOS DEL LAYOUT (ADMINISTRADOS POR ESTE ARCHIVO)
     # -------------------------------------------------------------------------
-    BKG_IMAGE = LAYOUT_DIR / "bkg.jpg"
+    BKG_IMAGE = LAYOUT_DIR / "bg.jpg"
     TV_IMAGE = LAYOUT_DIR / "tv.png"
     CONSOLE_IMAGE = LAYOUT_DIR / "console.png"
     CONSOLE_COVER_IMAGE = LAYOUT_DIR / "console_cover.png"
     JOYSTICK_IMAGE = None
-    AVATAR_IMAGE = LAYOUT_DIR / "starfox.png"
+    AVATAR_IMAGE = LAYOUT_DIR / "avatar.png"
     LOGO_IMAGE = LAYOUT_DIR / "logo.png"
     CARTART_IMAGE = LAYOUT_DIR / "cartart.png"
     BOXART_IMAGE = None

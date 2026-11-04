@@ -109,6 +109,17 @@ class PlayerWindow(QMainWindow):
         self._fps_timer.timeout.connect(self._update_fps_display)
         self._fps_timer.start()
 
+        # Salvapantallas (Screensaver)
+        self._screensaver_widget = None
+        self._screensaver_timer = QTimer(self)
+        self._screensaver_timer.setSingleShot(True)
+        self._screensaver_timer.timeout.connect(self._trigger_screensaver)
+        self._restart_screensaver_timer()
+
+        # Instalar eventFilter en la propia ventana para captura global de inactividad
+        self.installEventFilter(self)
+        self.layout_stack.installEventFilter(self)
+
     def _setup_shortcuts(self):
         # F11 para alternar pantalla completa
         QShortcut(QKeySequence(Qt.Key_F11), self, self.toggle_fullscreen)
@@ -119,6 +130,11 @@ class PlayerWindow(QMainWindow):
             self._fps_shortcut_alt = QShortcut(QKeySequence(Qt.Key_F3), self, self.toggle_fps_counter)
 
     def eventFilter(self, watched, event):
+        # Reiniciar contador de inactividad ante cualquier interacción de usuario
+        if event.type() in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
+            if not self._is_screensaver_active():
+                self._restart_screensaver_timer()
+
         if event.type() == QEvent.Paint:
             now = time.perf_counter()
             self._frame_times.append(now)
@@ -129,6 +145,8 @@ class PlayerWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._reposition_fps_label()
+        if hasattr(self, "_screensaver_widget") and self._screensaver_widget:
+            self._screensaver_widget.setGeometry(self.rect())
 
     def _reposition_fps_label(self):
         if hasattr(self, "fps_label") and self.fps_label:
@@ -194,6 +212,8 @@ class PlayerWindow(QMainWindow):
 
     def pause_active_media(self):
         """Pausa la reproducción en el layout activo al iniciar un emulador (sin destruir el video)."""
+        if hasattr(self, "_screensaver_timer"):
+            self._screensaver_timer.stop()
         active_layout = self.layout_stack.currentWidget()
         if active_layout:
             if hasattr(active_layout, "pause_media") and callable(active_layout.pause_media):
@@ -209,6 +229,7 @@ class PlayerWindow(QMainWindow):
 
     def resume_active_media(self):
         """Reanuda la reproducción en el layout activo al cerrar el emulador."""
+        self._restart_screensaver_timer()
         active_layout = self.layout_stack.currentWidget()
         if active_layout:
             if hasattr(active_layout, "resume_media") and callable(active_layout.resume_media):
@@ -281,6 +302,21 @@ class PlayerWindow(QMainWindow):
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
+
+        # Intercepción del Salvapantallas
+        if self._is_screensaver_active():
+            if matches_action(event, ACTION_SELECT, self.db):
+                gid = self._screensaver_widget.get_currently_displayed_game_id()
+                self._dismiss_screensaver()
+                if gid:
+                    self.select_game_by_id(gid)
+            else:
+                self._dismiss_screensaver()
+            event.accept()
+            return
+
+        self._restart_screensaver_timer()
+
         if matches_action(event, ACTION_TOGGLE_FPS, self.db):
             self.toggle_fps_counter()
             event.accept()
@@ -336,6 +372,13 @@ class PlayerWindow(QMainWindow):
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
+
+        if self._is_screensaver_active():
+            self._dismiss_screensaver()
+            event.accept()
+            return
+
+        self._restart_screensaver_timer()
         cur = self.layout_stack.currentWidget()
         if cur and hasattr(cur, "wheelEvent"):
             cur.wheelEvent(event)
@@ -344,10 +387,29 @@ class PlayerWindow(QMainWindow):
         super().wheelEvent(event)
 
     def mousePressEvent(self, event):
+        if self._is_screensaver_active():
+            self._dismiss_screensaver()
+            event.accept()
+            return
+
+        self._restart_screensaver_timer()
         cur = self.layout_stack.currentWidget()
         if cur:
             cur.setFocus()
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._is_screensaver_active():
+            pos = event.pos()
+            last = getattr(self, "_last_mouse_pos", None)
+            self._last_mouse_pos = pos
+            if last and (abs(pos.x() - last.x()) > 6 or abs(pos.y() - last.y()) > 6):
+                self._dismiss_screensaver()
+                event.accept()
+                return
+        else:
+            self._restart_screensaver_timer()
+        super().mouseMoveEvent(event)
 
     def changeEvent(self, event):
         if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
@@ -361,6 +423,18 @@ class PlayerWindow(QMainWindow):
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             return
+
+        if self._is_screensaver_active():
+            if action_id == ACTION_SELECT:
+                gid = self._screensaver_widget.get_currently_displayed_game_id()
+                self._dismiss_screensaver()
+                if gid:
+                    self.select_game_by_id(gid)
+            else:
+                self._dismiss_screensaver()
+            return
+
+        self._restart_screensaver_timer()
 
         if not self.isActiveWindow():
             if self.isVisible() and not self.isMinimized():
@@ -837,6 +911,92 @@ class PlayerWindow(QMainWindow):
             self._last_activation_time = 0.0
             self.resume_active_media()
             QMessageBox.critical(self, "No se pudo iniciar el juego", str(e))
+
+    def _is_screensaver_active(self) -> bool:
+        """Indica si el widget del salvapantallas está actualmente activo y visible."""
+        return bool(hasattr(self, "_screensaver_widget") and self._screensaver_widget and self._screensaver_widget.isVisible())
+
+    def _is_menu_list(self, list_id: int | None) -> bool:
+        """Determina si la lista indicada es un menú de sistemas (lista de listas)."""
+        if not list_id:
+            return False
+        row = self.db.get_list(list_id)
+        return bool(row and "list_type" in row.keys() and row["list_type"] == "menu")
+
+    def _restart_screensaver_timer(self):
+        """Reinicia el temporizador de inactividad según los minutos configurados."""
+        if not hasattr(self, "_screensaver_timer"):
+            return
+        ss_enabled = self.db.get_setting("screensaver_enabled", "true").lower() in ("true", "1", "yes")
+        if not ss_enabled:
+            self._screensaver_timer.stop()
+            return
+
+        try:
+            timeout_min = int(self.db.get_setting("screensaver_timeout", "3") or "3")
+        except (ValueError, TypeError):
+            timeout_min = 3
+        timeout_ms = max(5000, timeout_min * 60 * 1000)
+        self._screensaver_timer.start(timeout_ms)
+
+    def _trigger_screensaver(self):
+        """Activa el salvapantallas tras cumplirse el tiempo de inactividad."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            self._restart_screensaver_timer()
+            return
+
+        if not self.isVisible() or self.isMinimized() or self._is_screensaver_active():
+            return
+
+        # Pausar reproducción del layout activo
+        self.pause_active_media()
+
+        from playnexus.ui.screensaver import ScreensaverWidget
+        pool = self.games_cache if (self.games_cache and not self._is_menu_list(self.current_list_id)) else None
+        self._screensaver_widget = ScreensaverWidget(self.db, games=pool, parent=self)
+        self._screensaver_widget.setGeometry(self.rect())
+        self._screensaver_widget.game_selected_request.connect(self._on_screensaver_select)
+        self._screensaver_widget.dismiss_requested.connect(self._dismiss_screensaver)
+        self._screensaver_widget.show()
+        self._screensaver_widget.raise_()
+        self._screensaver_widget.setFocus()
+        self._screensaver_widget.start()
+
+    def _dismiss_screensaver(self):
+        """Cierra el salvapantallas y devuelve el control al layout activo."""
+        if hasattr(self, "_screensaver_widget") and self._screensaver_widget:
+            self._screensaver_widget.stop_all()
+            self._screensaver_widget.hide()
+            self._screensaver_widget.deleteLater()
+            self._screensaver_widget = None
+
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.setFocus()
+        self.resume_active_media()
+        self._restart_screensaver_timer()
+
+    def _on_screensaver_select(self, game_id: int):
+        """Salta y selecciona directamente el juego exhibido en el salvapantallas."""
+        self._dismiss_screensaver()
+        if game_id:
+            self.select_game_by_id(game_id)
+
+    def select_game_by_id(self, game_id: int):
+        """Selecciona el juego indicado por ID en la lista activa o navega a su lista si es externa."""
+        if not game_id:
+            return
+        cur = self.layout_stack.currentWidget()
+        in_current = any(g.get("id") == game_id for g in self.games_cache)
+        if in_current and cur:
+            if hasattr(cur, "select_game_by_id"):
+                cur.select_game_by_id(game_id)
+            self._on_game_selected(game_id)
+        else:
+            g_row = self.db.get_game(game_id)
+            if g_row and g_row.get("list_id"):
+                self.select_list(int(g_row["list_id"]), push_history=True, restore_game_id=game_id)
 
     def prompt_exit_confirmation(self):
         """Muestra una ventana modal de confirmación con estilo arcade antes de cerrar el frontend."""

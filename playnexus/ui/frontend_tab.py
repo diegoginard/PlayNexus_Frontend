@@ -292,7 +292,121 @@ class FrontendSettingsWidget(QWidget):
         layout.addWidget(grp_splash)
 
         # -------------------------------------------------------------
-        # 6. BOTÓN DE INICIO DEL FRONTEND
+        # 6. SALVAPANTALLAS (SCREENSAVER)
+        # -------------------------------------------------------------
+        grp_screensaver = QGroupBox("💤 Salvapantallas (Screensaver)")
+        v_ss = QVBoxLayout(grp_screensaver)
+        v_ss.setSpacing(12)
+
+        self.chk_screensaver = QCheckBox("Activar salvapantallas tras inactividad")
+        self.chk_screensaver.setStyleSheet("font-weight: 500; font-size: 10pt;")
+        self.chk_screensaver.toggled.connect(self._on_screensaver_toggled)
+        v_ss.addWidget(self.chk_screensaver)
+
+        self.screensaver_container = QWidget()
+        v_ss_box = QVBoxLayout(self.screensaver_container)
+        v_ss_box.setContentsMargins(0, 0, 0, 0)
+        v_ss_box.setSpacing(12)
+
+        # Fila 1: Tiempo de inactividad y Arte superpuesto
+        row_ss_1 = QHBoxLayout()
+        row_ss_1.setSpacing(16)
+
+        col_time = QVBoxLayout()
+        col_time.addWidget(QLabel("<b>Tiempo de inactividad para activarse:</b>"))
+        self.spin_ss_timeout = QSpinBox()
+        self.spin_ss_timeout.setRange(1, 120)
+        self.spin_ss_timeout.setValue(3)
+        self.spin_ss_timeout.setSuffix(" minutos")
+        self.spin_ss_timeout.setMinimumHeight(32)
+        self.spin_ss_timeout.valueChanged.connect(self._save_screensaver_settings)
+        col_time.addWidget(self.spin_ss_timeout)
+        row_ss_1.addLayout(col_time, 1)
+
+        col_art = QVBoxLayout()
+        col_art.addWidget(QLabel("<b>Arte superpuesto (Overlay):</b>"))
+        self.combo_ss_overlay = QComboBox()
+        self.combo_ss_overlay.setMinimumHeight(32)
+        self.combo_ss_overlay.addItem("Rueda / Wheel logo del juego", "wheel")
+        self.combo_ss_overlay.addItem("Flyer publicitario", "flyer")
+        self.combo_ss_overlay.addItem("Marquesina / Marquee", "marquee")
+        self.combo_ss_overlay.addItem("Ninguno (solo video / imagen)", "none")
+        self.combo_ss_overlay.currentIndexChanged.connect(self._save_screensaver_settings)
+        col_art.addWidget(self.combo_ss_overlay)
+        row_ss_1.addLayout(col_art, 1)
+
+        col_blank = QVBoxLayout()
+        col_blank.addWidget(QLabel("<b>Apagado profundo (Pantalla negra):</b>"))
+        self.spin_ss_blank = QSpinBox()
+        self.spin_ss_blank.setRange(0, 360)
+        self.spin_ss_blank.setValue(60)
+        self.spin_ss_blank.setSpecialValueText("Desactivado")
+        self.spin_ss_blank.setSuffix(" minutos")
+        self.spin_ss_blank.setMinimumHeight(32)
+        self.spin_ss_blank.valueChanged.connect(self._save_screensaver_settings)
+        col_blank.addWidget(self.spin_ss_blank)
+        row_ss_1.addLayout(col_blank, 1)
+
+        v_ss_box.addLayout(row_ss_1)
+
+        # Fila 2: Modos visuales activos
+        v_ss_box.addWidget(QLabel("<b>Modos visuales permitidos (rotación aleatoria ponderada):</b>"))
+        row_modes = QHBoxLayout()
+        row_modes.setSpacing(16)
+
+        self.chk_ss_basic = QCheckBox("Video individual (Basic Movie)")
+        self.chk_ss_basic.toggled.connect(self._save_screensaver_settings)
+        row_modes.addWidget(self.chk_ss_basic)
+
+        self.chk_ss_movie_collage = QCheckBox("Collage de videos 2x2")
+        self.chk_ss_movie_collage.toggled.connect(self._save_screensaver_settings)
+        row_modes.addWidget(self.chk_ss_movie_collage)
+
+        self.chk_ss_image_collage = QCheckBox("Collage de imágenes 4x4 (100ms)")
+        self.chk_ss_image_collage.toggled.connect(self._save_screensaver_settings)
+        row_modes.addWidget(self.chk_ss_image_collage)
+
+        self.chk_ss_rgb = QCheckBox("Efecto RGB animado")
+        self.chk_ss_rgb.toggled.connect(self._save_screensaver_settings)
+        row_modes.addWidget(self.chk_ss_rgb)
+        row_modes.addStretch(1)
+
+        v_ss_box.addLayout(row_modes)
+
+        # Fila 3: Opciones multimedia y botón de prueba
+        row_ss_extra = QHBoxLayout()
+        row_ss_extra.setSpacing(16)
+
+        self.chk_ss_sound = QCheckBox("Reproducir sonido de los videos")
+        self.chk_ss_sound.toggled.connect(self._save_screensaver_settings)
+        row_ss_extra.addWidget(self.chk_ss_sound)
+
+        self.chk_ss_preserve_ar = QCheckBox("Preservar relación de aspecto original (sin estirar)")
+        self.chk_ss_preserve_ar.toggled.connect(self._save_screensaver_settings)
+        row_ss_extra.addWidget(self.chk_ss_preserve_ar)
+        row_ss_extra.addStretch(1)
+
+        self.btn_test_screensaver = QPushButton("▶ Probar salvapantallas")
+        self.btn_test_screensaver.setMinimumHeight(32)
+        self.btn_test_screensaver.clicked.connect(self._test_screensaver)
+        row_ss_extra.addWidget(self.btn_test_screensaver)
+
+        v_ss_box.addLayout(row_ss_extra)
+
+        lbl_ss_hint = QLabel(
+            "💡 <i>Al tocar cualquier tecla, mover el mouse o tocar el gamepad se reanuda el frontend inmediatamente. "
+            "Si presionás la acción SELECT (Enter o Botón A del mando), se saltará directamente al juego que se estaba mostrando.</i>"
+        )
+        lbl_ss_hint.setStyleSheet("color: #718096; font-size: 8.5pt;")
+        lbl_ss_hint.setWordWrap(True)
+        v_ss_box.addWidget(lbl_ss_hint)
+
+        v_ss.addWidget(self.screensaver_container)
+        self.screensaver_container.setVisible(False)
+        layout.addWidget(grp_screensaver)
+
+        # -------------------------------------------------------------
+        # 7. BOTÓN DE INICIO DEL FRONTEND
         # -------------------------------------------------------------
         btn_bar = QHBoxLayout()
         btn_bar.addStretch(1)
@@ -426,6 +540,36 @@ class FrontendSettingsWidget(QWidget):
                     except ValueError:
                         saved_splash = str(auto_vid).replace("\\", "/")
             self.splash_path_edit.setText(saved_splash)
+
+            # 5. Cargar configuración de Salvapantallas (Screensaver)
+            ss_en = self.db.get_setting("screensaver_enabled", "true").strip().lower() in ("true", "1", "yes")
+            self.chk_screensaver.setChecked(ss_en)
+            self.screensaver_container.setVisible(ss_en)
+
+            try:
+                ss_timeout = int(self.db.get_setting("screensaver_timeout", "3") or "3")
+            except (ValueError, TypeError):
+                ss_timeout = 3
+            self.spin_ss_timeout.setValue(ss_timeout)
+
+            overlay_val = self.db.get_setting("screensaver_overlay_art", "wheel")
+            idx_ov = self.combo_ss_overlay.findData(overlay_val)
+            if idx_ov >= 0:
+                self.combo_ss_overlay.setCurrentIndex(idx_ov)
+
+            try:
+                blank_time = int(self.db.get_setting("screensaver_blank_time", "60") or "60")
+            except (ValueError, TypeError):
+                blank_time = 60
+            self.spin_ss_blank.setValue(blank_time)
+
+            self.chk_ss_basic.setChecked(self.db.get_setting("screensaver_mode_basic_movie", "true").strip().lower() in ("true", "1", "yes"))
+            self.chk_ss_movie_collage.setChecked(self.db.get_setting("screensaver_mode_movie_collage", "true").strip().lower() in ("true", "1", "yes"))
+            self.chk_ss_image_collage.setChecked(self.db.get_setting("screensaver_mode_image_collage", "true").strip().lower() in ("true", "1", "yes"))
+            self.chk_ss_rgb.setChecked(self.db.get_setting("screensaver_mode_rgb_movie", "true").strip().lower() in ("true", "1", "yes"))
+
+            self.chk_ss_sound.setChecked(self.db.get_setting("screensaver_sound", "true").strip().lower() in ("true", "1", "yes"))
+            self.chk_ss_preserve_ar.setChecked(self.db.get_setting("screensaver_preserve_ar", "false").strip().lower() in ("true", "1", "yes"))
 
         finally:
             self._updating = False
@@ -690,8 +834,55 @@ class FrontendSettingsWidget(QWidget):
         self._test_splash.activateWindow()
         self._test_splash.start_playback()
 
+    def _on_screensaver_toggled(self, checked: bool):
+        self.screensaver_container.setVisible(checked)
+        self._save_screensaver_settings()
+
+    def _save_screensaver_settings(self):
+        if self._updating:
+            return
+        self.db.set_setting("screensaver_enabled", "true" if self.chk_screensaver.isChecked() else "false")
+        self.db.set_setting("screensaver_timeout", str(self.spin_ss_timeout.value()))
+        self.db.set_setting("screensaver_overlay_art", str(self.combo_ss_overlay.currentData()))
+        self.db.set_setting("screensaver_blank_time", str(self.spin_ss_blank.value()))
+        self.db.set_setting("screensaver_mode_basic_movie", "true" if self.chk_ss_basic.isChecked() else "false")
+        self.db.set_setting("screensaver_mode_movie_collage", "true" if self.chk_ss_movie_collage.isChecked() else "false")
+        self.db.set_setting("screensaver_mode_image_collage", "true" if self.chk_ss_image_collage.isChecked() else "false")
+        self.db.set_setting("screensaver_mode_rgb_movie", "true" if self.chk_ss_rgb.isChecked() else "false")
+        self.db.set_setting("screensaver_sound", "true" if self.chk_ss_sound.isChecked() else "false")
+        self.db.set_setting("screensaver_preserve_ar", "true" if self.chk_ss_preserve_ar.isChecked() else "false")
+
+    def _test_screensaver(self):
+        self._save_screensaver_settings()
+        from playnexus.ui.screensaver import ScreensaverWidget
+        geo = None
+        mon_idx = self.screen_combo.currentData()
+        screens = QGuiApplication.screens()
+        if screens and isinstance(mon_idx, int) and 0 <= mon_idx < len(screens):
+            geo = screens[mon_idx].geometry()
+        elif screens:
+            geo = screens[0].geometry()
+
+        self._test_ss = ScreensaverWidget(self.db)
+        if geo:
+            self._test_ss.setGeometry(geo)
+        self._test_ss.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self._test_ss.dismiss_requested.connect(self._close_test_screensaver)
+        self._test_ss.game_selected_request.connect(lambda gid: self._close_test_screensaver())
+        self._test_ss.showFullScreen()
+        self._test_ss.raise_()
+        self._test_ss.activateWindow()
+        self._test_ss.start()
+
+    def _close_test_screensaver(self):
+        if hasattr(self, "_test_ss") and self._test_ss:
+            self._test_ss.stop_all()
+            self._test_ss.close()
+            self._test_ss = None
+
     def _on_launch_clicked(self):
         self._save_video_settings()
         self._save_splash_settings()
+        self._save_screensaver_settings()
         self.launch_requested.emit()
 

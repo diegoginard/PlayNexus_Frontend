@@ -1,0 +1,291 @@
+# Lista de PlayNexus: NEC TurboGrafx 16
+[List]
+id = 20
+name = NEC TurboGrafx 16
+list_type = games
+platform = NEC TurboGrafx 16
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/NEC PC-Engine.png
+default_emulator_id = 
+default_emulator = 
+layout = NEC TurboGrafx-16
+allowed_extensions = .zip
+roms_path = D:/Roms/Nec PC Engine - TurboGrafx-16/Roms
+scan_subfolders = false
+exclude_folder_if_zip = false
+media_path = 
+boxart_path = D:/Roms/Nec PC Engine - TurboGrafx-16/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Nec PC Engine - TurboGrafx-16/media/wheel
+video_path = D:/Roms/Nec PC Engine - TurboGrafx-16/media/videos
+cartart_path = D:/Roms/Nec PC Engine - TurboGrafx-16/media/cartart
+cabinet_path = 
+marquee_path = 
+bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = D:/Roms/Nec PC Engine - TurboGrafx-16/media/bezel
+loading_path = 
+loading_in_path = 
+loading_out_path = 
+xml_path = 
+created_at = 2026-11-04 01:46:51
+source_list_id = 
+filter_rules = []
+filter_match_mode = all
+menu_items = 
+
+[Games]
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+35525;1943 Kai (J);1943 Kai (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\1943 Kai (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35526;Aero Blasters (U);Aero Blasters (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Aero Blasters (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35527;After Burner II (J)[Tesp];After Burner II (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\After Burner II (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35528;Air Zonk (U);Air Zonk (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Air Zonk (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35529;Alien Crush (U);Alien Crush (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Alien Crush (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35530;Andre' Panza Kick Boxing (U);Andre' Panza Kick Boxing (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Andre' Panza Kick Boxing (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35531;Aoi Blink (J)[Ting];Aoi Blink (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Aoi Blink (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35532;Armed F (J);Armed F (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Armed F (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35533;Atomic Robo-Kid Special (J)[Tesp];Atomic Robo-Kid Special (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Atomic Robo-Kid Special (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35534;Ballistix (U);Ballistix (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ballistix (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35535;Bari Bari Densetsu (J);Bari Bari Densetsu (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bari Bari Densetsu (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35536;Barunba (J)[Ting];Barunba (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Barunba (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35537;Batman (J);Batman (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Batman (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35538;Battle Lode Runner (J);Battle Lode Runner (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Battle Lode Runner (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35539;Battle Royale (U);Battle Royale (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Battle Royale (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35540;Bikkuriman World (J)[Tesp];Bikkuriman World (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bikkuriman World (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35541;Bloody Wolf (U);Bloody Wolf (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bloody Wolf (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35542;Bomberman '93 (U);Bomberman '93 (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bomberman '93 (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35543;Bomberman '94 (J);Bomberman '94 (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bomberman '94 (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35544;Bomberman (U);Bomberman (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bomberman (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35545;Bomberman - Users Battle (J);Bomberman - Users Battle (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bomberman - Users Battle (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35546;Bonk III - Bonk's Big Adventure (U);Bonk III - Bonk's Big Adventure (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bonk III - Bonk's Big Adventure (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35547;Bonk's Adventure (U);Bonk's Adventure (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bonk's Adventure (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35548;Bonk's Revenge (U);Bonk's Revenge (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bonk's Revenge (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35549;Bouken Danshaku Don - The Lost Sunheart (J);Bouken Danshaku Don - The Lost Sunheart (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bouken Danshaku Don - The Lost Sunheart (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35550;Boxyboy (U);Boxyboy (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Boxyboy (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35551;Bravoman (U);Bravoman (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bravoman (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35552;Break In (J);Break In (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Break In (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35553;Bubblegum Crash (J)[Ting];Bubblegum Crash (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bubblegum Crash (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35554;Bull Fight - Ring no Haja (J);Bull Fight - Ring no Haja (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Bull Fight - Ring no Haja (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35555;Burning Angels (J);Burning Angels (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Burning Angels (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35556;Busou Keiji - Cyber Cross (J);Busou Keiji - Cyber Cross (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Busou Keiji - Cyber Cross (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35557;Cadash (U);Cadash (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Cadash (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35558;Champion Wrestler (J);Champion Wrestler (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Champion Wrestler (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35559;Champions Forever Boxing (U);Champions Forever Boxing (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Champions Forever Boxing (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35560;Chew Man Fu (U);Chew Man Fu (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Chew Man Fu (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35561;Chibi Maruko-chan - Quiz de Piihyara (J);Chibi Maruko-chan - Quiz de Piihyara (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Chibi Maruko-chan - Quiz de Piihyara (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35562;China Warrior (U);China Warrior (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\China Warrior (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35563;Circus Lido (J);Circus Lido (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Circus Lido (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35564;City Hunter (J)[Ting];City Hunter (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\City Hunter (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35565;Columns (J);Columns (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Columns (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35566;Coryoon - Child of Dragon (J);Coryoon - Child of Dragon (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Coryoon - Child of Dragon (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35567;Cratermaze (U);Cratermaze (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Cratermaze (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35568;Cross Wiber - Cyber Combat Police (J);Cross Wiber - Cyber Combat Police (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Cross Wiber - Cyber Combat Police (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35569;Cyber Core (U);Cyber Core (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Cyber Core (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35570;Cyber Dodge (J);Cyber Dodge (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Cyber Dodge (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35571;Daichi-kun Crisis - Do Natural (J)[Ting];Daichi-kun Crisis - Do Natural (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Daichi-kun Crisis - Do Natural (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35572;Daisenpuu (J)[Tesp];Daisenpuu (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Daisenpuu (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35573;Darius Alpha (J)[Tesp];Darius Alpha (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Darius Alpha (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35574;Darius Plus (J);Darius Plus (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Darius Plus (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35575;Darkwing Duck (U);Darkwing Duck (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Darkwing Duck (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35576;Davis Cup Tennis (U);Davis Cup Tennis (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Davis Cup Tennis (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35577;Dead Moon (U);Dead Moon (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Dead Moon (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35578;Deep Blue (U);Deep Blue (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Deep Blue (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35579;Detana!! TwinBee (J);Detana!! TwinBee (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Detana!! TwinBee (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35580;Devil's Crush (U);Devil's Crush (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Devil's Crush (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35581;Die Hard (J)[Tesp];Die Hard (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Die Hard (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35582;Digital Champ (J);Digital Champ (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Digital Champ (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35583;Don Doko Don! (J);Don Doko Don! (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Don Doko Don! (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35584;Doraemon - Meikyuu Daisakusen (J);Doraemon - Meikyuu Daisakusen (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Doraemon - Meikyuu Daisakusen (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35585;Doraemon - Nobita no Dorabian Night (J);Doraemon - Nobita no Dorabian Night (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Doraemon - Nobita no Dorabian Night (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35586;Double Dungeons - W (U);Double Dungeons - W (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Double Dungeons - W (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35587;Download (J);Download (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Download (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35588;Dragon Egg! (J)[Ting];Dragon Egg! (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Dragon Egg! (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35589;Dragon Saber - After Story of Dragon Spirit (J)[Tesp];Dragon Saber - After Story of Dragon Spirit (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Dragon Saber - After Story of Dragon Spirit (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35590;Dragon Spirit (U);Dragon Spirit (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Dragon Spirit (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35591;Dragon's Curse (U);Dragon's Curse (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Dragon's Curse (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35592;Drop.Off (U);Drop.Off (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Drop.Off (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35593;Dungeon Explorer (U);Dungeon Explorer (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Dungeon Explorer (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35594;Energy (J)[Ting];Energy (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Energy (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35595;Eternal City - Toshi Tensou Keikaku (J);Eternal City - Toshi Tensou Keikaku (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Eternal City - Toshi Tensou Keikaku (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35596;F-1 Dream (J);F-1 Dream (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\F-1 Dream (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35597;F-1 Pilot - You're King of Kings (J)[Ting];F-1 Pilot - You're King of Kings (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\F-1 Pilot - You're King of Kings (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35598;F1 Circus '91 - World Championship (J);F1 Circus '91 - World Championship (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\F1 Circus '91 - World Championship (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35599;F1 Circus '92 - The Speed of Sound (J);F1 Circus '92 - The Speed of Sound (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\F1 Circus '92 - The Speed of Sound (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35600;F1 Circus (J);F1 Circus (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\F1 Circus (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35601;F1 Triple Battle (J);F1 Triple Battle (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\F1 Triple Battle (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35602;Falcon (U);Falcon (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Falcon (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35603;Fantasy Zone (U);Fantasy Zone (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Fantasy Zone (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35604;Fighting Run (J);Fighting Run (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Fighting Run (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35605;Final Blaster (J);Final Blaster (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Final Blaster (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35606;Final Lap Twin (U);Final Lap Twin (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Final Lap Twin (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35607;Final Match Tennis (J)[Ting];Final Match Tennis (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Final Match Tennis (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35608;Final Soldier (J)[Tesp];Final Soldier (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Final Soldier (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35609;Fire Pro Wrestling - Combination Tag (J);Fire Pro Wrestling - Combination Tag (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Fire Pro Wrestling - Combination Tag (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35610;Fire Pro Wrestling 2 - 2nd Bout (J);Fire Pro Wrestling 2 - 2nd Bout (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Fire Pro Wrestling 2 - 2nd Bout (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35611;Fire Pro Wrestling 3 - Legend Bout (J);Fire Pro Wrestling 3 - Legend Bout (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Fire Pro Wrestling 3 - Legend Bout (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35612;Formation Soccer - Human Cup '90 (J);Formation Soccer - Human Cup '90 (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Formation Soccer - Human Cup '90 (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35613;Formation Soccer - On J. League (J);Formation Soccer - On J. League (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Formation Soccer - On J. League (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35614;Fushigi no Yume no Alice (J)[Ting];Fushigi no Yume no Alice (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Fushigi no Yume no Alice (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35615;Gai Flame (J)[Ting];Gai Flame (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gai Flame (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35616;Gaia no Monshou (J)[Ting];Gaia no Monshou (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gaia no Monshou (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35617;Galaga '90 (U);Galaga '90 (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Galaga '90 (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35618;Ganbare! Golf Boys (J)[Ting];Ganbare! Golf Boys (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ganbare! Golf Boys (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35619;Gekisha Boy (J)[Ting];Gekisha Boy (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gekisha Boy (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35620;Genji Tsuushin Agedama (J);Genji Tsuushin Agedama (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Genji Tsuushin Agedama (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35621;Genpei Toumaden (J);Genpei Toumaden (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Genpei Toumaden (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35622;Ghost Manor (U);Ghost Manor (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ghost Manor (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35623;Gokuraku! Chuuka Taisen (J);Gokuraku! Chuuka Taisen (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gokuraku! Chuuka Taisen (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35624;Gomola Speed (J);Gomola Speed (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gomola Speed (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35625;Gradius (J);Gradius (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gradius (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35626;Gunboat (U);Gunboat (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gunboat (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35627;Gunhed (J);Gunhed (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gunhed (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35628;Gunhed - Hudson Gunhed Taikai (J);Gunhed - Hudson Gunhed Taikai (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Gunhed - Hudson Gunhed Taikai (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35629;Hana Taaka Daka! (J);Hana Taaka Daka! (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Hana Taaka Daka! (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35630;Hanii in the Sky (J)[Ting];Hanii in the Sky (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Hanii in the Sky (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35631;Hanii on the Road (J);Hanii on the Road (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Hanii on the Road (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35632;Hatris (J);Hatris (J);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Hatris (J).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35633;Heavy Unit (J)[Ting];Heavy Unit (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Heavy Unit (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35634;Hisou Kihei - Xserd (J)[Ting];Hisou Kihei - Xserd (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Hisou Kihei - Xserd (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35635;Hit the Ice - VHL - The Official Video Hockey League (U);Hit the Ice - VHL - The Official Video Hockey League (U);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Hit the Ice - VHL - The Official Video Hockey League (U).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35636;Honoo no Toukyuuji - Dodge Danpei (J)[Tesp];Honoo no Toukyuuji - Dodge Danpei (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Honoo no Toukyuuji - Dodge Danpei (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35637;Image Fight (Japan);Image Fight (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Image Fight (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35638;Impossamole (USA);Impossamole (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Impossamole (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35639;J. League Greatest Eleven (Japan);J. League Greatest Eleven (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\J. League Greatest Eleven (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35640;J.J. & Jeff (USA);J.J. & Jeff (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\J.J. & Jeff (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35641;Jackie Chan's Action Kung Fu (USA);Jackie Chan's Action Kung Fu (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Jackie Chan's Action Kung Fu (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35642;Jaseiken Necromancer (J)[Ting];Jaseiken Necromancer (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Jaseiken Necromancer (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35643;Jigoku Meguri (Japan);Jigoku Meguri (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Jigoku Meguri (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35644;Jinmu Denshou (Japan);Jinmu Denshou (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Jinmu Denshou (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35645;Juuouki (Japan)[Tesp];Juuouki (Japan)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Juuouki (Japan)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35646;Kaizou Choujin Shubibinman (Japan);Kaizou Choujin Shubibinman (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Kaizou Choujin Shubibinman (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35647;Kattobi! Takuhai-kun (Japan);Kattobi! Takuhai-kun (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Kattobi! Takuhai-kun (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35648;Keith Courage in Alpha Zones (USA);Keith Courage in Alpha Zones (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Keith Courage in Alpha Zones (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35649;KickBall (Japan);KickBall (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\KickBall (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35650;Kikikai-kai (Japan);Kikikai-kai (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Kikikai-kai (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35651;Klax (USA);Klax (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Klax (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35652;Knight Rider Special (Japan)[Ting];Knight Rider Special (Japan)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Knight Rider Special (Japan)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35653;Kyuukyoku Tiger (Japan);Kyuukyoku Tiger (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Kyuukyoku Tiger (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35654;Lady Sword (J)[Ting];Lady Sword (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Lady Sword (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35655;Legend of Hero Tonma (U)[Tesp];Legend of Hero Tonma (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Legend of Hero Tonma (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35656;Legendary Axe II, The (U)[Tesp];Legendary Axe II, The (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Legendary Axe II, The (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35657;Legendary Axe, The (U)[Tesp];Legendary Axe, The (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Legendary Axe, The (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35658;Lode Runner - Lost Labyrinth (J)[Ting];Lode Runner - Lost Labyrinth (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Lode Runner - Lost Labyrinth (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35659;Maerchen Maze (Japan)[Ting];Maerchen Maze (Japan)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Maerchen Maze (Japan)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35660;Magical Chase (USA);Magical Chase (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Magical Chase (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35661;Maison Ikkoku (Japan)[Ting];Maison Ikkoku (Japan)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Maison Ikkoku (Japan)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35662;Makai Hakkenden Shada (Japan)[Ting];Makai Hakkenden Shada (Japan)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Makai Hakkenden Shada (Japan)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35663;Makai Prince Dorabocchan (Japan);Makai Prince Dorabocchan (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Makai Prince Dorabocchan (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35664;Maniac Puroresu - Asu e no Tatakai (Japan);Maniac Puroresu - Asu e no Tatakai (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Maniac Puroresu - Asu e no Tatakai (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35665;Metal Stoker (Japan);Metal Stoker (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Metal Stoker (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35666;Military Madness (USA);Military Madness (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Military Madness (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35667;Mizubaku Adventure (Japan);Mizubaku Adventure (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Mizubaku Adventure (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35668;Momotarou Katsugeki (Japan);Momotarou Katsugeki (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Momotarou Katsugeki (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35669;Monster Puroresu (Japan);Monster Puroresu (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Monster Puroresu (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35670;Morita Shougi PC (Japan);Morita Shougi PC (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Morita Shougi PC (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35671;Moto Roader (U)[Tesp];Moto Roader (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Moto Roader (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35672;Moto Roader II (Japan);Moto Roader II (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Moto Roader II (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35673;Mr. Heli no Daibouken (Japan);Mr. Heli no Daibouken (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Mr. Heli no Daibouken (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35674;Naxat Open (Japan);Naxat Open (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Naxat Open (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35675;Necros no Yousai (J)[Ting];Necros no Yousai (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Necros no Yousai (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35676;Nekketsu Koukou Dodgeball-bu - PC Bangai Hen (Japan);Nekketsu Koukou Dodgeball-bu - PC Bangai Hen (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Nekketsu Koukou Dodgeball-bu - PC Bangai Hen (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35677;Nekketsu Koukou Dodgeball-bu - Soccer PC Hen (Japan);Nekketsu Koukou Dodgeball-bu - Soccer PC Hen (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Nekketsu Koukou Dodgeball-bu - Soccer PC Hen (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35678;Neutopia (USA);Neutopia (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Neutopia (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35679;Neutopia II (USA);Neutopia II (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Neutopia II (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35680;New Adventure Island (USA);New Adventure Island (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\New Adventure Island (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35681;New Zealand Story, The (J)[Tesp];New Zealand Story, The (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\New Zealand Story, The (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35682;NHK Taiga Drama - Taiheiki (Japan);NHK Taiga Drama - Taiheiki (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\NHK Taiga Drama - Taiheiki (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35683;Night Creatures (USA);Night Creatures (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Night Creatures (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35684;Niko Niko Pun (Japan);Niko Niko Pun (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Niko Niko Pun (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35685;Ninja Ryuuken Den (Japan) (En,Ja,Zh);Ninja Ryuuken Den (Japan) (En,Ja,Zh);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ninja Ryuuken Den (Japan) (En,Ja,Zh).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35686;Ninja Spirit (U)[Tesp];Ninja Spirit (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ninja Spirit (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35687;Ninja Warriors, The (Japan);Ninja Warriors, The (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ninja Warriors, The (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35688;Obocchama-kun (J)[Ting];Obocchama-kun (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Obocchama-kun (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35689;Operation Wolf (Japan);Operation Wolf (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Operation Wolf (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35690;Order of the Griffon (USA);Order of the Griffon (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Order of the Griffon (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35691;Ordyne (U)[Tesp];Ordyne (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ordyne (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35692;Out Live (J)[Ting];Out Live (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Out Live (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35693;Out Run (J)[Tesp];Out Run (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Out Run (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35694;Override (Japan);Override (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Override (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35695;P-47 - The Freedom Fighter (Japan);P-47 - The Freedom Fighter (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\P-47 - The Freedom Fighter (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35696;Pac-Land (U)[Tesp];Pac-Land (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Pac-Land (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35697;Parasol Stars - The Story of Bubble Bobble III (USA);Parasol Stars - The Story of Bubble Bobble III (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Parasol Stars - The Story of Bubble Bobble III (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35698;Parodius Da! - Shinwa kara Owarai e (Japan);Parodius Da! - Shinwa kara Owarai e (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Parodius Da! - Shinwa kara Owarai e (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35699;Populous (Japan);Populous (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Populous (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35700;Power Drift (J)[Tesp];Power Drift (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Power Drift (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35701;Power Eleven (Japan);Power Eleven (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Power Eleven (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35702;Power Gate (Japan);Power Gate (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Power Gate (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35703;Power Golf (USA);Power Golf (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Power Golf (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35704;Power Tennis (Japan);Power Tennis (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Power Tennis (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35705;Psycho Chaser (Japan);Psycho Chaser (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Psycho Chaser (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35706;Psychosis (U)[Tesp];Psychosis (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Psychosis (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35707;Puzzle Boy (J)[Ting];Puzzle Boy (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Puzzle Boy (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35708;Puzznic (Japan);Puzznic (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Puzznic (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35709;R-Type (U)[Tesp];R-Type (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\R-Type (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35710;Rabio Lepus Special (J)[Ting];Rabio Lepus Special (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Rabio Lepus Special (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35711;Racing Damashii (Japan);Racing Damashii (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Racing Damashii (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35712;Raiden (USA);Raiden (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Raiden (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35713;Rastan Saga II (J)[Tesp];Rastan Saga II (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Rastan Saga II (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35714;Rock-On (Japan);Rock-On (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Rock-On (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35715;Ryuukyuu (Japan);Ryuukyuu (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Ryuukyuu (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35716;Salamander (J)[Tesp];Salamander (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Salamander (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35717;Samurai-Ghost (USA);Samurai-Ghost (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Samurai-Ghost (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35718;Shanghai (J)[Ting];Shanghai (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Shanghai (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35719;Shinobi (Japan);Shinobi (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Shinobi (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35720;Shiryou Sensen - War of the Dead (J)[Ting];Shiryou Sensen - War of the Dead (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Shiryou Sensen - War of the Dead (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35721;Shockman (USA);Shockman (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Shockman (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35722;SideArms - Hyper Dyne (U)[Tesp];SideArms - Hyper Dyne (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\SideArms - Hyper Dyne (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35723;Silent Debuggers (USA);Silent Debuggers (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Silent Debuggers (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35724;Sinistron (U)[Tesp];Sinistron (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Sinistron (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35725;Skweek (Japan);Skweek (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Skweek (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35726;Soldier Blade (U)[Tesp];Soldier Blade (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Soldier Blade (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35727;Somer Assault (U)[Tesp];Somer Assault (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Somer Assault (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35728;Son Son II (J)[Tesp];Son Son II (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Son Son II (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35729;Sonic Spike - World Championship Beach Volleyball (U)[Tesp];Sonic Spike - World Championship Beach Volleyball (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Sonic Spike - World Championship Beach Volleyball (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35730;Space Harrier (USA);Space Harrier (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Space Harrier (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35731;Space Invaders - Fukkatsu no Hi (Japan);Space Invaders - Fukkatsu no Hi (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Space Invaders - Fukkatsu no Hi (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35732;Special Criminal Investigation (Japan);Special Criminal Investigation (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Special Criminal Investigation (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35733;Spin Pair (Japan);Spin Pair (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Spin Pair (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35734;Spiral Wave (Japan);Spiral Wave (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Spiral Wave (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35735;Splatterhouse (U)[Tesp];Splatterhouse (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Splatterhouse (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35736;Street Fighter II' - Champion Edition (J)[Ting];Street Fighter II' - Champion Edition (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Street Fighter II' - Champion Edition (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35737;Strip Fighter II (Japan);Strip Fighter II (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Strip Fighter II (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35738;Super Metal Crusher (Japan);Super Metal Crusher (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Super Metal Crusher (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35739;Super Star Soldier (U)[Tesp];Super Star Soldier (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Super Star Soldier (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35740;Super Volleyball (USA);Super Volleyball (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Super Volleyball (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35741;Taito Chase H.Q. (USA);Taito Chase H.Q. (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Taito Chase H.Q. (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35742;Takeda Shingen (Japan);Takeda Shingen (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Takeda Shingen (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35743;Takin' It to the Hoop (USA);Takin' It to the Hoop (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Takin' It to the Hoop (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35744;TaleSpin (USA);TaleSpin (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\TaleSpin (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35745;Tatsujin (J)[Tesp];Tatsujin (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tatsujin (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35746;Tatsunoko Fighter (Japan);Tatsunoko Fighter (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tatsunoko Fighter (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35747;Tenseiryuu - Saint Dragon (Japan);Tenseiryuu - Saint Dragon (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tenseiryuu - Saint Dragon (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35748;Terra Cresta II - Mandoraa no Gyakushuu (Japan);Terra Cresta II - Mandoraa no Gyakushuu (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Terra Cresta II - Mandoraa no Gyakushuu (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35749;Thunder Blade (Japan);Thunder Blade (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Thunder Blade (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35750;Tiger Road (U)[Tesp];Tiger Road (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tiger Road (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35751;Time Cruise (USA);Time Cruise (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Time Cruise (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35752;Timeball (USA);Timeball (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Timeball (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35753;Titan (Japan);Titan (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Titan (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35754;Toilet Kids (Japan);Toilet Kids (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Toilet Kids (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35755;Tower of Druaga, The (J)[Ting];Tower of Druaga, The (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tower of Druaga, The (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35756;Toy Shop Boys (Japan);Toy Shop Boys (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Toy Shop Boys (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35757;Tricky Kick (USA);Tricky Kick (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tricky Kick (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35758;Tsuppari Oozumou - Heisei Ban (Japan);Tsuppari Oozumou - Heisei Ban (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Tsuppari Oozumou - Heisei Ban (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35759;Turrican (U)[Tesp];Turrican (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Turrican (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35760;TV Sports Basketball (USA);TV Sports Basketball (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\TV Sports Basketball (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35761;TV Sports Hockey (USA);TV Sports Hockey (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\TV Sports Hockey (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35762;Valkyrie no Densetsu (J)[Tesp];Valkyrie no Densetsu (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Valkyrie no Densetsu (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35763;Veigues - Tactical Gladiator (USA);Veigues - Tactical Gladiator (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Veigues - Tactical Gladiator (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35764;Victory Run (U)[Tesp];Victory Run (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Victory Run (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35765;Vigilante (U)[Tesp];Vigilante (U)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Vigilante (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35766;Volfied (Japan);Volfied (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Volfied (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35767;W-Ring - The Double Rings (Japan);W-Ring - The Double Rings (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\W-Ring - The Double Rings (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35768;Winning Shot (Japan);Winning Shot (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Winning Shot (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35769;Wonder Momo (J)[Tesp];Wonder Momo (J)[Tesp];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Wonder Momo (J)[Tesp].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35770;World Circuit (Japan);World Circuit (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\World Circuit (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35771;World Court Tennis (USA);World Court Tennis (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\World Court Tennis (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35772;World Jockey (Japan);World Jockey (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\World Jockey (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35773;World Sports Competition (USA);World Sports Competition (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\World Sports Competition (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35774;Xevious - Fardraut Saga (Japan);Xevious - Fardraut Saga (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Xevious - Fardraut Saga (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35775;Yo, Bro (USA);Yo, Bro (USA);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Yo, Bro (USA).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35776;Youkai Douchuuki (J)[Ting];Youkai Douchuuki (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Youkai Douchuuki (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35777;Zero4 Champ (J)[Ting];Zero4 Champ (J)[Ting];D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Zero4 Champ (J)[Ting].zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;
+35778;Zipang (Japan);Zipang (Japan);D:\\Roms\\Nec PC Engine - TurboGrafx-16\\Roms\\Zipang (Japan).zip;;;;;;;;;;;;{};2026-11-04 01:46:51;;

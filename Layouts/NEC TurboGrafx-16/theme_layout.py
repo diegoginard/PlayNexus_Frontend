@@ -104,10 +104,12 @@ class ThemeLayout(BaseLayout):
     # Pantalla CRT TV: (x, y, w, h) en ratios de pantalla (1920x1080)
     TV_RECT = (0.054, 0.196, 0.313, 0.430)
 
-    # Tarjeta HuCard insertándose verticalmente desde arriba hacia la consola
-    CART_RECT = (0.370, 0.540, 0.095, 0.160)
-    CART_START_Y = 0.250
-    CART_END_Y = 0.540
+    # Tarjeta HuCard insertándose verticalmente desde abajo hacia la ranura frontal de la consola
+    CART_RECT = (0.446, 0.655, 0.069, 0.200)
+    CART_START_X = 0.480
+    CART_END_X = 0.446
+    CART_START_Y = 1.100
+    CART_END_Y = 0.655
     IS_CD = False
 
     # Carátula (Boxart) anclada abajo a la izquierda debajo de la TV CRT
@@ -264,13 +266,16 @@ class ThemeLayout(BaseLayout):
         self._avatar_bounce_timer.timeout.connect(self._on_avatar_bounce_tick)
         self._avatar_bounce_timer.start(20)
 
-        # Animación de entrada de la HuCard
+        # Animación de entrada de la HuCard (deslizándose desde abajo hacia la ranura frontal)
         self._cart_anim_timer = QTimer(self)
         self._cart_anim_timer.timeout.connect(self._on_cart_anim_tick)
         self._cart_anim_elapsed = 0
         self._cart_anim_duration = 550
+        self._cart_start_x_ratio = getattr(self, "CART_START_X", self.CART_RECT[0])
+        self._cart_end_x_ratio = getattr(self, "CART_END_X", self.CART_RECT[0])
         self._cart_start_y_ratio = self.CART_START_Y
         self._cart_end_y_ratio = self.CART_END_Y
+        self._cart_current_x_ratio = self._cart_end_x_ratio
         self._cart_current_y_ratio = self._cart_end_y_ratio
 
         # Animación de caída del logo superior
@@ -390,11 +395,15 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def _on_cart_anim_tick(self):
-        """Ejecuta la animación de descenso e inserción física de la tarjeta HuCard en la consola."""
+        """Ejecuta la animación de inserción física de la tarjeta HuCard deslizándose desde abajo hacia la ranura."""
         dt = 16
         self._cart_anim_elapsed += dt
         t = min(self._cart_anim_elapsed / self._cart_anim_duration, 1.0)
         ease = 1.0 - (1.0 - t) ** 3
+        self._cart_current_x_ratio = (
+            self._cart_start_x_ratio
+            + (self._cart_end_x_ratio - self._cart_start_x_ratio) * ease
+        )
         self._cart_current_y_ratio = (
             self._cart_start_y_ratio
             + (self._cart_end_y_ratio - self._cart_start_y_ratio) * ease
@@ -402,11 +411,13 @@ class ThemeLayout(BaseLayout):
         self.update()
         if t >= 1.0:
             self._cart_anim_timer.stop()
+            self._cart_current_x_ratio = self._cart_end_x_ratio
             self._cart_current_y_ratio = self._cart_end_y_ratio
 
     def _start_cart_animation(self):
         """Reinicia la cinemática de inserción de la tarjeta HuCard para el juego actual."""
         self._cart_anim_elapsed = 0
+        self._cart_current_x_ratio = self._cart_start_x_ratio
         self._cart_current_y_ratio = self._cart_start_y_ratio
         self._cart_anim_timer.start(16)
 
@@ -1056,15 +1067,17 @@ class ThemeLayout(BaseLayout):
             painter.drawPixmap(sx, logo_y, sw, sh, self._pix_logo)
 
     def _draw_cart_or_disc(self, painter: QPainter, sr: QRect):
-        """Renderiza la tarjeta HuCard simulando la inserción en la consola."""
+        """Renderiza la tarjeta HuCard simulando la inserción en la consola desde abajo."""
         sw, sh = sr.width(), sr.height()
         sx, sy = sr.x(), sr.y()
 
-        cx, cy_ratio, cw, ch = self.CART_RECT
-        cart_x = sx + int(sw * cx)
+        _, _, cw, ch = self.CART_RECT
+        cur_x = getattr(self, "_cart_current_x_ratio", self.CART_RECT[0])
+        cur_y = getattr(self, "_cart_current_y_ratio", self.CART_RECT[1])
+        cart_x = sx + int(sw * cur_x)
         cart_w = int(sw * cw)
         cart_h = int(sh * ch)
-        cart_y = sy + int(sh * self._cart_current_y_ratio)
+        cart_y = sy + int(sh * cur_y)
 
         cart_pix = getattr(self, "_current_cart_pixmap", None) if getattr(self, "_pending_cart_file", None) else self._pix_cartart_frame
         if cart_pix and not cart_pix.isNull():

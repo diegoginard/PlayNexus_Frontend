@@ -26,10 +26,11 @@ Al ejecutar `python build_executables.py`, se compilan y ensamblan todos los arc
   - `dist/PlayNexus_Logo.png` y `dist/app_icon.ico`: Logotipo e icono de la aplicación.
   *(Nota: La carpeta `dist/` se encuentra excluida del repositorio Git mediante `.gitignore` para mantener limpio el control de versiones).*
 
-### 2. Lanzadores por scripts (.bat)
-- **`PlayNexus.bat`**: Menú selector interactivo que te permite elegir entre iniciar el Frontend o el Configurador.
+### 2. Lanzadores y utilidades por scripts (.bat)
+- **`PlayNexus.bat`**: Menú selector interactivo que te permite elegir entre iniciar el Frontend, el Configurador o compilar los ejecutables.
 - **`PlayNexus_Launcher.bat`**: Inicia el Modo Frontend en pantalla completa creando o utilizando el entorno virtual `.venv`.
 - **`PlayNexus_Config.bat`**: Inicia el Modo Configurador con detección automática de Python y dependencias.
+- **`build_executables.bat` / `Compilar_EXE.bat`**: Automatiza la compilación con PyInstaller y genera la distribución limpia y portable en la carpeta `dist/`.
 
 ---
 
@@ -177,6 +178,20 @@ PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por
 ### 13. Confirmación Segura de Salida del Sistema
 - **Diálogo modal arcade con confirmación:** Al pulsar la tecla configurada para cerrar el frontend (por defecto `Escape`) o combo de mando (`Back+Start`), se despliega una ventana interactiva de confirmación que evita salidas involuntarias.
 - **Navegación completa por Joystick y Teclado:** Se puede alternar entre «Cancelar» y «Salir del Frontend» mediante las flechas o D-Pad, confirmar con Enter/Botón A o cancelar directamente con Escape/Botón B.
+
+### 14. Sistema de Salvapantallas (Screensaver Arcade)
+Inspirado y perfeccionado a partir del script oficial de Attract-Mode (`screensaver.nut`), PlayNexus incluye un motor nativo y dinámico de salvapantallas en PySide6:
+- **Detección inteligente de inactividad:** Se activa automáticamente al transcurrir el tiempo configurado sin interacción (por defecto 3 minutos) y se pausa de forma transparente mientras haya un emulador en juego.
+- **Cuatro modos visuales con rotación ponderada aleatoria:**
+  1. **Video a pantalla completa (`Basic Movie`):** Reproduce video snaps de juegos aleatorios con el logotipo del juego (`wheel` o `boxart`) flotante con sombra suave y transiciones de fade-in y fade-out.
+  2. **Collage de videos 2x2 (`Movie Collage`):** Cuadrícula de 4 videos simultáneos. Uno de los cuadrantes reproduce audio temático mientras los otros 3 permanecen en silencio para evitar saturación de sonido. Al finalizar un video se reemplaza por otro o rota el modo.
+  3. **Collage de imágenes 4x4 (`Image Collage`):** Mosaico dinámico de 16 capturas o carátulas donde cada 100 ms se reemplaza una celda al azar. Duración de 12 segundos antes de dar paso al siguiente modo.
+  4. **Efecto RGB animado (`RGB Movie`):** Video dividido en 3 columnas; la franja central modula dinámicamente colores RGB mientras las columnas laterales realizan un scroll vertical continuo en loop.
+- **Apagado profundo de pantalla (Blank Screen):** Pasa a negro absoluto (`#000000`) tras N minutos (por defecto 60 min) para proteger paneles OLED/CRT y ahorrar energía.
+- **Interactividad y salto directo al juego (On Select):**
+  - Mover el mouse, tocar cualquier tecla ordinaria o presionar botones del mando despierta el Frontend al instante reanudando el layout activo.
+  - Al presionar la acción **SELECT** (tecla `Enter` o botón `A` del mando), el salvapantallas se cierra y salta directamente al juego exhibido en ese preciso momento, seleccionándolo en la rueda o lista.
+- **Configuración completa en la pestaña *Modo Frontend*:** Tiempo de espera (1 a 120 min), selección de modos habilitados, selector de arte superpuesto (*Wheel*, *Flyer*, *Marquee* o *Ninguno*), activación de sonido, relación de aspecto y botón **«▶ Probar salvapantallas»**.
 
 ---
 

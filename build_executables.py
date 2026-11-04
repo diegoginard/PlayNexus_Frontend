@@ -53,6 +53,16 @@ gamepad_page_up = LB
 gamepad_page_down = RB
 gamepad_toggle_fps = R-Thumb
 gamepad_toggle_bezel = L-Thumb
+screensaver_enabled = true
+screensaver_timeout = 3
+screensaver_mode_basic_movie = true
+screensaver_mode_movie_collage = true
+screensaver_mode_image_collage = true
+screensaver_mode_rgb_movie = true
+screensaver_overlay_art = wheel
+screensaver_sound = true
+screensaver_preserve_ar = false
+screensaver_blank_time = 60
 """
 
 def setup_clean_environment(dist_dir: Path):

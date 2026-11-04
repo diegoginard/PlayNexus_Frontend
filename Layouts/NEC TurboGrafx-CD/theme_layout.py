@@ -87,7 +87,7 @@ class ThemeLayout(BaseLayout):
     CONSOLE_IMAGE = LAYOUT_DIR / "console.png"
     CONSOLE_COVER_IMAGE = None
     JOYSTICK_IMAGE = None
-    AVATAR_IMAGE = LAYOUT_DIR / "spaceship.png"
+    AVATAR_IMAGE = LAYOUT_DIR / "avatar.png"
     LOGO_IMAGE = LAYOUT_DIR / "logo.png"
     CARTART_IMAGE = LAYOUT_DIR / "discart.png"
     BOXART_IMAGE = None
