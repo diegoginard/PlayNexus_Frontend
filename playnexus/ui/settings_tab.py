@@ -6,12 +6,13 @@ Permite configurar:
 3. Configuración de pantalla y video del Frontend (modo de pantalla, resolución, monitor y escala).
 """
 
-from PySide6.QtCore import Qt, Signal, QTimer, QEvent
+from PySide6.QtCore import Qt, Signal, QTimer, QEvent, QSize
 from PySide6.QtGui import QFont, QGuiApplication, QKeyEvent
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QGroupBox, QCheckBox, QComboBox,
-    QSpinBox, QDialog, QMessageBox, QFrame, QScrollArea, QAbstractItemView
+    QSpinBox, QDialog, QMessageBox, QFrame, QScrollArea, QAbstractItemView,
+    QListWidget, QListWidgetItem, QStackedWidget
 )
 from playnexus.services.controls import (
     ACTIONS_INFO, get_all_bindings, set_binding, reset_default_bindings,
@@ -315,47 +316,113 @@ class SystemSettingsWidget(QWidget):
         self.db = db
 
         outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setContentsMargins(18, 16, 18, 16)
+        outer_layout.setSpacing(14)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(18)
-
-        # Encabezado principal
+        # Encabezado principal superior
         header_card = QFrame()
-        header_card.setStyleSheet("background-color: #1b1e2a; border-radius: 8px; padding: 12px;")
+        header_card.setStyleSheet("background-color: #1b1e2a; border: 1px solid #2a3143; border-radius: 8px; padding: 12px;")
         h_layout = QVBoxLayout(header_card)
-        title = QLabel("⚙ Configuración del Sistema y Controles")
-        title.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        h_layout.setContentsMargins(14, 10, 14, 10)
+        h_layout.setSpacing(4)
+        title = QLabel("⚙ Configuración del Sistema")
+        title.setFont(QFont("Segoe UI", 15, QFont.Bold))
         title.setStyleSheet("color: #ffffff;")
         h_layout.addWidget(title)
 
         desc = QLabel(
-            "Configurá los controles del teclado para navegar por las ruletas y listas, "
-            "el comportamiento al ejecutar emuladores (mute y tecla de cierre global), y las opciones de video."
+            "Administrá los controles de teclado y joystick, el comportamiento al ejecutar emuladores, "
+            "la pantalla y video del frontend, y las plantillas rápidas de emulación."
         )
-        desc.setStyleSheet("color: #9aa5b8; font-size: 10pt;")
+        desc.setStyleSheet("color: #9aa5b8; font-size: 9.5pt;")
         desc.setWordWrap(True)
         h_layout.addWidget(desc)
-        layout.addWidget(header_card)
+        outer_layout.addWidget(header_card)
+
+        # Cuerpo central: Barra de pestañas lateral a la izquierda y páginas a la derecha
+        body_layout = QHBoxLayout()
+        body_layout.setSpacing(16)
 
         # -------------------------------------------------------------
-        # 1. Grupo: Controles y Asignación de Teclas y Mandos
+        # Barra lateral de navegación (Sidebar Tabs) a la izquierda
         # -------------------------------------------------------------
-        grp_controls = QGroupBox("🎮 Controles y Asignación de Teclas y Mandos")
+        self.sidebar = QListWidget()
+        self.sidebar.setObjectName("settings_sidebar")
+        self.sidebar.setFixedWidth(275)
+        self.sidebar.setFocusPolicy(Qt.NoFocus)
+        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.sidebar.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.sidebar.setStyleSheet("""
+            QListWidget#settings_sidebar {
+                background-color: #161822;
+                border: 1px solid #2a3143;
+                border-radius: 8px;
+                padding: 6px;
+                outline: none;
+            }
+            QListWidget#settings_sidebar::item {
+                color: #a0aec0;
+                padding: 12px 14px;
+                border-radius: 6px;
+                font-size: 10pt;
+                font-weight: 500;
+                margin-bottom: 4px;
+            }
+            QListWidget#settings_sidebar::item:hover {
+                background-color: #222638;
+                color: #ffffff;
+            }
+            QListWidget#settings_sidebar::item:selected {
+                background-color: #5d48d9;
+                color: #ffffff;
+                font-weight: bold;
+            }
+        """)
+
+        sidebar_items = [
+            ("⌨️🎮  Configuración de teclas y mando", "Asignación de teclas y botones de joystick"),
+            ("🕹️  Comportamiento de emuladores", "Opciones de audio, salida y bezel overlay"),
+            ("🖥️  Pantalla y video del frontend", "Modo de pantalla, resolución, monitor y FPS"),
+            ("🧩  Plantilla rápida para emuladores", "Gestión de plantillas y presets de emuladores"),
+        ]
+
+        for item_text, item_tip in sidebar_items:
+            item = QListWidgetItem(item_text)
+            item.setToolTip(item_tip)
+            item.setSizeHint(QSize(255, 48))
+            self.sidebar.addItem(item)
+
+        body_layout.addWidget(self.sidebar)
+
+        # Contenedor apilado (QStackedWidget) a la derecha
+        self.stacked_widget = QStackedWidget()
+        self.sidebar.currentRowChanged.connect(self.stacked_widget.setCurrentIndex)
+
+        # Helper para crear scroll area homogéneo para cada sub-pestaña
+        def _make_tab_scroll(inner_widget: QWidget) -> QScrollArea:
+            sa = QScrollArea()
+            sa.setWidgetResizable(True)
+            sa.setStyleSheet("QScrollArea { border: 1px solid #2a3143; border-radius: 8px; background-color: #161822; }")
+            sa.setWidget(inner_widget)
+            return sa
+
+        # -------------------------------------------------------------
+        # Pestaña 1: Configuración de teclas y mando
+        # -------------------------------------------------------------
+        page_controls_container = QWidget()
+        page_controls_layout = QVBoxLayout(page_controls_container)
+        page_controls_layout.setContentsMargins(20, 18, 20, 18)
+        page_controls_layout.setSpacing(14)
+
+        grp_controls = QGroupBox("🎮 Configuración de Teclas y Mando")
         v_controls = QVBoxLayout(grp_controls)
-        v_controls.setSpacing(10)
+        v_controls.setSpacing(12)
 
         lbl_c_info = QLabel(
             "Configurá las teclas del teclado y los botones de mandos / joysticks para cada acción. "
             "Ambos métodos de control funcionan de manera simultánea en todo momento en PlayNexus."
         )
-        lbl_c_info.setStyleSheet("color: #a0aec0; font-size: 9pt;")
+        lbl_c_info.setStyleSheet("color: #a0aec0; font-size: 9.5pt;")
         lbl_c_info.setWordWrap(True)
         v_controls.addWidget(lbl_c_info)
 
@@ -380,14 +447,21 @@ class SystemSettingsWidget(QWidget):
         row_c_btns.addStretch(1)
         v_controls.addLayout(row_c_btns)
 
-        layout.addWidget(grp_controls)
+        page_controls_layout.addWidget(grp_controls)
+        page_controls_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_controls_container))
 
         # -------------------------------------------------------------
-        # 2. Grupo: Comportamiento de Emuladores
+        # Pestaña 2: Comportamiento de emuladores
         # -------------------------------------------------------------
+        page_emu_container = QWidget()
+        page_emu_layout = QVBoxLayout(page_emu_container)
+        page_emu_layout.setContentsMargins(20, 18, 20, 18)
+        page_emu_layout.setSpacing(14)
+
         grp_emu = QGroupBox("🕹 Comportamiento de Emuladores")
         v_emu = QVBoxLayout(grp_emu)
-        v_emu.setSpacing(10)
+        v_emu.setSpacing(14)
 
         self.chk_mute_video = QCheckBox("Silenciar audio de los videos snaps automáticamente al ejecutar un emulador")
         self.chk_mute_video.setStyleSheet("font-weight: 500; font-size: 10pt;")
@@ -424,14 +498,21 @@ class SystemSettingsWidget(QWidget):
         lbl_bezel_hint.setWordWrap(True)
         v_emu.addWidget(lbl_bezel_hint)
 
-        layout.addWidget(grp_emu)
+        page_emu_layout.addWidget(grp_emu)
+        page_emu_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_emu_container))
 
         # -------------------------------------------------------------
-        # 3. Grupo: Pantalla y Video (Frontend)
+        # Pestaña 3: Pantalla y video del frontend
         # -------------------------------------------------------------
+        page_video_container = QWidget()
+        page_video_layout = QVBoxLayout(page_video_container)
+        page_video_layout.setContentsMargins(20, 18, 20, 18)
+        page_video_layout.setSpacing(14)
+
         grp_video = QGroupBox("🖥 Pantalla y Video del Frontend")
         v_video = QVBoxLayout(grp_video)
-        v_video.setSpacing(12)
+        v_video.setSpacing(14)
 
         row_v1 = QHBoxLayout()
         row_v1.setSpacing(16)
@@ -515,33 +596,39 @@ class SystemSettingsWidget(QWidget):
         lbl_driver_hint.setWordWrap(True)
         v_video.addWidget(lbl_driver_hint)
 
-        # Opción para activar / desactivar contador de FPS en el frontend
         self.chk_show_fps = QCheckBox("Mostrar contador de FPS y rendimiento en el frontend (Overlay)")
         self.chk_show_fps.setStyleSheet("font-weight: 500; font-size: 10pt; margin-top: 6px;")
         v_video.addWidget(self.chk_show_fps)
 
         lbl_fps_hint = QLabel(
             "Muestra en tiempo real los fotogramas por segundo (FPS), tiempo de render, resolución y motor gráfico. "
-            "Podés activarlo/desactivarlo aquí o en cualquier momento mediante la tecla o botón asignado en la tabla de controles superior."
+            "Podés activarlo/desactivarlo aquí o en cualquier momento mediante la tecla o botón asignado en la tabla de controles."
         )
         lbl_fps_hint.setStyleSheet("color: #718096; font-size: 8.5pt; margin-left: 24px;")
         lbl_fps_hint.setWordWrap(True)
         v_video.addWidget(lbl_fps_hint)
 
-        layout.addWidget(grp_video)
+        page_video_layout.addWidget(grp_video)
+        page_video_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_video_container))
 
         # -------------------------------------------------------------
-        # 4. Grupo: Plantillas Rápidas para Emuladores
+        # Pestaña 4: Plantilla rápida para emuladores
         # -------------------------------------------------------------
-        grp_templates = QGroupBox("🧩 Plantillas Rápidas para Emuladores")
+        page_tmpl_container = QWidget()
+        page_tmpl_layout = QVBoxLayout(page_tmpl_container)
+        page_tmpl_layout.setContentsMargins(20, 18, 20, 18)
+        page_tmpl_layout.setSpacing(14)
+
+        grp_templates = QGroupBox("🧩 Plantilla Rápida para Emuladores")
         v_templates = QVBoxLayout(grp_templates)
-        v_templates.setSpacing(10)
+        v_templates.setSpacing(12)
 
         lbl_tmpl_desc = QLabel(
             "Administrá las plantillas que aparecen en el menú desplegable «Plantilla rápida» al dar de alta o configurar emuladores. "
             "Podés crear tus propios presets con ejecutables, argumentos y plataformas habituales."
         )
-        lbl_tmpl_desc.setStyleSheet("color: #a0aec0; font-size: 9pt;")
+        lbl_tmpl_desc.setStyleSheet("color: #a0aec0; font-size: 9.5pt;")
         lbl_tmpl_desc.setWordWrap(True)
         v_templates.addWidget(lbl_tmpl_desc)
 
@@ -562,7 +649,7 @@ class SystemSettingsWidget(QWidget):
         self.templates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.templates_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.templates_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.templates_table.setMinimumHeight(220)
+        self.templates_table.setMinimumHeight(240)
         self.templates_table.doubleClicked.connect(self._edit_selected_template)
         v_templates.addWidget(self.templates_table)
 
@@ -586,24 +673,34 @@ class SystemSettingsWidget(QWidget):
         row_t_btns.addWidget(btn_reset_tmpl)
 
         v_templates.addLayout(row_t_btns)
-        layout.addWidget(grp_templates)
 
-        # Barra inferior de guardado
+        page_tmpl_layout.addWidget(grp_templates)
+        page_tmpl_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_tmpl_container))
+
+        # Seleccionar la primera pestaña lateral por defecto
+        self.sidebar.setCurrentRow(0)
+        body_layout.addWidget(self.stacked_widget, 1)
+        outer_layout.addLayout(body_layout, 1)
+
+        # -------------------------------------------------------------
+        # Barra inferior fija de guardado para todas las secciones
+        # -------------------------------------------------------------
         save_bar = QHBoxLayout()
         save_bar.addStretch(1)
 
         self.save_btn = QPushButton("💾 Guardar Configuración del Sistema")
         self.save_btn.setObjectName("primary")
         self.save_btn.setMinimumHeight(42)
-        self.save_btn.setMinimumWidth(260)
+        self.save_btn.setMinimumWidth(280)
         self.save_btn.clicked.connect(self.save_all)
         save_bar.addWidget(self.save_btn)
 
-        layout.addLayout(save_bar)
-        layout.addStretch(1)
+        outer_layout.addLayout(save_bar)
 
-        scroll.setWidget(container)
-        outer_layout.addWidget(scroll)
+        self.refresh_controls_table()
+        self.refresh_templates_table()
+        self.load_settings()
 
         self.refresh_controls_table()
         self.refresh_templates_table()

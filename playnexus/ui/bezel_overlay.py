@@ -6,6 +6,8 @@ con soporte de animación de fundido suave (fade-in) configurable.
 """
 import sys
 import ctypes
+if sys.platform == "win32":
+    import ctypes.wintypes
 import time
 from pathlib import Path
 from PySide6.QtCore import Qt, QRect, QTimer, Signal
@@ -95,7 +97,6 @@ class BezelOverlayWindow(QWidget):
         """
         Aplica los estilos extendidos de Win32:
         - WS_EX_TRANSPARENT (0x00000020): El mouse y los clics traspasan la ventana hacia el emulador.
-        - WS_EX_LAYERED (0x00080000): Soporte para composición de transparencia en Windows.
         - WS_EX_NOACTIVATE (0x08000000): Nunca roba el foco de la ventana activa al mostrarse.
         - HWND_TOPMOST (-1): Permanece siempre en primer plano cubriendo los marcos del monitor.
         """
@@ -104,11 +105,10 @@ class BezelOverlayWindow(QWidget):
             user32 = ctypes.windll.user32
             GWL_EXSTYLE = -20
             WS_EX_TRANSPARENT = 0x00000020
-            WS_EX_LAYERED = 0x00080000
             WS_EX_NOACTIVATE = 0x08000000
 
             style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE)
+            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE)
 
             HWND_TOPMOST = -1
             SWP_NOMOVE = 0x0002
@@ -119,18 +119,51 @@ class BezelOverlayWindow(QWidget):
         except Exception:
             pass
 
+    def attach_to_target_hwnd(self, emu_hwnd: int):
+        """
+        Asocia esta ventana como Owned Window de la ventana del emulador en Win32.
+        En Windows, una Owned Window (GWLP_HWNDPARENT) siempre se dibuja por encima
+        de su ventana propietaria, impidiendo que el emulador la tape al tomar foco.
+        """
+        if sys.platform == "win32" and emu_hwnd:
+            try:
+                hwnd = int(self.winId())
+                user32 = ctypes.windll.user32
+                GWLP_HWNDPARENT = -8
+                try:
+                    user32.SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, emu_hwnd)
+                except AttributeError:
+                    user32.SetWindowLongW(hwnd, GWLP_HWNDPARENT, emu_hwnd)
+                self.bring_to_top()
+            except Exception:
+                pass
+
     def bring_to_top(self):
-        """Reafirma la posición TOPMOST si el emulador cambió de modo de pantalla."""
+        """Reafirma la posición TOPMOST sin activar la ventana ni robar el foco del emulador."""
         if sys.platform == "win32":
             try:
                 hwnd = int(self.winId())
+                user32 = ctypes.windll.user32
                 HWND_TOPMOST = -1
                 SWP_NOMOVE = 0x0002
                 SWP_NOSIZE = 0x0001
                 SWP_NOACTIVATE = 0x0010
-                ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                SWP_SHOWWINDOW = 0x0040
+                user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW)
             except Exception:
                 pass
+
+    def nativeEvent(self, eventType, message):
+        """Previene la captura de clics y garantiza que la ventana nunca se active por mouse."""
+        if sys.platform == "win32" and eventType == b"windows_generic_MSG":
+            msg = ctypes.wintypes.MSG.from_address(message.__int__())
+            # WM_MOUSEACTIVATE = 0x0021 -> MA_NOACTIVATE (3): No activar nunca por clic
+            if msg.message == 0x0021:
+                return True, 3
+            # WM_NCHITTEST = 0x0084 -> HTTRANSPARENT (-1): Traspasar cualquier hit-test al emulador
+            if msg.message == 0x0084:
+                return True, -1
+        return super().nativeEvent(eventType, message)
 
     def paintEvent(self, event):
         if self.bezel_pixmap.isNull() or self._opacity <= 0.0:

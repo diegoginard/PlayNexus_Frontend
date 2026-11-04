@@ -11,12 +11,13 @@ Permite configurar:
 
 import sys
 from pathlib import Path
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QSpinBox, QGroupBox, QFrame, QScrollArea, QTableWidget, QTableWidgetItem,
-    QHeaderView, QMessageBox, QCheckBox, QLineEdit, QFileDialog
+    QHeaderView, QMessageBox, QCheckBox, QLineEdit, QFileDialog,
+    QListWidget, QListWidgetItem, QStackedWidget
 )
 from playnexus.db import Database, APP_DIR
 from playnexus.ui.layouts import get_available_layouts
@@ -40,25 +41,17 @@ class FrontendSettingsWidget(QWidget):
 
     def _build_ui(self):
         outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(16)
+        outer_layout.setContentsMargins(18, 16, 18, 16)
+        outer_layout.setSpacing(14)
 
         # -------------------------------------------------------------
-        # 1. ENCABEZADO
+        # 1. ENCABEZADO SUPERIOR
         # -------------------------------------------------------------
         header_card = QFrame()
-        header_card.setStyleSheet("background-color: #1b1e2a; border-radius: 8px; padding: 12px;")
+        header_card.setStyleSheet("background-color: #1b1e2a; border: 1px solid #2a3143; border-radius: 8px; padding: 12px;")
         h_layout = QVBoxLayout(header_card)
-        h_layout.setContentsMargins(8, 8, 8, 8)
-        h_layout.setSpacing(6)
+        h_layout.setContentsMargins(14, 10, 14, 10)
+        h_layout.setSpacing(4)
 
         title = QLabel("📺  Configuración del Modo Frontend (Pantalla Completa)")
         title.setFont(QFont("Segoe UI", 15, QFont.Bold))
@@ -66,21 +59,92 @@ class FrontendSettingsWidget(QWidget):
         h_layout.addWidget(title)
 
         desc = QLabel(
-            "En esta sección podés determinar qué lista o menú de sistemas se mostrará al iniciar el frontend "
-            "en pantalla completa sin botones. Si seleccionás un Menú de Sistemas (lista de listas), podrás definir "
-            "el diseño visual individual que tendrá cada sistema vinculado cuando el usuario ingrese a él."
+            "Configurá el elemento de arranque del frontend, los diseños visuales de los menús de sistemas, "
+            "la pantalla y monitor de destino, el video de bienvenida y el salvapantallas interactivo."
         )
         desc.setStyleSheet("color: #9aa5b8; font-size: 9.5pt;")
         desc.setWordWrap(True)
         h_layout.addWidget(desc)
-        layout.addWidget(header_card)
+        outer_layout.addWidget(header_card)
 
         # -------------------------------------------------------------
-        # 2. INICIO PRINCIPAL DEL FRONTEND
+        # CUERPO CENTRAL: Pestañas laterales a la izquierda y páginas a la derecha
         # -------------------------------------------------------------
+        body_layout = QHBoxLayout()
+        body_layout.setSpacing(16)
+
+        # Barra lateral de pestañas (Sidebar)
+        self.sidebar = QListWidget()
+        self.sidebar.setObjectName("frontend_sidebar")
+        self.sidebar.setFixedWidth(275)
+        self.sidebar.setFocusPolicy(Qt.NoFocus)
+        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.sidebar.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.sidebar.setStyleSheet("""
+            QListWidget#frontend_sidebar {
+                background-color: #161822;
+                border: 1px solid #2a3143;
+                border-radius: 8px;
+                padding: 6px;
+                outline: none;
+            }
+            QListWidget#frontend_sidebar::item {
+                color: #a0aec0;
+                padding: 12px 14px;
+                border-radius: 6px;
+                font-size: 10pt;
+                font-weight: 500;
+                margin-bottom: 4px;
+            }
+            QListWidget#frontend_sidebar::item:hover {
+                background-color: #222638;
+                color: #ffffff;
+            }
+            QListWidget#frontend_sidebar::item:selected {
+                background-color: #5d48d9;
+                color: #ffffff;
+                font-weight: bold;
+            }
+        """)
+
+        sidebar_items = [
+            ("🚀  Elemento de Inicio", "Lista o Menú principal y diseño de arranque"),
+            ("🧭  Menús de Sistemas y Diseños", "Diseños visuales individuales para sub-listas"),
+            ("🖥️  Pantalla y Monitor", "Modo de pantalla, monitor y resolución"),
+            ("🎬  Pantalla de Bienvenida (Splash)", "Video de introducción al iniciar el Frontend"),
+            ("💤  Salvapantallas (Screensaver)", "Tiempos, modos visuales de video y sonido"),
+        ]
+
+        for item_text, item_tip in sidebar_items:
+            item = QListWidgetItem(item_text)
+            item.setToolTip(item_tip)
+            item.setSizeHint(QSize(255, 48))
+            self.sidebar.addItem(item)
+
+        body_layout.addWidget(self.sidebar)
+
+        # Contenedor apilado (QStackedWidget) a la derecha
+        self.stacked_widget = QStackedWidget()
+        self.sidebar.currentRowChanged.connect(self.stacked_widget.setCurrentIndex)
+
+        def _make_tab_scroll(inner_widget: QWidget) -> QScrollArea:
+            sa = QScrollArea()
+            sa.setWidgetResizable(True)
+            sa.setStyleSheet("QScrollArea { border: 1px solid #2a3143; border-radius: 8px; background-color: #161822; }")
+            sa.setWidget(inner_widget)
+            return sa
+
+        # -------------------------------------------------------------
+        # PESTAÑA 1: Elemento de Inicio
+        # -------------------------------------------------------------
+        page_start_container = QWidget()
+        page_start_layout = QVBoxLayout(page_start_container)
+        page_start_layout.setContentsMargins(20, 18, 20, 18)
+        page_start_layout.setSpacing(14)
+
         grp_startup = QGroupBox("🚀 Elemento de Inicio del Frontend")
         v_startup = QVBoxLayout(grp_startup)
-        v_startup.setSpacing(12)
+        v_startup.setSpacing(14)
 
         row_start = QHBoxLayout()
         row_start.setSpacing(14)
@@ -109,14 +173,21 @@ class FrontendSettingsWidget(QWidget):
         self.startup_info_label.setWordWrap(True)
         v_startup.addWidget(self.startup_info_label)
 
-        layout.addWidget(grp_startup)
+        page_start_layout.addWidget(grp_startup)
+        page_start_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_start_container))
 
         # -------------------------------------------------------------
-        # 3. MENÚS DE SISTEMAS Y DISEÑOS DE SUB-LISTAS
+        # PESTAÑA 2: Menús de Sistemas y Diseños
         # -------------------------------------------------------------
+        page_menu_container = QWidget()
+        page_menu_layout = QVBoxLayout(page_menu_container)
+        page_menu_layout.setContentsMargins(20, 18, 20, 18)
+        page_menu_layout.setSpacing(14)
+
         self.grp_menu_systems = QGroupBox("🧭 Diseños Visuales para Menús de Sistemas (Listas de listas)")
         v_menu = QVBoxLayout(self.grp_menu_systems)
-        v_menu.setSpacing(12)
+        v_menu.setSpacing(14)
 
         # Explicación del funcionamiento
         notice_box = QFrame()
@@ -158,7 +229,7 @@ class FrontendSettingsWidget(QWidget):
         self.sublists_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.sublists_table.setAlternatingRowColors(True)
         self.sublists_table.setSelectionMode(QTableWidget.NoSelection)
-        self.sublists_table.setMinimumHeight(220)
+        self.sublists_table.setMinimumHeight(240)
         v_menu.addWidget(self.sublists_table)
 
         self.empty_menu_label = QLabel("Este menú no tiene sistemas vinculados actualmente.")
@@ -167,14 +238,21 @@ class FrontendSettingsWidget(QWidget):
         self.empty_menu_label.setVisible(False)
         v_menu.addWidget(self.empty_menu_label)
 
-        layout.addWidget(self.grp_menu_systems)
+        page_menu_layout.addWidget(self.grp_menu_systems)
+        page_menu_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_menu_container))
 
         # -------------------------------------------------------------
-        # 4. OPCIONES DE PANTALLA Y VIDEO
+        # PESTAÑA 3: Pantalla y Monitor
         # -------------------------------------------------------------
+        page_video_container = QWidget()
+        page_video_layout = QVBoxLayout(page_video_container)
+        page_video_layout.setContentsMargins(20, 18, 20, 18)
+        page_video_layout.setSpacing(14)
+
         grp_video = QGroupBox("🖥 Pantalla y Monitor del Frontend")
         v_video = QVBoxLayout(grp_video)
-        v_video.setSpacing(12)
+        v_video.setSpacing(14)
 
         row_v = QHBoxLayout()
         row_v.setSpacing(16)
@@ -242,14 +320,22 @@ class FrontendSettingsWidget(QWidget):
 
         v_video.addWidget(self.custom_res_container)
         self.custom_res_container.setVisible(False)
-        layout.addWidget(grp_video)
+
+        page_video_layout.addWidget(grp_video)
+        page_video_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_video_container))
 
         # -------------------------------------------------------------
-        # 5. PANTALLA DE BIENVENIDA (SPLASH SCREEN DE VIDEO)
+        # PESTAÑA 4: Pantalla de Bienvenida (Splash Screen de Video)
         # -------------------------------------------------------------
+        page_splash_container = QWidget()
+        page_splash_layout = QVBoxLayout(page_splash_container)
+        page_splash_layout.setContentsMargins(20, 18, 20, 18)
+        page_splash_layout.setSpacing(14)
+
         grp_splash = QGroupBox("🎬 Pantalla de Bienvenida (Splash Screen de Video)")
         v_splash = QVBoxLayout(grp_splash)
-        v_splash.setSpacing(10)
+        v_splash.setSpacing(12)
 
         self.chk_splash = QCheckBox("Reproducir video de presentación al iniciar el Frontend")
         self.chk_splash.setStyleSheet("font-weight: 500; font-size: 10pt;")
@@ -289,14 +375,22 @@ class FrontendSettingsWidget(QWidget):
 
         v_splash.addWidget(self.splash_container)
         self.splash_container.setVisible(False)
-        layout.addWidget(grp_splash)
+
+        page_splash_layout.addWidget(grp_splash)
+        page_splash_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_splash_container))
 
         # -------------------------------------------------------------
-        # 6. SALVAPANTALLAS (SCREENSAVER)
+        # PESTAÑA 5: Salvapantallas (Screensaver)
         # -------------------------------------------------------------
+        page_ss_container = QWidget()
+        page_ss_layout = QVBoxLayout(page_ss_container)
+        page_ss_layout.setContentsMargins(20, 18, 20, 18)
+        page_ss_layout.setSpacing(14)
+
         grp_screensaver = QGroupBox("💤 Salvapantallas (Screensaver)")
         v_ss = QVBoxLayout(grp_screensaver)
-        v_ss.setSpacing(12)
+        v_ss.setSpacing(14)
 
         self.chk_screensaver = QCheckBox("Activar salvapantallas tras inactividad")
         self.chk_screensaver.setStyleSheet("font-weight: 500; font-size: 10pt;")
@@ -306,7 +400,7 @@ class FrontendSettingsWidget(QWidget):
         self.screensaver_container = QWidget()
         v_ss_box = QVBoxLayout(self.screensaver_container)
         v_ss_box.setContentsMargins(0, 0, 0, 0)
-        v_ss_box.setSpacing(12)
+        v_ss_box.setSpacing(14)
 
         # Fila 1: Tiempo de inactividad y Arte superpuesto
         row_ss_1 = QHBoxLayout()
@@ -403,10 +497,18 @@ class FrontendSettingsWidget(QWidget):
 
         v_ss.addWidget(self.screensaver_container)
         self.screensaver_container.setVisible(False)
-        layout.addWidget(grp_screensaver)
+
+        page_ss_layout.addWidget(grp_screensaver)
+        page_ss_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_ss_container))
+
+        # Seleccionar la primera pestaña lateral por defecto
+        self.sidebar.setCurrentRow(0)
+        body_layout.addWidget(self.stacked_widget, 1)
+        outer_layout.addLayout(body_layout, 1)
 
         # -------------------------------------------------------------
-        # 7. BOTÓN DE INICIO DEL FRONTEND
+        # BOTÓN DE INICIO DEL FRONTEND (FIJO EN LA PARTE INFERIOR)
         # -------------------------------------------------------------
         btn_bar = QHBoxLayout()
         btn_bar.addStretch(1)
@@ -414,7 +516,7 @@ class FrontendSettingsWidget(QWidget):
         self.btn_launch = QPushButton("▶  INICIAR FRONTEND EN PANTALLA COMPLETA")
         self.btn_launch.setObjectName("primary")
         self.btn_launch.setMinimumHeight(48)
-        self.btn_launch.setMinimumWidth(360)
+        self.btn_launch.setMinimumWidth(380)
         self.btn_launch.setStyleSheet("""
             QPushButton#primary {
                 background-color: #5d48d9;
@@ -432,11 +534,7 @@ class FrontendSettingsWidget(QWidget):
         btn_bar.addWidget(self.btn_launch)
         btn_bar.addStretch(1)
 
-        layout.addLayout(btn_bar)
-        layout.addStretch(1)
-
-        scroll.setWidget(container)
-        outer_layout.addWidget(scroll)
+        outer_layout.addLayout(btn_bar)
 
     # -----------------------------------------------------------------
     # CARGA Y ACTUALIZACIÓN DE DATOS

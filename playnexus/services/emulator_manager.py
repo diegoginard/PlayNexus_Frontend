@@ -65,6 +65,7 @@ class EmulatorManager(QObject):
         self._current_emulator = None
         self._current_game = None
         self._tick_counter = 0
+        self._target_emu_hwnd: int | None = None
         self._exit_locked = False
         self._bezel_delay_timer: QTimer | None = None
         self._unlock_timer: QTimer | None = None
@@ -119,6 +120,7 @@ class EmulatorManager(QObject):
         self._current_emulator = emulator
         self._current_game = game
         self._exit_locked = True
+        self._target_emu_hwnd = None
 
         # Detener temporizadores previos si existieran
         if self._bezel_delay_timer and self._bezel_delay_timer.isActive():
@@ -251,11 +253,87 @@ class EmulatorManager(QObject):
         self._timer.start()
         self.emulator_started.emit(game_title)
 
+    def _find_emulator_hwnd(self) -> int | None:
+        """Encuentra la ventana principal visible del proceso del emulador activo."""
+        if sys.platform != "win32" or not self.active_proc:
+            return None
+        pid = self.active_proc.pid
+        candidates = []
+        user32 = ctypes.windll.user32
+
+        def enum_cb(hwnd, lparam):
+            if user32.IsWindowVisible(hwnd):
+                p_pid = ctypes.c_ulong()
+                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(p_pid))
+                if p_pid.value == pid:
+                    rect = (ctypes.c_long * 4)()
+                    user32.GetWindowRect(hwnd, rect)
+                    w = rect[2] - rect[0]
+                    h = rect[3] - rect[1]
+                    if w > 100 and h > 100:
+                        candidates.append((w * h, hwnd))
+            return True
+
+        WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+        user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
+        if candidates:
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            return candidates[0][1]
+        return None
+
+    def refocus_emulator(self):
+        """Asegura que la ventana del emulador tenga el foco de primer plano en Windows."""
+        if sys.platform != "win32" or not self._target_emu_hwnd:
+            return
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            if not user32.IsWindow(self._target_emu_hwnd):
+                return
+
+            if self.active_proc:
+                try:
+                    user32.AllowSetForegroundWindow(self.active_proc.pid)
+                except Exception:
+                    pass
+
+            fore_hwnd = user32.GetForegroundWindow()
+            if fore_hwnd == self._target_emu_hwnd:
+                return
+
+            cur_thread = kernel32.GetCurrentThreadId()
+            fore_thread = user32.GetWindowThreadProcessId(fore_hwnd, None) if fore_hwnd else 0
+            target_thread = user32.GetWindowThreadProcessId(self._target_emu_hwnd, None)
+
+            attached_cur = False
+            attached_fore = False
+            if target_thread and cur_thread != target_thread:
+                attached_cur = bool(user32.AttachThreadInput(cur_thread, target_thread, True))
+            if target_thread and fore_thread and fore_thread != target_thread:
+                attached_fore = bool(user32.AttachThreadInput(fore_thread, target_thread, True))
+
+            user32.SetForegroundWindow(self._target_emu_hwnd)
+            user32.SetActiveWindow(self._target_emu_hwnd)
+            user32.SetFocus(self._target_emu_hwnd)
+
+            if attached_cur:
+                user32.AttachThreadInput(cur_thread, target_thread, False)
+            if attached_fore:
+                user32.AttachThreadInput(fore_thread, target_thread, False)
+        except Exception:
+            pass
+
     def _on_bezel_delay_timeout(self):
         if self.is_running() and self.bezel_overlay:
             try:
                 self.bezel_overlay.show()
+                if not self._target_emu_hwnd:
+                    self._target_emu_hwnd = self._find_emulator_hwnd()
+                if self._target_emu_hwnd:
+                    self.bezel_overlay.attach_to_target_hwnd(self._target_emu_hwnd)
+                self.bezel_overlay.bring_to_top()
                 self.bezel_overlay.start_fade()
+                self.refocus_emulator()
             except Exception:
                 self._unlock_exit()
         else:
@@ -278,50 +356,28 @@ class EmulatorManager(QObject):
             return
 
         self._tick_counter += 1
-        if self._tick_counter % 20 == 0 and self.bezel_overlay and self.bezel_overlay.isVisible():
-            self.bezel_overlay.bring_to_top()
+        # Reafirmar prioridad TOPMOST y asociación como Owned Window ante emuladores (SDL2/SDL3/DirectX)
+        if self.bezel_overlay and self.bezel_overlay.isVisible():
+            if not self._target_emu_hwnd:
+                self._target_emu_hwnd = self._find_emulator_hwnd()
+                if self._target_emu_hwnd:
+                    self.bezel_overlay.attach_to_target_hwnd(self._target_emu_hwnd)
+                    self.refocus_emulator()
 
-        # Si el cierre aún está bloqueado (aguardando que aparezca el bezel para evitar crasheos), ignorar comandos de salida
-        if self._exit_locked:
-            return
+            check_interval = 4 if self._tick_counter < 100 else 15
+            if self._tick_counter % check_interval == 0:
+                self.bezel_overlay.bring_to_top()
 
-        # 2. Verificar tecla global de salida en Windows
-        if self.global_exit_enabled and sys.platform == "win32":
+        # Durante los primeros segundos del emulador, asegurar que no haya perdido el foco frente al frontend
+        if sys.platform == "win32" and self._target_emu_hwnd and self._tick_counter in (2, 6, 12, 24):
             try:
-                # GetAsyncKeyState retorna < 0 (bit 15 en 1) si la tecla está presionada
-                state = ctypes.windll.user32.GetAsyncKeyState(self.exit_vk)
-                if state & 0x8000:
-                    # Si el atajo requiere modificadores (Ctrl, Alt, Shift), comprobar que coincidan
-                    parts = [p.strip().lower() for p in (self.exit_key_name or "").split("+")]
-                    req_ctrl = "ctrl" in parts[:-1]
-                    req_alt = "alt" in parts[:-1]
-                    req_shift = "shift" in parts[:-1]
-
-                    ctrl_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x11) & 0x8000)
-                    alt_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x12) & 0x8000)
-                    shift_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x10) & 0x8000)
-
-                    if (req_ctrl == ctrl_pressed) and (req_alt == alt_pressed) and (req_shift == shift_pressed):
-                        self.terminate_active_emulator()
-                        return
+                fore = ctypes.windll.user32.GetForegroundWindow()
+                if fore != self._target_emu_hwnd:
+                    self.refocus_emulator()
             except Exception:
                 pass
 
-        # 3. Verificar combo de salida en mando (Back + Start)
-        if self.gamepad_exit_enabled and self._xinput:
-            try:
-                for port in range(4):
-                    x_state = _XINPUT_STATE()
-                    if self._xinput.XInputGetState(port, ctypes.byref(x_state)) == 0:
-                        buttons = x_state.Gamepad.wButtons
-                        # Back (0x0020) + Start (0x0010) = 0x0030
-                        if (buttons & 0x0030) == 0x0030:
-                            self.terminate_active_emulator()
-                            return
-            except Exception:
-                pass
-
-        # 4. Verificar tecla o botón de mando para alternar Bezel Overlay (ocultar / mostrar)
+        # 2. Verificar tecla o botón de mando para alternar Bezel Overlay (ocultar / mostrar)
         if self.bezel_overlay and sys.platform == "win32":
             key_down = False
             if self.toggle_bezel_vk:
@@ -343,7 +399,38 @@ class EmulatorManager(QObject):
                     pass
 
             pad_down = False
-            if self.toggle_bezel_pad_name:
+            # Detección directa por XInput para mínima latencia y máxima compatibilidad
+            if self.toggle_bezel_pad_name and self._xinput:
+                try:
+                    _PAD_MASKS = {
+                        "l-thumb": 0x0040, "l3": 0x0040, "ls": 0x0040, "button 9": 0x0040,
+                        "r-thumb": 0x0080, "r3": 0x0080, "rs": 0x0080, "button 10": 0x0080,
+                        "lb": 0x0100, "button 5": 0x0100,
+                        "rb": 0x0200, "button 6": 0x0200,
+                        "a": 0x1000, "button 1": 0x1000,
+                        "b": 0x2000, "button 2": 0x2000,
+                        "x": 0x4000, "button 3": 0x4000,
+                        "y": 0x8000, "button 4": 0x8000,
+                        "start": 0x0010, "back": 0x0020, "select": 0x0020,
+                    }
+                    target_mask = _PAD_MASKS.get(self.toggle_bezel_pad_name.strip().lower(), 0)
+                    if not target_mask:
+                        for alias in GAMEPAD_ACTION_ALIASES.get(ACTION_TOGGLE_BEZEL, []):
+                            target_mask = _PAD_MASKS.get(alias.strip().lower(), 0)
+                            if target_mask:
+                                break
+                    if target_mask:
+                        for port in range(4):
+                            x_state = _XINPUT_STATE()
+                            if self._xinput.XInputGetState(port, ctypes.byref(x_state)) == 0:
+                                if x_state.Gamepad.wButtons & target_mask:
+                                    pad_down = True
+                                    break
+                except Exception:
+                    pass
+
+            # Fallback general para mandos DirectInput / USB Arcade mediante poll_raw_gamepad_inputs
+            if not pad_down and self.toggle_bezel_pad_name:
                 try:
                     from playnexus.services.gamepad import poll_raw_gamepad_inputs
                     pressed_inputs = poll_raw_gamepad_inputs()
@@ -356,6 +443,46 @@ class EmulatorManager(QObject):
             if is_active and not getattr(self, "_prev_toggle_bezel_down", False):
                 self.toggle_bezel_overlay()
             self._prev_toggle_bezel_down = is_active
+
+        # Si el cierre aún está bloqueado (aguardando que aparezca el bezel para evitar crasheos), ignorar comandos de salida
+        if self._exit_locked:
+            return
+
+        # 3. Verificar tecla global de salida en Windows
+        if self.global_exit_enabled and sys.platform == "win32":
+            try:
+                # GetAsyncKeyState retorna < 0 (bit 15 en 1) si la tecla está presionada
+                state = ctypes.windll.user32.GetAsyncKeyState(self.exit_vk)
+                if state & 0x8000:
+                    # Si el atajo requiere modificadores (Ctrl, Alt, Shift), comprobar que coincidan
+                    parts = [p.strip().lower() for p in (self.exit_key_name or "").split("+")]
+                    req_ctrl = "ctrl" in parts[:-1]
+                    req_alt = "alt" in parts[:-1]
+                    req_shift = "shift" in parts[:-1]
+
+                    ctrl_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x11) & 0x8000)
+                    alt_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x12) & 0x8000)
+                    shift_pressed = bool(ctypes.windll.user32.GetAsyncKeyState(0x10) & 0x8000)
+
+                    if (req_ctrl == ctrl_pressed) and (req_alt == alt_pressed) and (req_shift == shift_pressed):
+                        self.terminate_active_emulator()
+                        return
+            except Exception:
+                pass
+
+        # 4. Verificar combo de salida en mando (Back + Start)
+        if self.gamepad_exit_enabled and self._xinput:
+            try:
+                for port in range(4):
+                    x_state = _XINPUT_STATE()
+                    if self._xinput.XInputGetState(port, ctypes.byref(x_state)) == 0:
+                        buttons = x_state.Gamepad.wButtons
+                        # Back (0x0020) + Start (0x0010) = 0x0030
+                        if (buttons & 0x0030) == 0x0030:
+                            self.terminate_active_emulator()
+                            return
+            except Exception:
+                pass
 
     def _is_gamepad_action_pressed(self, pressed_inputs: set[str], assigned: str, action: str) -> bool:
         """Determina si las entradas actuales del mando coinciden con la asignación o sus alias."""
@@ -387,7 +514,14 @@ class EmulatorManager(QObject):
                 self.bezel_overlay.hide()
             else:
                 self.bezel_overlay.show()
+                if sys.platform == "win32":
+                    try:
+                        hwnd = int(self.bezel_overlay.winId())
+                        ctypes.windll.user32.ShowWindow(hwnd, 4)  # SW_SHOWNOACTIVATE
+                    except Exception:
+                        pass
                 self.bezel_overlay.bring_to_top()
+                self.refocus_emulator()
         except Exception:
             pass
 

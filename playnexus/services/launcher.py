@@ -159,7 +159,9 @@ def _launch_game_impl(db, game, layout=None, parent_window=None):
         working_dir = str(exe.parent)
 
     # Ejecutar emulador sin bloquear la aplicación
-    proc = subprocess.Popen([str(exe), *args], cwd=working_dir)
+    env = os.environ.copy()
+    env["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
+    proc = subprocess.Popen([str(exe), *args], cwd=working_dir, env=env)
 
     # Iniciar monitoreo del proceso (silenciar videos de fondo, bezel overlay y capturar tecla global de salida)
     try:
