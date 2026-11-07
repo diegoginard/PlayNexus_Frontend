@@ -27,7 +27,7 @@ from playnexus.ui.dialogs import (
 from playnexus.ui.frontend_tab import FrontendSettingsWidget
 from playnexus.ui.settings_tab import SystemSettingsWidget
 from playnexus.ui.layouts import LAYOUT_REGISTRY, get_available_layouts, create_layout, resolve_theme_name
-from playnexus import __version__
+from playnexus import __version__, __version_full__
 
 DARK_STYLESHEET = """
 QMainWindow, QWidget {
@@ -167,7 +167,7 @@ class MainWindow(QMainWindow):
         self.current_game_id = None
         self.games_cache = []
 
-        self.setWindowTitle(f"PlayNexus — Configurador v{__version__}")
+        self.setWindowTitle(f"PlayNexus — Configurador {__version_full__}")
         self.resize(1300, 820)
         self.setMinimumSize(960, 640)
         self.setStyleSheet(DARK_STYLESHEET)
@@ -416,7 +416,7 @@ class MainWindow(QMainWindow):
         self.settings_tab.settings_saved.connect(self._on_settings_saved)
         self.main_tabs.addTab(self.settings_tab, "⚙  Configuración del Sistema")
 
-        version_label = QLabel(f"v{__version__}  ")
+        version_label = QLabel(f"{__version_full__}  ")
         version_label.setStyleSheet("color: #a78bfa; font-weight: bold; font-size: 9.5pt; padding-right: 12px;")
         self.main_tabs.setCornerWidget(version_label, Qt.TopRightCorner)
 

@@ -24,7 +24,6 @@ from playnexus.services.emulator_templates import (
     load_emulator_templates, save_emulator_templates, reset_default_templates
 )
 from playnexus.ui.dialogs import TemplateEditDialog
-from playnexus import __version__
 
 SCREEN_MODES = [
     ("Pantalla completa exclusiva (Fullscreen)", "fullscreen"),
@@ -327,27 +326,10 @@ class SystemSettingsWidget(QWidget):
         h_layout.setContentsMargins(14, 10, 14, 10)
         h_layout.setSpacing(4)
 
-        title_row = QHBoxLayout()
-        title_row.setSpacing(10)
         title = QLabel("⚙ Configuración del Sistema")
         title.setFont(QFont("Segoe UI", 15, QFont.Bold))
         title.setStyleSheet("color: #ffffff;")
-        title_row.addWidget(title)
-
-        version_badge = QLabel(f"v{__version__}")
-        version_badge.setFont(QFont("Segoe UI", 9, QFont.Bold))
-        version_badge.setStyleSheet("""
-            QLabel {
-                background-color: #242938;
-                color: #a78bfa;
-                border: 1px solid #5d48d9;
-                border-radius: 11px;
-                padding: 3px 10px;
-            }
-        """)
-        title_row.addWidget(version_badge)
-        title_row.addStretch()
-        h_layout.addLayout(title_row)
+        h_layout.addWidget(title)
 
         desc = QLabel(
             "Administrá los controles de teclado y joystick, el comportamiento al ejecutar emuladores, "

@@ -40,7 +40,9 @@ def _configure_qt_multimedia() -> None:
 
 _configure_qt_multimedia()
 
-from playnexus.__version__ import __version__, __app_name__, __release_date__
+from playnexus.__version__ import (
+    __version__, __commit__, __version_full__, __app_name__, __release_date__
+)
 
-__all__ = ["__version__", "__app_name__", "__release_date__"]
+__all__ = ["__version__", "__commit__", "__version_full__", "__app_name__", "__release_date__"]
 
