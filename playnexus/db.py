@@ -57,9 +57,9 @@ def _escape_field(val: object) -> str:
 
 
 def _unescape_field(val: str) -> str:
-    """Revierte el escape de un campo leído desde un archivo .txt."""
-    if not val:
-        return ""
+    """Revierte el escape de un campo leído desde un archivo .txt de forma optimizada."""
+    if not val or "\\" not in val:
+        return val or ""
     out: list[str] = []
     i = 0
     n = len(val)

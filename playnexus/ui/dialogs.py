@@ -492,6 +492,8 @@ class ListDialog(QDialog):
                 field_name = f"{k}_path"
                 if field_name in existing.keys() and existing[field_name]:
                     self._media_values[k] = self._normalize_path(existing[field_name])
+            if "cartart" in self._media_values and "discart" not in self._media_values:
+                self._media_values["discart"] = self._media_values["cartart"]
 
             if list_type in ("filtered", "games"):
                 mode = existing.get("filter_match_mode", "all")
@@ -1077,15 +1079,25 @@ class ListDialog(QDialog):
         for k, ed in self.media_edits.items():
             self._media_values[k] = self._normalize_path(ed.text())
 
+        # Restringir estrictamente a los requerimientos explícitos del layout seleccionado
+        layout_name = self.layout_combo.currentText()
+        spec = get_layout_media_spec(layout_name)
+        active_keys = {item.get("key") for item in spec} if spec else set()
+
         media_path = ""  # ya no se usa campo raíz global; cada carpeta se elige individualmente
-        boxart_path = self._media_values.get("boxart", "")
-        flyer_path = self._media_values.get("flyer", "")
-        wheel_path = self._media_values.get("wheel", "")
-        video_path = self._media_values.get("video", "")
-        cartart_path = self._media_values.get("cartart", "")
-        cabinet_path = self._media_values.get("cabinet", "")
-        marquee_path = self._media_values.get("marquee", "")
-        bezel_path = self._media_values.get("bezel", "")
+        boxart_path = self._media_values.get("boxart", "") if "boxart" in active_keys else ""
+        flyer_path = self._media_values.get("flyer", "") if "flyer" in active_keys else ""
+        wheel_path = self._media_values.get("wheel", "") if "wheel" in active_keys else ""
+        video_path = self._media_values.get("video", "") if "video" in active_keys else ""
+        if "discart" in active_keys:
+            cartart_path = self._media_values.get("discart", "") or self._media_values.get("cartart", "")
+        elif "cartart" in active_keys:
+            cartart_path = self._media_values.get("cartart", "") or self._media_values.get("discart", "")
+        else:
+            cartart_path = ""
+        cabinet_path = self._media_values.get("cabinet", "") if "cabinet" in active_keys else ""
+        marquee_path = self._media_values.get("marquee", "") if "marquee" in active_keys else ""
+        bezel_path = self._media_values.get("bezel", "") if "bezel" in active_keys else ""
         xml_path = self._normalize_path(self.xml_edit.text().strip()) if (list_type == "games" and hasattr(self, "xml_edit")) else ""
         roms_path_val = format_rom_folders(self.get_rom_folders()) if list_type == "games" else ""
         icon_path = self._normalize_path(self.icon_path_edit.text().strip()) if hasattr(self, "icon_path_edit") else ""

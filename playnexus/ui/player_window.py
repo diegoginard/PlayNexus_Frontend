@@ -845,8 +845,9 @@ class PlayerWindow(QMainWindow):
                 elif self.games_cache:
                     target_select_id = self.games_cache[0]["id"]
 
-                if target_select_id:
+                if target_select_id and current_layout.get_selected_game_id() != target_select_id:
                     current_layout.select_game_by_id(target_select_id)
+                if target_select_id:
                     self._on_game_selected(target_select_id)
             return
 
@@ -862,8 +863,9 @@ class PlayerWindow(QMainWindow):
             elif self.games_cache:
                 target_select_id = self.games_cache[0]["id"]
 
-            if target_select_id:
+            if target_select_id and current_layout.get_selected_game_id() != target_select_id:
                 current_layout.select_game_by_id(target_select_id)
+            if target_select_id:
                 self._on_game_selected(target_select_id)
 
     def _on_game_selected(self, game_id: int):

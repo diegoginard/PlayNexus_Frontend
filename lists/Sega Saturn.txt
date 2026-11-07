@@ -21,6 +21,11 @@ cartart_path = D:/Roms/Sega Saturn/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = 
+loading_path = 
+loading_in_path = 
+loading_out_path = 
 xml_path = 
 created_at = 2026-10-26 03:22:33
 source_list_id = 
@@ -29,74 +34,74 @@ filter_match_mode = all
 menu_items = 
 
 [Games]
-# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile
-2240;Akumajo Dracula X - Gekka no Yasoukyoku (J);Akumajo Dracula X - Gekka no Yasoukyoku (J);D:\\Roms\\Sega Saturn\\Roms\\Akumajo Dracula X - Gekka no Yasoukyoku (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:33;
-2241;Albert Odyssey - Legend of Eldean (U);Albert Odyssey - Legend of Eldean (U);D:\\Roms\\Sega Saturn\\Roms\\Albert Odyssey - Legend of Eldean (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:33;
-2242;Assault Suit Leynos 2 (J);Assault Suit Leynos 2 (J);D:\\Roms\\Sega Saturn\\Roms\\Assault Suit Leynos 2 (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:33;
-2243;Astal (U);Astal (U);D:\\Roms\\Sega Saturn\\Roms\\Astal (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:33;
-2244;Battle Monsters (J);Battle Monsters (J);D:\\Roms\\Sega Saturn\\Roms\\Battle Monsters (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:33;
-2245;Bishoujo Senshi Sailor Moon SuperS - Various Emotion (J);Bishoujo Senshi Sailor Moon SuperS - Various Emotion (J);D:\\Roms\\Sega Saturn\\Roms\\Bishoujo Senshi Sailor Moon SuperS - Various Emotion (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2246;Blast Wind (J)[Ting];Blast Wind (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Blast Wind (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2247;Bug Too! (U);Bug Too! (U);D:\\Roms\\Sega Saturn\\Roms\\Bug Too! (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2248;Bug! (U);Bug! (U);D:\\Roms\\Sega Saturn\\Roms\\Bug! (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2249;Bulk Slash (J)[Ting];Bulk Slash (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Bulk Slash (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2250;Casper (E);Casper (E);D:\\Roms\\Sega Saturn\\Roms\\Casper (E).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2251;Christmas Nights into dreams (E);Christmas Nights into dreams (E);D:\\Roms\\Sega Saturn\\Roms\\Christmas Nights into dreams (E).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2252;Clockwork Knight (U);Clockwork Knight (U);D:\\Roms\\Sega Saturn\\Roms\\Clockwork Knight (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2253;Clockwork Knight 2 (U);Clockwork Knight 2 (U);D:\\Roms\\Sega Saturn\\Roms\\Clockwork Knight 2 (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2254;Crows - The Battle Action For SEGA Saturn (J);Crows - The Battle Action For SEGA Saturn (J);D:\\Roms\\Sega Saturn\\Roms\\Crows - The Battle Action For SEGA Saturn (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2255;Cube Battler - Story of Shou (J);Cube Battler - Story of Shou (J);D:\\Roms\\Sega Saturn\\Roms\\Cube Battler - Story of Shou (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2256;D-Xhird (J);D-Xhird (J);D:\\Roms\\Sega Saturn\\Roms\\D-Xhird (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2257;Dark Savior (U);Dark Savior (U);D:\\Roms\\Sega Saturn\\Roms\\Dark Savior (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2258;Dezaemon 2 (J);Dezaemon 2 (J);D:\\Roms\\Sega Saturn\\Roms\\Dezaemon 2 (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2259;Die Hard Arcade (U);Die Hard Arcade (U);D:\\Roms\\Sega Saturn\\Roms\\Die Hard Arcade (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2260;Dragon Force II (J)[Ting];Dragon Force II (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Dragon Force II (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2261;Elan Doree (J);Elan Doree (J);D:\\Roms\\Sega Saturn\\Roms\\Elan Doree (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2262;Galactic Attack (U);Galactic Attack (U);D:\\Roms\\Sega Saturn\\Roms\\Galactic Attack (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2263;Gale Racer (J);Gale Racer (J);D:\\Roms\\Sega Saturn\\Roms\\Gale Racer (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2264;Grid Run (E);Grid Run (E);D:\\Roms\\Sega Saturn\\Roms\\Grid Run (E).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2265;Groove On Fight (J);Groove On Fight (J);D:\\Roms\\Sega Saturn\\Roms\\Groove On Fight (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2266;Guardian Force (J);Guardian Force (J);D:\\Roms\\Sega Saturn\\Roms\\Guardian Force (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2267;Guardian Heroes (U);Guardian Heroes (U);D:\\Roms\\Sega Saturn\\Roms\\Guardian Heroes (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2268;Hansha de Spark (J);Hansha de Spark (J);D:\\Roms\\Sega Saturn\\Roms\\Hansha de Spark (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2269;Hissatsu! (J)[Ting];Hissatsu! (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Hissatsu! (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2270;Hyper Duel (J);Hyper Duel (J);D:\\Roms\\Sega Saturn\\Roms\\Hyper Duel (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2271;Keio 2 - Flying Squadron;Keio 2 - Flying Squadron;D:\\Roms\\Sega Saturn\\Roms\\Keio 2 - Flying Squadron.chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2272;Kidou Senshi Gundam (J);Kidou Senshi Gundam (J);D:\\Roms\\Sega Saturn\\Roms\\Kidou Senshi Gundam (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2273;Kyuutenkai - Fantastic Pinball (J)[Ting];Kyuutenkai - Fantastic Pinball (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Kyuutenkai - Fantastic Pinball (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2274;Langrisser III (J)[Ting];Langrisser III (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Langrisser III (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2275;Layer Section II (J);Layer Section II (J);D:\\Roms\\Sega Saturn\\Roms\\Layer Section II (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2276;Legend of Oasis The (U);Legend of Oasis The (U);D:\\Roms\\Sega Saturn\\Roms\\Legend of Oasis The (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2277;Linkle Liver Story (J)[Ting];Linkle Liver Story (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Linkle Liver Story (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2278;Madou Monogatari (J)[Ting];Madou Monogatari (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Madou Monogatari (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2279;Magical Night Dreams - Cotton 2 (J)[Ting];Magical Night Dreams - Cotton 2 (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Magical Night Dreams - Cotton 2 (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2280;Mobile Suit Gundam (J)[Ting];Mobile Suit Gundam (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Mobile Suit Gundam (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2281;Ninku (J);Ninku (J);D:\\Roms\\Sega Saturn\\Roms\\Ninku (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2282;NINKU - Clash of the Toughest (J)[Ting];NINKU - Clash of the Toughest (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\NINKU - Clash of the Toughest (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2283;Pastel Muses (J);Pastel Muses (J);D:\\Roms\\Sega Saturn\\Roms\\Pastel Muses (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2284;Planet Joker (J);Planet Joker (J);D:\\Roms\\Sega Saturn\\Roms\\Planet Joker (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2285;Pretty Fighter X (J);Pretty Fighter X (J);D:\\Roms\\Sega Saturn\\Roms\\Pretty Fighter X (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2286;Princess Crown (J)[Ting];Princess Crown (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Princess Crown (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2287;Psychic Killer Taromaru (J)[Ting];Psychic Killer Taromaru (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Psychic Killer Taromaru (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2288;Psyth (J);Psyth (J);D:\\Roms\\Sega Saturn\\Roms\\Psyth (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2289;Saturn Bomberman (U);Saturn Bomberman (U);D:\\Roms\\Sega Saturn\\Roms\\Saturn Bomberman (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2290;Saturn Bomberman Fight!! (J)[Ting];Saturn Bomberman Fight!! (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Saturn Bomberman Fight!! (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2291;Shining Wisdom (U);Shining Wisdom (U);D:\\Roms\\Sega Saturn\\Roms\\Shining Wisdom (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2292;Shinobi Legions (U);Shinobi Legions (U);D:\\Roms\\Sega Saturn\\Roms\\Shinobi Legions (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2293;Sonic 3D Blast (U);Sonic 3D Blast (U);D:\\Roms\\Sega Saturn\\Roms\\Sonic 3D Blast (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2294;Sonic Jam (U);Sonic Jam (U);D:\\Roms\\Sega Saturn\\Roms\\Sonic Jam (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2295;Sonic R (U);Sonic R (U);D:\\Roms\\Sega Saturn\\Roms\\Sonic R (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2296;Soukyuu Gurentai (J);Soukyuu Gurentai (J);D:\\Roms\\Sega Saturn\\Roms\\Soukyuu Gurentai (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2297;Steam Hearts (J);Steam Hearts (J);D:\\Roms\\Sega Saturn\\Roms\\Steam Hearts (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2298;Steamgear Mash (J);Steamgear Mash (J);D:\\Roms\\Sega Saturn\\Roms\\Steamgear Mash (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2299;Story of Thor 2, The (E)[Tesp];Story of Thor 2, The (E)[Tesp];D:\\Roms\\Sega Saturn\\Roms\\Story of Thor 2, The (E)[Tesp].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2300;Super Tempo (J);Super Tempo (J);D:\\Roms\\Sega Saturn\\Roms\\Super Tempo (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2301;Swagman (E);Swagman (E);D:\\Roms\\Sega Saturn\\Roms\\Swagman (E).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2302;Terra Cresta 3D (J);Terra Cresta 3D (J);D:\\Roms\\Sega Saturn\\Roms\\Terra Cresta 3D (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2303;Three Dirty Dwarves (U);Three Dirty Dwarves (U);D:\\Roms\\Sega Saturn\\Roms\\Three Dirty Dwarves (U).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2304;Time Bokan Series - Bokan to Ippatsu! Doronboo Kanpekiban (J);Time Bokan Series - Bokan to Ippatsu! Doronboo Kanpekiban (J);D:\\Roms\\Sega Saturn\\Roms\\Time Bokan Series - Bokan to Ippatsu! Doronboo Kanpekiban (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2305;Trash it (E);Trash it (E);D:\\Roms\\Sega Saturn\\Roms\\Trash it (E).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2306;Tryrush Deppy (J);Tryrush Deppy (J);D:\\Roms\\Sega Saturn\\Roms\\Tryrush Deppy (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2307;Waku 2 Monster (J);Waku 2 Monster (J);D:\\Roms\\Sega Saturn\\Roms\\Waku 2 Monster (J).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2308;Willy Wombat (J)[Ting];Willy Wombat (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Willy Wombat (J)[Ting].chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
-2309;WWF in Your House (E);WWF in Your House (E);D:\\Roms\\Sega Saturn\\Roms\\WWF in Your House (E).chd;;;;;;;;;;;;{};2026-10-26 03:22:34;
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+37482;Akumajo Dracula X - Gekka no Yasoukyoku (J);Akumajo Dracula X - Gekka no Yasoukyoku (J);D:\\Roms\\Sega Saturn\\Roms\\Akumajo Dracula X - Gekka no Yasoukyoku (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37483;Albert Odyssey - Legend of Eldean (U);Albert Odyssey - Legend of Eldean (U);D:\\Roms\\Sega Saturn\\Roms\\Albert Odyssey - Legend of Eldean (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37484;Assault Suit Leynos 2 (J);Assault Suit Leynos 2 (J);D:\\Roms\\Sega Saturn\\Roms\\Assault Suit Leynos 2 (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37485;Astal (U);Astal (U);D:\\Roms\\Sega Saturn\\Roms\\Astal (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37486;Battle Monsters (J);Battle Monsters (J);D:\\Roms\\Sega Saturn\\Roms\\Battle Monsters (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37487;Bishoujo Senshi Sailor Moon SuperS - Various Emotion (J);Bishoujo Senshi Sailor Moon SuperS - Various Emotion (J);D:\\Roms\\Sega Saturn\\Roms\\Bishoujo Senshi Sailor Moon SuperS - Various Emotion (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37488;Blast Wind (J)[Ting];Blast Wind (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Blast Wind (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37489;Bug Too! (U);Bug Too! (U);D:\\Roms\\Sega Saturn\\Roms\\Bug Too! (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37490;Bug! (U);Bug! (U);D:\\Roms\\Sega Saturn\\Roms\\Bug! (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37491;Bulk Slash (J)[Ting];Bulk Slash (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Bulk Slash (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37492;Casper (E);Casper (E);D:\\Roms\\Sega Saturn\\Roms\\Casper (E).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37493;Christmas Nights into dreams (E);Christmas Nights into dreams (E);D:\\Roms\\Sega Saturn\\Roms\\Christmas Nights into dreams (E).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37494;Clockwork Knight (U);Clockwork Knight (U);D:\\Roms\\Sega Saturn\\Roms\\Clockwork Knight (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37495;Clockwork Knight 2 (U);Clockwork Knight 2 (U);D:\\Roms\\Sega Saturn\\Roms\\Clockwork Knight 2 (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37496;Crows - The Battle Action For SEGA Saturn (J);Crows - The Battle Action For SEGA Saturn (J);D:\\Roms\\Sega Saturn\\Roms\\Crows - The Battle Action For SEGA Saturn (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37497;Cube Battler - Story of Shou (J);Cube Battler - Story of Shou (J);D:\\Roms\\Sega Saturn\\Roms\\Cube Battler - Story of Shou (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37498;D-Xhird (J);D-Xhird (J);D:\\Roms\\Sega Saturn\\Roms\\D-Xhird (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37499;Dark Savior (U);Dark Savior (U);D:\\Roms\\Sega Saturn\\Roms\\Dark Savior (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37500;Dezaemon 2 - Special Edition (J)[Ting];Dezaemon 2 - Special Edition (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Dezaemon 2 - Special Edition (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37501;Die Hard Arcade (U);Die Hard Arcade (U);D:\\Roms\\Sega Saturn\\Roms\\Die Hard Arcade (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37502;Dragon Force II (J)[Ting];Dragon Force II (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Dragon Force II (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37503;Elan Doree (J);Elan Doree (J);D:\\Roms\\Sega Saturn\\Roms\\Elan Doree (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37504;Galactic Attack (U);Galactic Attack (U);D:\\Roms\\Sega Saturn\\Roms\\Galactic Attack (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37505;Gale Racer (J);Gale Racer (J);D:\\Roms\\Sega Saturn\\Roms\\Gale Racer (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37506;Grid Run (E);Grid Run (E);D:\\Roms\\Sega Saturn\\Roms\\Grid Run (E).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37507;Groove On Fight (J);Groove On Fight (J);D:\\Roms\\Sega Saturn\\Roms\\Groove On Fight (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37508;Guardian Force (J);Guardian Force (J);D:\\Roms\\Sega Saturn\\Roms\\Guardian Force (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37509;Guardian Heroes (U);Guardian Heroes (U);D:\\Roms\\Sega Saturn\\Roms\\Guardian Heroes (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37510;Hansha de Spark (J);Hansha de Spark (J);D:\\Roms\\Sega Saturn\\Roms\\Hansha de Spark (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37511;Hissatsu! (J)[Ting];Hissatsu! (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Hissatsu! (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37512;Hyper Duel (J);Hyper Duel (J);D:\\Roms\\Sega Saturn\\Roms\\Hyper Duel (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37513;Keio 2 - Flying Squadron;Keio 2 - Flying Squadron;D:\\Roms\\Sega Saturn\\Roms\\Keio 2 - Flying Squadron.chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37514;Kidou Senshi Gundam (J);Kidou Senshi Gundam (J);D:\\Roms\\Sega Saturn\\Roms\\Kidou Senshi Gundam (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37515;Kyuutenkai - Fantastic Pinball (J)[Ting];Kyuutenkai - Fantastic Pinball (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Kyuutenkai - Fantastic Pinball (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37516;Langrisser III (J)[Ting];Langrisser III (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Langrisser III (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37517;Layer Section II (J);Layer Section II (J);D:\\Roms\\Sega Saturn\\Roms\\Layer Section II (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37518;Legend of Oasis The (U);Legend of Oasis The (U);D:\\Roms\\Sega Saturn\\Roms\\Legend of Oasis The (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37519;Linkle Liver Story (J)[Ting];Linkle Liver Story (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Linkle Liver Story (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37520;Madou Monogatari (J)[Ting];Madou Monogatari (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Madou Monogatari (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37521;Magical Night Dreams - Cotton 2 (J)[Ting];Magical Night Dreams - Cotton 2 (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Magical Night Dreams - Cotton 2 (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37522;Mobile Suit Gundam (J)[Ting];Mobile Suit Gundam (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Mobile Suit Gundam (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37523;Ninku (J);Ninku (J);D:\\Roms\\Sega Saturn\\Roms\\Ninku (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37524;NINKU - Clash of the Toughest (J)[Ting];NINKU - Clash of the Toughest (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\NINKU - Clash of the Toughest (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37525;Pastel Muses (J);Pastel Muses (J);D:\\Roms\\Sega Saturn\\Roms\\Pastel Muses (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37526;Planet Joker (J);Planet Joker (J);D:\\Roms\\Sega Saturn\\Roms\\Planet Joker (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37527;Pretty Fighter X (J);Pretty Fighter X (J);D:\\Roms\\Sega Saturn\\Roms\\Pretty Fighter X (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37528;Princess Crown (J)[Ting];Princess Crown (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Princess Crown (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37529;Psychic Killer Taromaru (J)[Ting];Psychic Killer Taromaru (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Psychic Killer Taromaru (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37530;Psyth (J);Psyth (J);D:\\Roms\\Sega Saturn\\Roms\\Psyth (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37531;Saturn Bomberman (U);Saturn Bomberman (U);D:\\Roms\\Sega Saturn\\Roms\\Saturn Bomberman (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37532;Saturn Bomberman Fight!! (J)[Ting];Saturn Bomberman Fight!! (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Saturn Bomberman Fight!! (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37533;Shining Wisdom (U);Shining Wisdom (U);D:\\Roms\\Sega Saturn\\Roms\\Shining Wisdom (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37534;Shinobi Legions (U);Shinobi Legions (U);D:\\Roms\\Sega Saturn\\Roms\\Shinobi Legions (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37535;Sonic 3D Blast (U);Sonic 3D Blast (U);D:\\Roms\\Sega Saturn\\Roms\\Sonic 3D Blast (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37536;Sonic Jam (U);Sonic Jam (U);D:\\Roms\\Sega Saturn\\Roms\\Sonic Jam (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37537;Sonic R (U);Sonic R (U);D:\\Roms\\Sega Saturn\\Roms\\Sonic R (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37538;Soukyuu Gurentai (J);Soukyuu Gurentai (J);D:\\Roms\\Sega Saturn\\Roms\\Soukyuu Gurentai (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37539;Steam Hearts (J);Steam Hearts (J);D:\\Roms\\Sega Saturn\\Roms\\Steam Hearts (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37540;Steamgear Mash (J);Steamgear Mash (J);D:\\Roms\\Sega Saturn\\Roms\\Steamgear Mash (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37541;Story of Thor 2, The (E)[Tesp];Story of Thor 2, The (E)[Tesp];D:\\Roms\\Sega Saturn\\Roms\\Story of Thor 2, The (E)[Tesp].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37542;Super Tempo (J);Super Tempo (J);D:\\Roms\\Sega Saturn\\Roms\\Super Tempo (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37543;Swagman (E);Swagman (E);D:\\Roms\\Sega Saturn\\Roms\\Swagman (E).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37544;Terra Cresta 3D (J);Terra Cresta 3D (J);D:\\Roms\\Sega Saturn\\Roms\\Terra Cresta 3D (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37545;Three Dirty Dwarves (U);Three Dirty Dwarves (U);D:\\Roms\\Sega Saturn\\Roms\\Three Dirty Dwarves (U).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37546;Time Bokan Series - Bokan to Ippatsu! Doronboo Kanpekiban (J);Time Bokan Series - Bokan to Ippatsu! Doronboo Kanpekiban (J);D:\\Roms\\Sega Saturn\\Roms\\Time Bokan Series - Bokan to Ippatsu! Doronboo Kanpekiban (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37547;Trash it (E);Trash it (E);D:\\Roms\\Sega Saturn\\Roms\\Trash it (E).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37548;Tryrush Deppy (J);Tryrush Deppy (J);D:\\Roms\\Sega Saturn\\Roms\\Tryrush Deppy (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37549;Waku 2 Monster (J);Waku 2 Monster (J);D:\\Roms\\Sega Saturn\\Roms\\Waku 2 Monster (J).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37550;Willy Wombat (J)[Ting];Willy Wombat (J)[Ting];D:\\Roms\\Sega Saturn\\Roms\\Willy Wombat (J)[Ting].chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;
+37551;WWF in Your House (E);WWF in Your House (E);D:\\Roms\\Sega Saturn\\Roms\\WWF in Your House (E).chd;;;;;;;;;;;;{};2026-11-05 03:19:38;;

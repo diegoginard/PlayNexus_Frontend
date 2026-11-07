@@ -1094,8 +1094,10 @@ class MainWindow(QMainWindow):
         if current_layout:
             current_layout.set_games(self.games_cache)
             if self.current_game_id:
-                current_layout.select_game_by_id(self.current_game_id)
-                self._select_game_by_id(self.current_game_id)
+                if current_layout.get_selected_game_id() != self.current_game_id:
+                    current_layout.select_game_by_id(self.current_game_id)
+                else:
+                    self._select_game_by_id(self.current_game_id)
             elif hasattr(current_layout, "get_selected_game_id") and current_layout.get_selected_game_id():
                 cand_id = current_layout.get_selected_game_id()
                 if cand_id in matching_ids:

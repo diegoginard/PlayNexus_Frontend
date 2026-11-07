@@ -64,7 +64,7 @@ class ThemeLayout(BaseLayout):
         },
         {
             "key": "boxart",
-            "label": "Box Art / Carátulas",
+            "label": "Box Art / Cajas",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": False
         }
@@ -289,11 +289,8 @@ class ThemeLayout(BaseLayout):
         self._start_logo_animation()
 
     def _load_pixmap(self, path: str | None) -> QPixmap | None:
-        """Carga un QPixmap desde el disco de forma segura, retornando None si el archivo es inaccesible o nulo."""
-        if path and os.path.isfile(path):
-            pix = QPixmap(path)
-            return pix if not pix.isNull() else None
-        return None
+        """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
+        return super()._load_pixmap(path)
     # -------------------------------------------------------------------------
     # RECURSOS TIPOGRÁFICOS Y EFECTOS DE SONIDO
     # -------------------------------------------------------------------------
@@ -804,15 +801,15 @@ class ThemeLayout(BaseLayout):
         n = len(self.games)
         window = [
             self.games[(center_idx + i) % n]
-            for i in range(-6, 35)
+            for i in range(-4, 12)
             if self.games[(center_idx + i) % n].get("id") not in self._wheel_pixmaps
         ]
         if window:
             self._wheel_worker.queue_games(window)
-        # Preload adjacent boxart/cartart into cache for zero-lag immediate display
+        # Precargar carátula/cartucho adyacente inmediato en caché
         if not hasattr(self, "_art_pix_cache"):
             self._art_pix_cache = {}
-        for off in (-2, -1, 1, 2, 3):
+        for off in (-1, 1):
             gm = self.games[(center_idx + off) % n]
             gmedia = resolve_game_media(gm)
             bf = gmedia.get("boxart") or gm.get("cover_path")

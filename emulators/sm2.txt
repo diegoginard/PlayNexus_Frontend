@@ -1,0 +1,11 @@
+# Configuración de Emulador: sm2
+id = 25
+name = sm2
+executable = C:/Attract/Emu/Sega Model 2/sm2/sm2-emu.exe
+arguments = "{rom}"
+platform = Sega Model 1 y 2
+bezel_delay = 2.0
+bezel_fade = 0.4
+loading_time = 1.5
+exit_loading_time = 1.0
+created_at = 2026-11-06 01:14:43

@@ -1,0 +1,71 @@
+# Lista de PlayNexus: Sega Model 2
+[List]
+id = 23
+name = Sega Model 2
+list_type = games
+platform = Sega Model 2
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Arcade.png
+default_emulator_id = 25
+default_emulator = sm2
+layout = At-The-Arcade Flex
+allowed_extensions = .zip
+roms_path = D:/Roms/Sega Model 2/Roms
+scan_subfolders = false
+exclude_folder_if_zip = false
+media_path = 
+boxart_path = 
+flyer_path = D:/Roms/Sega Model 2/media/flyer
+wheel_path = D:/Roms/Sega Model 2/media/wheel
+video_path = D:/Roms/Sega Model 2/media/videos
+cartart_path = 
+cabinet_path = D:/Roms/Sega Model 2/media/cabinets
+marquee_path = D:/Roms/Sega Model 2/media/marquee
+bezel_path = D:/Roms/Sega Model 2/media/bezels
+bezel_hud_enabled = true
+bezel_hud_path = D:/Roms/Sega Model 2/media/bezels-hud
+loading_path = 
+loading_in_path = 
+loading_out_path = 
+xml_path = 
+created_at = 2026-11-06 01:17:03
+source_list_id = 
+filter_rules = []
+filter_match_mode = all
+menu_items = 
+
+[Games]
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+37714;airwlkrs;airwlkrs;D:\\Roms\\Sega Model 2\\Roms\\airwlkrs.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37715;bel;bel;D:\\Roms\\Sega Model 2\\Roms\\bel.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37716;daytona;daytona;D:\\Roms\\Sega Model 2\\Roms\\daytona.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37717;daytonam;daytonam;D:\\Roms\\Sega Model 2\\Roms\\daytonam.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37718;daytonas;daytonas;D:\\Roms\\Sega Model 2\\Roms\\daytonas.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37719;daytonase;daytonase;D:\\Roms\\Sega Model 2\\Roms\\daytonase.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37720;desert;desert;D:\\Roms\\Sega Model 2\\Roms\\desert.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37721;doa;doa;D:\\Roms\\Sega Model 2\\Roms\\doa.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37722;dynamcop;dynamcop;D:\\Roms\\Sega Model 2\\Roms\\dynamcop.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37723;fvipers;fvipers;D:\\Roms\\Sega Model 2\\Roms\\fvipers.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37724;gunblade;gunblade;D:\\Roms\\Sega Model 2\\Roms\\gunblade.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37725;hotd;hotd;D:\\Roms\\Sega Model 2\\Roms\\hotd.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37726;indy500;indy500;D:\\Roms\\Sega Model 2\\Roms\\indy500.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37727;lastbrnx;lastbrnx;D:\\Roms\\Sega Model 2\\Roms\\lastbrnx.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37728;manxtt;manxtt;D:\\Roms\\Sega Model 2\\Roms\\manxtt.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37731;motoraid;motoraid;D:\\Roms\\Sega Model 2\\Roms\\motoraid.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37732;overrev;overrev;D:\\Roms\\Sega Model 2\\Roms\\overrev.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37733;pltkids;pltkids;D:\\Roms\\Sega Model 2\\Roms\\pltkids.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37734;rchase2;rchase2;D:\\Roms\\Sega Model 2\\Roms\\rchase2.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37735;schamp;schamp;D:\\Roms\\Sega Model 2\\Roms\\schamp.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37736;segawski;segawski;D:\\Roms\\Sega Model 2\\Roms\\segawski.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37737;sgt24h;sgt24h;D:\\Roms\\Sega Model 2\\Roms\\sgt24h.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37738;skisuprg;skisuprg;D:\\Roms\\Sega Model 2\\Roms\\skisuprg.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37739;skytargt;skytargt;D:\\Roms\\Sega Model 2\\Roms\\skytargt.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37740;srallyc;srallyc;D:\\Roms\\Sega Model 2\\Roms\\srallyc.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37741;stcc;stcc;D:\\Roms\\Sega Model 2\\Roms\\stcc.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37742;topskatr;topskatr;D:\\Roms\\Sega Model 2\\Roms\\topskatr.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37743;vcop;vcop;D:\\Roms\\Sega Model 2\\Roms\\vcop.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37744;vcop2;vcop2;D:\\Roms\\Sega Model 2\\Roms\\vcop2.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37745;vf2;vf2;D:\\Roms\\Sega Model 2\\Roms\\vf2.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37746;von;von;D:\\Roms\\Sega Model 2\\Roms\\von.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37747;vstriker;vstriker;D:\\Roms\\Sega Model 2\\Roms\\vstriker.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37748;waverunr;waverunr;D:\\Roms\\Sega Model 2\\Roms\\waverunr.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;
+37749;zerogun;zerogun;D:\\Roms\\Sega Model 2\\Roms\\zerogun.zip;;;;;;;;;;;;{};2026-11-06 01:17:03;;

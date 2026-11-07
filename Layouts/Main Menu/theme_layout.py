@@ -185,10 +185,8 @@ class ThemeLayout(BaseLayout):
                     self._font_bebas = fams[0]
 
     def _load_pixmap(self, path: str | None) -> QPixmap | None:
-        if not path or not os.path.isfile(path):
-            return None
-        pix = QPixmap(path)
-        return pix if not pix.isNull() else None
+        """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
+        return super()._load_pixmap(path)
 
     # -------------------------------------------------------------------------
     # PIPELINE DE VIDEO Y MULTIMEDIA
@@ -570,7 +568,7 @@ class ThemeLayout(BaseLayout):
         n = len(self.games)
         window = [
             self.games[(center_idx + i) % n]
-            for i in range(-6, 35)
+            for i in range(-4, 12)
             if self.games[(center_idx + i) % n].get("id") not in self._wheel_pixmaps
         ]
         if window:

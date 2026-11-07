@@ -57,10 +57,16 @@ class ThemeLayout(BaseLayout):
             "required": True
         },
         {
-            "key": "cartart",
+            "key": "discart",
             "label": "Discos",
             "extensions": [".png", ".webp"],
             "required": True
+        },
+        {
+            "key": "boxart",
+            "label": "Box Art / Cajas",
+            "extensions": [".png", ".jpg", ".jpeg", ".webp"],
+            "required": False
         }
     ]
 
@@ -83,7 +89,8 @@ class ThemeLayout(BaseLayout):
     JOYSTICK_IMAGE = None
     AVATAR_IMAGE = LAYOUT_DIR / "avatar.png"
     LOGO_IMAGE = LAYOUT_DIR / "logo.png"
-    CARTART_IMAGE = LAYOUT_DIR / "discart.png"
+    DISCART_IMAGE = LAYOUT_DIR / "discart.png"
+    CARTART_IMAGE = DISCART_IMAGE
     BOXART_IMAGE = None
     WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
     POINTER_IMAGE = LAYOUT_DIR / "pointers/default.png"
@@ -102,8 +109,10 @@ class ThemeLayout(BaseLayout):
     CONSOLE_SCALE = 0.90
 
     # Disco CD giratorio reducido 10%
-    CART_RECT = (0.550, 0.600, 0.190, 0.300)
-    CART_END_Y = 0.600
+    DISC_RECT = (0.550, 0.600, 0.190, 0.300)
+    DISC_END_Y = 0.600
+    CART_RECT = DISC_RECT
+    CART_END_Y = DISC_END_Y
     IS_CD = True
 
     # Logotipo oficial reducido 25% (escala 0.75) para no saturar la parte superior
@@ -161,6 +170,7 @@ class ThemeLayout(BaseLayout):
         self.current_media = {}
         self._wheel_pixmaps = {}
         self._current_box_pixmap = None
+        self._current_disc_pixmap = None
         self._current_cart_pixmap = None
 
         # Worker en segundo plano para pre-carga asíncrona de logotipos de rueda
@@ -195,7 +205,8 @@ class ThemeLayout(BaseLayout):
         self._pix_joystick = self._load_pixmap((str(self.JOYSTICK_IMAGE) if self.JOYSTICK_IMAGE else None))
         self._pix_avatar = self._load_pixmap(str(self.AVATAR_IMAGE))
         self._pix_logo = self._load_pixmap(str(self.LOGO_IMAGE))
-        self._pix_cartart_frame = self._load_pixmap(str(self.CARTART_IMAGE))
+        self._pix_discart_frame = self._load_pixmap(str(self.DISCART_IMAGE))
+        self._pix_cartart_frame = self._pix_discart_frame
         self._pix_boxart_frame = self._load_pixmap((str(self.BOXART_IMAGE) if self.BOXART_IMAGE else None))
 
         # Recursos compartidos directos desde gtc-common (sin diccionarios)
@@ -224,7 +235,8 @@ class ThemeLayout(BaseLayout):
             "avatar": str(self.AVATAR_IMAGE),
             "character": str(self.AVATAR_IMAGE),
             "logo": str(self.LOGO_IMAGE),
-            "cartart": str(self.CARTART_IMAGE),
+            "discart": str(self.DISCART_IMAGE),
+            "cartart": str(self.DISCART_IMAGE),
             "boxart": (str(self.BOXART_IMAGE) if self.BOXART_IMAGE else None),
             "wheel": str(self.WHEEL_IMAGE),
             "pointer": pointer_path,
@@ -260,13 +272,14 @@ class ThemeLayout(BaseLayout):
         self._avatar_bounce_timer.start(20)
 
         # Animación de entrada del disco CD
-        self._cart_anim_timer = QTimer(self)
-        self._cart_anim_timer.timeout.connect(self._on_cart_anim_tick)
-        self._cart_anim_elapsed = 0
-        self._cart_anim_duration = 600
-        self._cart_start_y_ratio = 1.6
-        self._cart_end_y_ratio = self.CART_END_Y
-        self._cart_current_y_ratio = self._cart_end_y_ratio
+        self._disc_anim_timer = QTimer(self)
+        self._disc_anim_timer.timeout.connect(self._on_disc_anim_tick)
+        self._disc_anim_elapsed = 0
+        self._disc_anim_duration = 600
+        self._disc_start_y_ratio = 1.6
+        self._disc_end_y_ratio = self.DISC_END_Y
+        self._disc_current_y_ratio = self._disc_end_y_ratio
+        self._cart_anim_timer = self._disc_anim_timer
 
         # Animación de rotación continua del CD
         self._cd_rotation_angle = 0.0
@@ -292,11 +305,8 @@ class ThemeLayout(BaseLayout):
         self._start_logo_animation()
 
     def _load_pixmap(self, path: str | None) -> QPixmap | None:
-        """Carga un QPixmap desde el disco de forma segura, retornando None si el archivo es inaccesible o nulo."""
-        if path and os.path.isfile(path):
-            pix = QPixmap(path)
-            return pix if not pix.isNull() else None
-        return None
+        """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
+        return super()._load_pixmap(path)
     # -------------------------------------------------------------------------
     # RECURSOS TIPOGRÁFICOS Y EFECTOS DE SONIDO
     # -------------------------------------------------------------------------
@@ -396,26 +406,30 @@ class ThemeLayout(BaseLayout):
             self._wheel_spin_timer.stop()
         self.update()
 
-    def _on_cart_anim_tick(self):
+    def _on_disc_anim_tick(self):
         """Ejecuta la animación de descenso e inserción física del cartucho o rotación del disco en la consola."""
         dt = 16
-        self._cart_anim_elapsed += dt
-        t = min(self._cart_anim_elapsed / self._cart_anim_duration, 1.0)
+        self._disc_anim_elapsed += dt
+        t = min(self._disc_anim_elapsed / self._disc_anim_duration, 1.0)
         ease = 1.0 - (1.0 - t) ** 3
-        self._cart_current_y_ratio = (
-            self._cart_start_y_ratio
-            + (self._cart_end_y_ratio - self._cart_start_y_ratio) * ease
+        self._disc_current_y_ratio = (
+            self._disc_start_y_ratio
+            + (self._disc_end_y_ratio - self._disc_start_y_ratio) * ease
         )
         self.update()
         if t >= 1.0:
-            self._cart_anim_timer.stop()
-            self._cart_current_y_ratio = self._cart_end_y_ratio
+            self._disc_anim_timer.stop()
+            self._disc_current_y_ratio = self._disc_end_y_ratio
 
-    def _start_cart_animation(self):
+    _on_cart_anim_tick = _on_disc_anim_tick
+
+    def _start_disc_animation(self):
         """Reinicia la cinemática de inserción del cartucho/disco para el juego actual."""
-        self._cart_anim_elapsed = 0
-        self._cart_current_y_ratio = self._cart_start_y_ratio
-        self._cart_anim_timer.start(16)
+        self._disc_anim_elapsed = 0
+        self._disc_current_y_ratio = self._disc_start_y_ratio
+        self._disc_anim_timer.start(16)
+
+    _start_cart_animation = _start_disc_animation
 
     def _on_cd_spin_tick(self):
         """Gestiona la operación '_on_cd_spin_tick' de este layout temático."""
@@ -612,13 +626,14 @@ class ThemeLayout(BaseLayout):
             self._wheel_worker.clear()
         if self.games:
             self._load_game_media(self.games[0])
-            self._start_cart_animation()
+            self._start_disc_animation()
             self._start_boxart_animation()
             self._start_logo_animation()
             self._preload_around(0)
         else:
             self.current_media = {}
             self._current_box_pixmap = None
+            self._current_disc_pixmap = None
             self._current_cart_pixmap = None
             if self.player:
                 self.player.stop()
@@ -654,7 +669,7 @@ class ThemeLayout(BaseLayout):
         self.current_game_id = current_game.get("id")
         self.game_selected.emit(self.current_game_id)
         self._load_game_media(current_game)
-        self._start_cart_animation()
+        self._start_disc_animation()
         self._start_boxart_animation()
 
     def _load_game_media(self, game: dict):
@@ -670,7 +685,8 @@ class ThemeLayout(BaseLayout):
         else:
             self.current_media = {
                 "boxart": game.get("cover_path") or game.get("boxart_path"),
-                "cartart": game.get("cartart_path"),
+                "discart": game.get("discart_path") or game.get("cartart_path"),
+                "cartart": game.get("discart_path") or game.get("cartart_path"),
                 "snap": game.get("video_path") or game.get("snap_path"),
                 "wheel": game.get("wheel_path") or game.get("logo_path"),
             }
@@ -679,8 +695,9 @@ class ThemeLayout(BaseLayout):
         box_file = self.current_media.get("boxart") or game.get("cover_path") or game.get("boxart_path")
         self._pending_box_file = box_file if (box_file and os.path.isfile(box_file)) else None
 
-        cart_file = self.current_media.get("cartart") or self.current_media.get("discart") or game.get("cartart_path") or game.get("discart_path")
-        self._pending_cart_file = cart_file if (cart_file and os.path.isfile(cart_file)) else None
+        disc_file = self.current_media.get("discart") or self.current_media.get("cartart") or game.get("discart_path") or game.get("cartart_path")
+        self._pending_disc_file = disc_file if (disc_file and os.path.isfile(disc_file)) else None
+        self._pending_cart_file = self._pending_disc_file
 
         self._load_pending_art()
         self._play_current_video()
@@ -700,13 +717,15 @@ class ThemeLayout(BaseLayout):
         else:
             self._current_box_pixmap = None
 
-        c_file = getattr(self, "_pending_cart_file", None)
+        c_file = getattr(self, "_pending_disc_file", None) or getattr(self, "_pending_cart_file", None)
         if c_file and os.path.isfile(c_file):
             if c_file not in self._art_pix_cache:
                 p = QPixmap(c_file)
                 self._art_pix_cache[c_file] = p if not p.isNull() else None
-            self._current_cart_pixmap = self._art_pix_cache.get(c_file)
+            self._current_disc_pixmap = self._art_pix_cache.get(c_file)
+            self._current_cart_pixmap = self._current_disc_pixmap
         else:
+            self._current_disc_pixmap = None
             self._current_cart_pixmap = None
     def _play_current_video(self):
         """Inicia la reproducción inmediata o diferida del video gameplay del juego seleccionado."""
@@ -812,7 +831,7 @@ class ThemeLayout(BaseLayout):
         n = len(self.games)
         window = [
             self.games[(center_idx + i) % n]
-            for i in range(-6, 35)
+            for i in range(-4, 12)
             if self.games[(center_idx + i) % n].get("id") not in self._wheel_pixmaps
         ]
         if window:
@@ -828,7 +847,7 @@ class ThemeLayout(BaseLayout):
                 bp = QPixmap(bf)
                 if not bp.isNull():
                     self._art_pix_cache[bf] = bp
-            cf = gmedia.get("cartart") or gmedia.get("discart")
+            cf = gmedia.get("discart") or gmedia.get("cartart")
             if cf and cf not in self._art_pix_cache and os.path.isfile(cf):
                 cp = QPixmap(cf)
                 if not cp.isNull():
@@ -1031,13 +1050,15 @@ class ThemeLayout(BaseLayout):
         sw, sh = sr.width(), sr.height()
         sx, sy = sr.x(), sr.y()
 
-        cx, cy_ratio, cw, ch = self.CART_RECT
+        cx, cy_ratio, cw, ch = self.DISC_RECT
         disc_cx_abs = sx + int(sw * cx)
-        disc_cy_abs = sy + int(sh * self._cart_current_y_ratio)
+        disc_cy_abs = sy + int(sh * self._disc_current_y_ratio)
         disc_w = int(sw * cw)
         disc_h = int(sh * ch)
 
-        disc_pix = getattr(self, "_current_cart_pixmap", None) if getattr(self, "_pending_cart_file", None) else self._pix_cartart_frame
+        disc_pix = getattr(self, "_current_disc_pixmap", None) if getattr(self, "_pending_disc_file", None) else self._pix_discart_frame
+        if not disc_pix:
+            disc_pix = getattr(self, "_current_cart_pixmap", None) or self._pix_cartart_frame
 
         if disc_pix and not disc_pix.isNull():
             side = min(disc_w, disc_h)
@@ -1045,8 +1066,8 @@ class ThemeLayout(BaseLayout):
             center_y = disc_cy_abs + disc_h // 2
 
             painter.save()
-            if self._cart_anim_timer.isActive() and self._cart_anim_duration > 0:
-                alpha_factor = min(1.0, max(0.0, self._cart_anim_elapsed / (self._cart_anim_duration * 0.6)))
+            if self._disc_anim_timer.isActive() and self._disc_anim_duration > 0:
+                alpha_factor = min(1.0, max(0.0, self._disc_anim_elapsed / (self._disc_anim_duration * 0.6)))
                 painter.setOpacity(alpha_factor)
 
             painter.translate(center_x, center_y)

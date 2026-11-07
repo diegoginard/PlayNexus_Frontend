@@ -1,0 +1,11 @@
+# Configuración de Emulador: Retroarch N64
+id = 23
+name = Retroarch N64
+executable = C:/Attract/Emu/RetroArch/retroarch.exe
+arguments = -f -L "C:\Attract\Emu\RetroArch\cores\mupen64plus_next_libretro.dll" "{rom}"
+platform = Nintendo 64
+bezel_delay = 3.8
+bezel_fade = 0.5
+loading_time = 3.5
+exit_loading_time = 1.0
+created_at = 2026-11-05 03:38:32

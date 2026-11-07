@@ -176,8 +176,8 @@ class ThemeLayout(BaseLayout):
     # 5. TIEMPOS Y ANIMACIÓN (TEMPORIZADORES EN MILISEGUNDOS)
     # =========================================================================
     ANIM_TICK_MS = 16
-    VIDEO_DEBOUNCE_MS = 350
-    ART_DEBOUNCE_MS = 250
+    VIDEO_DEBOUNCE_MS = 150
+    ART_DEBOUNCE_MS = 100
     WHEEL_FADEOUT_DELAY_MS = 1400
     FLYER_DELAY_MS = 1500
     VIDEO_WATCHDOG_MS = 1200
@@ -226,7 +226,7 @@ class ThemeLayout(BaseLayout):
 
         self._video_debounce_timer = QTimer(self)
         self._video_debounce_timer.setSingleShot(True)
-        self._video_debounce_timer.setInterval(getattr(self, "VIDEO_DEBOUNCE_MS", 350))
+        self._video_debounce_timer.setInterval(getattr(self, "VIDEO_DEBOUNCE_MS", 150))
         self._video_debounce_timer.timeout.connect(self._play_debounced_video)
 
         # Temporizador para diferir la lectura en disco de artes pesadas (cabinet/marquee/bezel) durante el giro
@@ -362,11 +362,8 @@ class ThemeLayout(BaseLayout):
         self._font_handel = self._font_counter
 
     def _load_pixmap(self, path: str | None) -> QPixmap | None:
-        """Carga un QPixmap desde el disco de forma segura, retornando None si el archivo es inaccesible o nulo."""
-        if not path or not os.path.isfile(path):
-            return None
-        pix = QPixmap(path)
-        return pix if not pix.isNull() else None
+        """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
+        return super()._load_pixmap(path)
 
     # -------------------------------------------------------------------------
     # GESTIÓN DE VIDEO DE FONDO Y VIDEO SNAP
@@ -623,18 +620,27 @@ class ThemeLayout(BaseLayout):
         return False
 
     def _preload_around(self, center_idx: int):
-        """Encola en segundo plano la precarga de los logotipos vecinos al índice actual."""
+        """Encola en segundo plano la precarga de los logotipos vecinos al índice actual y precarga artes adyacentes."""
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
             return
         n = len(self.games)
         window = []
-        for i in range(-5, 35):
+        for i in range(-4, 12):
             idx = (center_idx + i) % n
             g = self.games[idx]
             if g.get("id") not in self._wheel_pixmaps:
                 window.append(g)
         if window:
             self._wheel_worker.queue_games(window)
+
+        # Precargar además los muebles arcade y marquesinas de los juegos vecinos (-1, 1) en memoria
+        for off in (-1, 1):
+            adj_game = self.games[(center_idx + off) % n]
+            adj_media = self._resolve_game_media(adj_game)
+            if adj_media.get("cabinet"):
+                self._get_cached_art_pixmap(adj_media["cabinet"])
+            if adj_media.get("marquee"):
+                self._get_cached_art_pixmap(adj_media["marquee"])
 
     def _preload_direction(self, steps: int):
         """Encola la precarga predictiva de logotipos en la dirección en que el usuario está navegando."""
@@ -881,9 +887,13 @@ class ThemeLayout(BaseLayout):
             self._last_anim_time = time.perf_counter()
             self._anim_timer.start(16)
 
-        # Detectar navegación rápida (joystick o rueda mantenida) para diferir lecturas pesadas de disco
+        # Actualizar de inmediato el mueble, marquesina y bezel del juego enfocado
+        current_game = self.games[self.selected_index]
+        self.current_media = self._resolve_game_media(current_game)
+        self._load_current_game_art()
+
         now = time.perf_counter()
-        is_rapid = fast_repeat or (now - getattr(self, "_last_nav_time", 0.0) < 0.22) or abs(self._target_pos - self._current_pos) > 0.08
+        is_rapid = fast_repeat or (now - getattr(self, "_last_nav_time", 0.0) < 0.22)
         self._last_nav_time = now
 
         self._update_selected_media(fast_repeat=is_rapid)
@@ -1169,7 +1179,7 @@ class ThemeLayout(BaseLayout):
 
     def _play_debounced_video(self):
         """Reproduce el video snap una vez que la ruleta se ha detenido para maximizar la fluidez."""
-        self._update_current_selection(start_video=True)
+        self._start_game_video()
         self._flyer_delay_timer.start(1500)
 
     # -------------------------------------------------------------------------
@@ -1252,24 +1262,34 @@ class ThemeLayout(BaseLayout):
             painter.drawPixmap(snap_rect.x(), snap_rect.y(), self._cached_scratches_pix)
             painter.setOpacity(1.0)
 
-        # 3. MARQUEE (Capa trasera de la marquesina)
+        # 3. MARQUEE (Capa trasera de la marquesina con caché reescalada multi-elemento)
         pix_marq = self._current_marquee_pix
         if pix_marq:
+            if not hasattr(self, "_scaled_marq_cache"):
+                self._scaled_marq_cache = {}
             marq_key = (id(pix_marq), marquee_rect.width(), marquee_rect.height())
-            if not hasattr(self, "_cached_marq_pix") or getattr(self, "_cached_marq_key", None) != marq_key:
-                self._cached_marq_pix = pix_marq.scaled(marquee_rect.width(), marquee_rect.height(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-                self._cached_marq_key = marq_key
-            painter.drawPixmap(marquee_rect.x(), marquee_rect.y(), self._cached_marq_pix)
+            scaled_marq = self._scaled_marq_cache.get(marq_key)
+            if scaled_marq is None:
+                scaled_marq = pix_marq.scaled(marquee_rect.width(), marquee_rect.height(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                if len(self._scaled_marq_cache) >= 50:
+                    self._scaled_marq_cache.pop(next(iter(self._scaled_marq_cache)), None)
+                self._scaled_marq_cache[marq_key] = scaled_marq
+            painter.drawPixmap(marquee_rect.x(), marquee_rect.y(), scaled_marq)
             painter.fillRect(marquee_rect, QColor(255, 255, 255, 25))
 
-        # 4. MUEBLE ARCADE FRONTAL (Capa frontal con huecos transparentes)
+        # 4. MUEBLE ARCADE FRONTAL (Capa frontal con huecos transparentes y caché reescalada multi-elemento)
         pix_cab = self._current_cabinet_pix or self._pix_cabinet
         if pix_cab:
+            if not hasattr(self, "_scaled_cab_cache"):
+                self._scaled_cab_cache = {}
             cab_key = (id(pix_cab), cab_w, cab_h)
-            if not hasattr(self, "_cached_cab_pix") or getattr(self, "_cached_cab_key", None) != cab_key:
-                self._cached_cab_pix = pix_cab.scaled(cab_w, cab_h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-                self._cached_cab_key = cab_key
-            painter.drawPixmap(cab_x, cab_y, self._cached_cab_pix)
+            scaled_cab = self._scaled_cab_cache.get(cab_key)
+            if scaled_cab is None:
+                scaled_cab = pix_cab.scaled(cab_w, cab_h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                if len(self._scaled_cab_cache) >= 50:
+                    self._scaled_cab_cache.pop(next(iter(self._scaled_cab_cache)), None)
+                self._scaled_cab_cache[cab_key] = scaled_cab
+            painter.drawPixmap(cab_x, cab_y, scaled_cab)
 
         # 5. FLYER DEL JUEGO (Lado derecho de la pantalla)
         self._draw_flyer(painter, w, h)

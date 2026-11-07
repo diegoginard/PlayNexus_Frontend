@@ -1,0 +1,118 @@
+# Lista de PlayNexus: Nintendo 64
+[List]
+id = 22
+name = Nintendo 64
+list_type = games
+platform = Nintendo 64
+icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Nintendo 64.png
+default_emulator_id = 23
+default_emulator = Retroarch N64
+layout = Nintendo 64
+allowed_extensions = .zip
+roms_path = D:/Roms/Nintendo 64/Roms
+scan_subfolders = false
+exclude_folder_if_zip = false
+media_path = 
+boxart_path = D:/Roms/Nintendo 64/media/boxart
+flyer_path = 
+wheel_path = D:/Roms/Nintendo 64/media/wheel
+video_path = D:/Roms/Nintendo 64/media/videos
+cartart_path = D:/Roms/Nintendo 64/media/cartart
+cabinet_path = 
+marquee_path = 
+bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = D:/Roms/Nintendo 64/media/bezel
+loading_path = 
+loading_in_path = 
+loading_out_path = 
+xml_path = 
+created_at = 2026-11-05 03:33:49
+source_list_id = 
+filter_rules = []
+filter_match_mode = all
+menu_items = 
+
+[Games]
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+37633;Armorines - Project S.W.A.R.M. (U);Armorines - Project S.W.A.R.M. (U);D:\\Roms\\Nintendo 64\\Roms\\Armorines - Project S.W.A.R.M. (U).zip;;;;;;;;24;;;;{};2026-11-05 03:38:51;;
+37634;Army Men - Air Combat (U);Army Men - Air Combat (U);D:\\Roms\\Nintendo 64\\Roms\\Army Men - Air Combat (U).zip;;;;;;;;24;;;;{};2026-11-05 03:38:51;;
+37635;Army Men - Sarge's Heroes 2 (U);Army Men - Sarge's Heroes 2 (U);D:\\Roms\\Nintendo 64\\Roms\\Army Men - Sarge's Heroes 2 (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37636;Asteroids Hyper 64 (U);Asteroids Hyper 64 (U);D:\\Roms\\Nintendo 64\\Roms\\Asteroids Hyper 64 (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37637;Automobili Lamborghini (U);Automobili Lamborghini (U);D:\\Roms\\Nintendo 64\\Roms\\Automobili Lamborghini (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37638;Banjo-Kazooie (U);Banjo-Kazooie (U);D:\\Roms\\Nintendo 64\\Roms\\Banjo-Kazooie (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37639;Banjo-Tooie (U);Banjo-Tooie (U);D:\\Roms\\Nintendo 64\\Roms\\Banjo-Tooie (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37640;Batman Beyond - Return of the Joker (U) [!];Batman Beyond - Return of the Joker (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Batman Beyond - Return of the Joker (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37641;BattleTanx (U) [!];BattleTanx (U) [!];D:\\Roms\\Nintendo 64\\Roms\\BattleTanx (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37642;BattleTanx - Global Assault (U) [!];BattleTanx - Global Assault (U) [!];D:\\Roms\\Nintendo 64\\Roms\\BattleTanx - Global Assault (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37643;Battlezone - Rise of the Black Dogs (U) [!];Battlezone - Rise of the Black Dogs (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Battlezone - Rise of the Black Dogs (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37644;Beetle Adventure Racing! (J) [!];Beetle Adventure Racing! (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Beetle Adventure Racing! (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37645;Big Mountain 2000 (U) [!];Big Mountain 2000 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Big Mountain 2000 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37646;Bio F.R.E.A.K.S. (U) [!];Bio F.R.E.A.K.S. (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Bio F.R.E.A.K.S. (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37647;Blast Corps (U) (V1.1) [!];Blast Corps (U) (V1.1) [!];D:\\Roms\\Nintendo 64\\Roms\\Blast Corps (U) (V1.1) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37648;Blues Brothers 2000 (U) [!];Blues Brothers 2000 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Blues Brothers 2000 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37649;Body Harvest (U) [!];Body Harvest (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Body Harvest (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37650;Bomberman 64 (U);Bomberman 64 (U);D:\\Roms\\Nintendo 64\\Roms\\Bomberman 64 (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37651;Bomberman 64 - Arcade Edition (J)[Ting];Bomberman 64 - Arcade Edition (J)[Ting];D:\\Roms\\Nintendo 64\\Roms\\Bomberman 64 - Arcade Edition (J)[Ting].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37652;Bomberman 64 - The Second Attack! (U);Bomberman 64 - The Second Attack! (U);D:\\Roms\\Nintendo 64\\Roms\\Bomberman 64 - The Second Attack! (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37653;Bomberman Hero (J) [!];Bomberman Hero (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Bomberman Hero (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37654;Brunswick Circuit Pro Bowling (U) [!];Brunswick Circuit Pro Bowling (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Brunswick Circuit Pro Bowling (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37655;Buck Bumble (J) [!];Buck Bumble (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Buck Bumble (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37656;Bug's Life, A (U) [!];Bug's Life, A (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Bug's Life, A (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37657;Bust-A-Move '99 (U) [!];Bust-A-Move '99 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Bust-A-Move '99 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37658;Bust-A-Move 2 - Arcade Edition (U) [!];Bust-A-Move 2 - Arcade Edition (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Bust-A-Move 2 - Arcade Edition (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37659;Carmageddon 64 (U) [!];Carmageddon 64 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Carmageddon 64 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37660;Castlevania (U) (V1.2) [!];Castlevania (U) (V1.2) [!];D:\\Roms\\Nintendo 64\\Roms\\Castlevania (U) (V1.2) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37661;Castlevania - Legacy of Darkness (U) [!];Castlevania - Legacy of Darkness (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Castlevania - Legacy of Darkness (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37662;Centre Court Tennis (E) [!];Centre Court Tennis (E) [!];D:\\Roms\\Nintendo 64\\Roms\\Centre Court Tennis (E) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37663;Chameleon Twist (U) [!];Chameleon Twist (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Chameleon Twist (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37664;Chameleon Twist 2 (J) [!];Chameleon Twist 2 (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Chameleon Twist 2 (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37665;Charlie Blast's Territory (U) [!];Charlie Blast's Territory (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Charlie Blast's Territory (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37666;Chopper Attack (U) [!];Chopper Attack (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Chopper Attack (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37667;Choro Q 64 (J) [!];Choro Q 64 (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Choro Q 64 (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37668;Choro Q 64 II (J) [!];Choro Q 64 II (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Choro Q 64 II (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37669;Chou Snobow Kids (J) [!];Chou Snobow Kids (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Chou Snobow Kids (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37670;City-Tour GP - Zennihon GT Senshuken (J) [!];City-Tour GP - Zennihon GT Senshuken (J) [!];D:\\Roms\\Nintendo 64\\Roms\\City-Tour GP - Zennihon GT Senshuken (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37671;Clay Fighter - Sculptor's Cut (U) [!];Clay Fighter - Sculptor's Cut (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Clay Fighter - Sculptor's Cut (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37672;Clay Fighter 63 1-3 (U) [!];Clay Fighter 63 1-3 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Clay Fighter 63 1-3 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37673;Command & Conquer (U) [!];Command & Conquer (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Command & Conquer (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37674;Conker's Bad Fur Day (U) [!];Conker's Bad Fur Day (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Conker's Bad Fur Day (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37675;Cruis'n Exotica (U) [!];Cruis'n Exotica (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Cruis'n Exotica (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37676;Cruis'n USA (U) (V1.2) [!];Cruis'n USA (U) (V1.2) [!];D:\\Roms\\Nintendo 64\\Roms\\Cruis'n USA (U) (V1.2) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37677;Cruis'n World (U) [!];Cruis'n World (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Cruis'n World (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37678;Custom Robo V2 (J) [!];Custom Robo V2 (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Custom Robo V2 (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37679;CyberTiger (U) [!];CyberTiger (U) [!];D:\\Roms\\Nintendo 64\\Roms\\CyberTiger (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37680;Dark Rift (E) [!];Dark Rift (E) [!];D:\\Roms\\Nintendo 64\\Roms\\Dark Rift (E) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37681;Deadly Arts (U) [!];Deadly Arts (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Deadly Arts (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37682;Dezaemon 3D (J) [!];Dezaemon 3D (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Dezaemon 3D (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37683;Diddy Kong Racing (U) (M2) (V1.1) [!];Diddy Kong Racing (U) (M2) (V1.1) [!];D:\\Roms\\Nintendo 64\\Roms\\Diddy Kong Racing (U) (M2) (V1.1) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37684;Disney's Tarzan (U) [!];Disney's Tarzan (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Disney's Tarzan (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37685;Donald Duck - Quack Attack (E) [!];Donald Duck - Quack Attack (E) [!];D:\\Roms\\Nintendo 64\\Roms\\Donald Duck - Quack Attack (E) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37686;Donkey Kong 64 (U) [!];Donkey Kong 64 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Donkey Kong 64 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37687;Doom 64 (J) [!];Doom 64 (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Doom 64 (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37688;Dr. Mario 64 (U) [!];Dr. Mario 64 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Dr. Mario 64 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37689;Dragon Sword 64 (U) (Proto);Dragon Sword 64 (U) (Proto);D:\\Roms\\Nintendo 64\\Roms\\Dragon Sword 64 (U) (Proto).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37690;Dual Heroes (J) [!];Dual Heroes (J) [!];D:\\Roms\\Nintendo 64\\Roms\\Dual Heroes (J) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37691;Duke Nukem - ZER0 H0UR (U) [!];Duke Nukem - ZER0 H0UR (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Duke Nukem - ZER0 H0UR (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37692;Duke Nukem 64 (U) [!];Duke Nukem 64 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Duke Nukem 64 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37693;Earthworm Jim 3D (U) [!];Earthworm Jim 3D (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Earthworm Jim 3D (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37694;Explosive Invincible Bangai-O (J)[Ting];Explosive Invincible Bangai-O (J)[Ting];D:\\Roms\\Nintendo 64\\Roms\\Explosive Invincible Bangai-O (J)[Ting].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37695;Killer Instinct Gold (U) (V1.2) [!];Killer Instinct Gold (U) (V1.2) [!];D:\\Roms\\Nintendo 64\\Roms\\Killer Instinct Gold (U) (V1.2) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37696;Legend of Zelda, The - Majora's Mask (U) [!];Legend of Zelda, The - Majora's Mask (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Legend of Zelda, The - Majora's Mask (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37697;Legend of Zelda, The - Ocarina of Time (U);Legend of Zelda, The - Ocarina of Time (U);D:\\Roms\\Nintendo 64\\Roms\\Legend of Zelda, The - Ocarina of Time (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37698;Mario Kart 64 (E) (V1.1) [!];Mario Kart 64 (E) (V1.1) [!];D:\\Roms\\Nintendo 64\\Roms\\Mario Kart 64 (E) (V1.1) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37699;Mario Party 3 (U) [!];Mario Party 3 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Mario Party 3 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37700;Mortal Kombat 4 (U) [!];Mortal Kombat 4 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Mortal Kombat 4 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37701;Mortal Kombat Trilogy (U) (V1.2) [!];Mortal Kombat Trilogy (U) (V1.2) [!];D:\\Roms\\Nintendo 64\\Roms\\Mortal Kombat Trilogy (U) (V1.2) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37702;Paper Mario (U);Paper Mario (U);D:\\Roms\\Nintendo 64\\Roms\\Paper Mario (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37703;Pokemon Stadium (E) (V1.1) [!];Pokemon Stadium (E) (V1.1) [!];D:\\Roms\\Nintendo 64\\Roms\\Pokemon Stadium (E) (V1.1) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37704;Pokemon Stadium 2 (U) [!];Pokemon Stadium 2 (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Pokemon Stadium 2 (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37705;Sin and Punishment - Successor of the Earth (J)[Ting];Sin and Punishment - Successor of the Earth (J)[Ting];D:\\Roms\\Nintendo 64\\Roms\\Sin and Punishment - Successor of the Earth (J)[Ting].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37706;Star Fox 64 (U)[Tesp];Star Fox 64 (U)[Tesp];D:\\Roms\\Nintendo 64\\Roms\\Star Fox 64 (U)[Tesp].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37707;Star Wars - Shadows of the Empire (U);Star Wars - Shadows of the Empire (U);D:\\Roms\\Nintendo 64\\Roms\\Star Wars - Shadows of the Empire (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37708;Super Mario 64 (U);Super Mario 64 (U);D:\\Roms\\Nintendo 64\\Roms\\Super Mario 64 (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37709;Super Smash Bros. (U);Super Smash Bros. (U);D:\\Roms\\Nintendo 64\\Roms\\Super Smash Bros. (U).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37710;Viewpoint 2064 (J);Viewpoint 2064 (J);D:\\Roms\\Nintendo 64\\Roms\\Viewpoint 2064 (J).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37711;Yoshi's Story (U) [!];Yoshi's Story (U) [!];D:\\Roms\\Nintendo 64\\Roms\\Yoshi's Story (U) [!].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37712;Yuke Yuke!! Trouble Makers (J);Yuke Yuke!! Trouble Makers (J);D:\\Roms\\Nintendo 64\\Roms\\Yuke Yuke!! Trouble Makers (J).zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;
+37713;Zool - Majyu Charmer Legend (J)[Ting];Zool - Majyu Charmer Legend (J)[Ting];D:\\Roms\\Nintendo 64\\Roms\\Zool - Majyu Charmer Legend (J)[Ting].zip;;;;;;;;;;;;{};2026-11-05 03:38:51;;

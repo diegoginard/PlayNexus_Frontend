@@ -153,20 +153,28 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
 }
 
 
+_LAYOUT_MEDIA_SPEC_CACHE: dict[str, list[dict]] = {}
+
+
 def get_layout_media_spec(layout_name: str) -> list[dict]:
     """
     Obtiene la especificación de medios requeridos por un layout:
     1. Si es un layout genérico estándar, retorna su especificación predefinida.
     2. Si es un tema de sistema, lee los requerimientos directamente desde su 'theme_layout.py'
-       (mediante MEDIA_REQUIREMENTS o deducción autónoma de sus recursos).
+       (única y exclusivamente mediante MEDIA_REQUIREMENTS explícito en el layout).
     3. Si no existe especificación, retorna lista vacía.
     """
     if not layout_name:
         return []
 
+    cache_key = layout_name.lower().strip()
+    if cache_key in _LAYOUT_MEDIA_SPEC_CACHE:
+        return _LAYOUT_MEDIA_SPEC_CACHE[cache_key]
+
     # 1. Layouts genéricos estándar
     for name, spec in GENERIC_MEDIA_SPECS.items():
         if layout_name.lower() == name.lower():
+            _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = spec
             return spec
 
     # 2. Temas autónomos: leer directamente desde ThemeLayout en theme_layout.py
@@ -179,53 +187,23 @@ def get_layout_media_spec(layout_name: str) -> list[dict]:
                 from playnexus.ui.layouts.theme_layout import get_theme_layout_class
                 cls = get_theme_layout_class(layout_name)
                 if cls:
-                    # Atributo explícito MEDIA_REQUIREMENTS
+                    # Requerimientos explícitos definidos en el propio theme_layout.py
                     if hasattr(cls, "MEDIA_REQUIREMENTS") and cls.MEDIA_REQUIREMENTS:
-                        return list(cls.MEDIA_REQUIREMENTS)
+                        res = list(cls.MEDIA_REQUIREMENTS)
+                        _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = res
+                        return res
                     if hasattr(cls, "get_media_requirements") and callable(cls.get_media_requirements):
-                        return list(cls.get_media_requirements())
+                        res = list(cls.get_media_requirements())
+                        _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = res
+                        return res
 
-                    # Auto-detección desde los componentes declarados en ThemeLayout
-                    detected = []
-                    if getattr(cls, "TV_RECT", None) or getattr(cls, "TV_IMAGE", None):
-                        detected.append({
-                            "key": "video",
-                            "label": "Video Snaps",
-                            "folder": "videos",
-                            "extensions": [".mp4", ".mkv", ".avi", ".webm"],
-                            "required": True
-                        })
-                    if getattr(cls, "WHEEL_IMAGE", None):
-                        detected.append({
-                            "key": "wheel",
-                            "label": "Wheel Logos",
-                            "folder": "wheel",
-                            "extensions": [".png", ".webp"],
-                            "required": True
-                        })
-                    if getattr(cls, "CARTART_IMAGE", None):
-                        is_cd = getattr(cls, "IS_CD", False) or "disc" in str(getattr(cls, "CARTART_IMAGE", "")).lower()
-                        lbl = "Discos" if is_cd else "Cartuchos"
-                        detected.append({
-                            "key": "cartart",
-                            "label": lbl,
-                            "folder": "cartart",
-                            "extensions": [".png", ".webp"],
-                            "required": True
-                        })
-                    if getattr(cls, "BOXART_IMAGE", None):
-                        detected.append({
-                            "key": "boxart",
-                            "label": "Box Art / Carátulas",
-                            "folder": "boxart",
-                            "extensions": [".png", ".jpg", ".jpeg", ".webp"],
-                            "required": False
-                        })
-                    if detected:
-                        return detected
+                    # Prohibida cualquier adivinación/auto-detección: si no está declarado, no pide nada
+                    _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = []
+                    return []
             except Exception as e:
                 print(f"[PlayNexus] Error al leer requerimientos de {th_file}: {e}")
 
+    _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = []
     return []
 
 

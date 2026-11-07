@@ -61,6 +61,12 @@ class ThemeLayout(BaseLayout):
             "label": "Cartuchos",
             "extensions": [".png", ".webp"],
             "required": True
+        },
+        {
+            "key": "boxart",
+            "label": "Box Art / Cajas",
+            "extensions": [".png", ".jpg", ".jpeg", ".webp"],
+            "required": True
         }
     ]
 
@@ -118,6 +124,11 @@ class ThemeLayout(BaseLayout):
     BOXART_H = 0.380
     BOXART_BOTTOM_Y = 0.928
     BOXART_ANCHOR = "bottom"
+    BOXART_START_X = -0.140
+    BOXART_END_X = 0.015
+    BOXART_START_Y = 0.928
+    BOXART_END_Y = 0.928
+    BOXART_DURATION = 400
 
     # Curva interactiva de la ruleta (Conveyor Wheel de 14 nodos interpolados a 60 FPS)
     CONVEYOR_X = [0.89, 0.85, 0.83, 0.80, 0.77, 0.74, 0.71, 0.625, 0.71, 0.74, 0.77, 0.80, 0.83, 0.89]
@@ -282,18 +293,20 @@ class ThemeLayout(BaseLayout):
         self._boxart_anim_timer = QTimer(self)
         self._boxart_anim_timer.timeout.connect(self._on_boxart_anim_tick)
         self._boxart_anim_elapsed = 0
-        self._boxart_anim_duration = 450
-        self._boxart_current_x_offset_ratio = 0.0
+        self._boxart_anim_duration = getattr(self, "BOXART_DURATION", 400)
+        self._boxart_start_x_ratio = getattr(self, "BOXART_START_X", -0.140)
+        self._boxart_end_x_ratio = getattr(self, "BOXART_END_X", self.BOXART_X)
+        self._boxart_start_y_ratio = getattr(self, "BOXART_START_Y", getattr(self, "BOXART_BOTTOM_Y", 0.928))
+        self._boxart_end_y_ratio = getattr(self, "BOXART_END_Y", getattr(self, "BOXART_BOTTOM_Y", 0.928))
+        self._boxart_current_x_ratio = self._boxart_end_x_ratio
+        self._boxart_current_y_ratio = self._boxart_end_y_ratio
         self._boxart_alpha = 1.0
 
         self._start_logo_animation()
 
     def _load_pixmap(self, path: str | None) -> QPixmap | None:
-        """Carga un QPixmap desde el disco de forma segura, retornando None si el archivo es inaccesible o nulo."""
-        if path and os.path.isfile(path):
-            pix = QPixmap(path)
-            return pix if not pix.isNull() else None
-        return None
+        """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
+        return super()._load_pixmap(path)
     # -------------------------------------------------------------------------
     # RECURSOS TIPOGRÁFICOS Y EFECTOS DE SONIDO
     # -------------------------------------------------------------------------
@@ -445,24 +458,32 @@ class ThemeLayout(BaseLayout):
         self._logo_anim_timer.start(16)
 
     def _on_boxart_anim_tick(self):
-        """Interpola la posición horizontal y opacidad de la carátula (boxart) hacia su posición final."""
+        """Interpola la posición y opacidad de la carátula hacia su posición final."""
         dt = 16
         self._boxart_anim_elapsed += dt
         t = min(self._boxart_anim_elapsed / self._boxart_anim_duration, 1.0)
-        ease = 1.0 - (1.0 - t) ** 2
-        start_x_offset = -0.30
-        self._boxart_current_x_offset_ratio = start_x_offset * (1.0 - ease)
-        self._boxart_alpha = ease
+        ease = 1.0 - (1.0 - t) ** 3
+        self._boxart_current_x_ratio = (
+            self._boxart_start_x_ratio
+            + (self._boxart_end_x_ratio - self._boxart_start_x_ratio) * ease
+        )
+        self._boxart_current_y_ratio = (
+            self._boxart_start_y_ratio
+            + (self._boxart_end_y_ratio - self._boxart_start_y_ratio) * ease
+        )
+        self._boxart_alpha = min(1.0, max(0.0, ease * 1.35))
         self.update()
         if t >= 1.0:
             self._boxart_anim_timer.stop()
-            self._boxart_current_x_offset_ratio = 0.0
+            self._boxart_current_x_ratio = self._boxart_end_x_ratio
+            self._boxart_current_y_ratio = self._boxart_end_y_ratio
             self._boxart_alpha = 1.0
 
     def _start_boxart_animation(self):
         """Reinicia la transición animada de entrada de la carátula del juego seleccionado."""
         self._boxart_anim_elapsed = 0
-        self._boxart_current_x_offset_ratio = -0.30
+        self._boxart_current_x_ratio = self._boxart_start_x_ratio
+        self._boxart_current_y_ratio = self._boxart_start_y_ratio
         self._boxart_alpha = 0.0
         self._boxart_anim_timer.start(16)
 
@@ -727,7 +748,12 @@ class ThemeLayout(BaseLayout):
                 self._art_pix_cache[b_file] = p if not p.isNull() else None
             self._current_box_pixmap = self._art_pix_cache.get(b_file)
         else:
-            self._current_box_pixmap = None
+            game = self.games[self.selected_index] if (self.games and 0 <= self.selected_index < len(self.games)) else {}
+            title = game.get("title") or game.get("rom_name") or ""
+            placeholder_key = f"__placeholder_{title}"
+            if placeholder_key not in self._art_pix_cache:
+                self._art_pix_cache[placeholder_key] = load_cover(None, title, QSize(400, 400))
+            self._current_box_pixmap = self._art_pix_cache.get(placeholder_key)
 
         c_file = getattr(self, "_pending_cart_file", None)
         if c_file and os.path.isfile(c_file):
@@ -809,15 +835,15 @@ class ThemeLayout(BaseLayout):
         n = len(self.games)
         window = [
             self.games[(center_idx + i) % n]
-            for i in range(-6, 35)
+            for i in range(-4, 12)
             if self.games[(center_idx + i) % n].get("id") not in self._wheel_pixmaps
         ]
         if window:
             self._wheel_worker.queue_games(window)
-        # Preload adjacent boxart/cartart into cache for zero-lag immediate display
+        # Precargar carátula/cartucho adyacente inmediato en caché
         if not hasattr(self, "_art_pix_cache"):
             self._art_pix_cache = {}
-        for off in (-2, -1, 1, 2, 3):
+        for off in (-1, 1):
             gm = self.games[(center_idx + off) % n]
             gmedia = resolve_game_media(gm)
             bf = gmedia.get("boxart") or gm.get("cover_path")
@@ -1052,23 +1078,32 @@ class ThemeLayout(BaseLayout):
 
         box_w = int(sw * self.BOXART_W)
         box_h = int(sh * self.BOXART_H)
-        box_x = sx + int(sw * self.BOXART_X)
+        cur_x = getattr(self, "_boxart_current_x_ratio", getattr(self, "BOXART_END_X", self.BOXART_X))
+        box_x = sx + int(sw * cur_x)
 
         box_pix = getattr(self, "_current_box_pixmap", None) if getattr(self, "_pending_box_file", None) else self._pix_boxart_frame
+        if not box_pix:
+            box_pix = getattr(self, "_current_box_pixmap", None)
         if box_pix and not box_pix.isNull():
-            painter.save()
-            painter.setOpacity(self._boxart_alpha)
-
-            anim_x = box_x + int(sw * self._boxart_current_x_offset_ratio)
             pw = box_pix.width()
             ph = box_pix.height()
             s = min(box_w / pw, box_h / ph) if pw > 0 and ph > 0 else 1.0
             dw = int(pw * s)
             dh = int(ph * s)
-            draw_bx = anim_x + (box_w - dw) // 2
 
-            anchor_y = sy + int(sh * self.BOXART_BOTTOM_Y)
-            draw_by = anchor_y - dh
+            painter.save()
+            painter.setOpacity(self._boxart_alpha)
+
+            draw_bx = box_x + (box_w - dw) // 2
+
+            if getattr(self, "BOXART_ANCHOR", "center") == "bottom":
+                cur_y = getattr(self, "_boxart_current_y_ratio", getattr(self, "BOXART_END_Y", self.BOXART_BOTTOM_Y))
+                anchor_y = sy + int(sh * cur_y)
+                draw_by = anchor_y - dh
+            else:
+                cur_y = getattr(self, "_boxart_current_y_ratio", getattr(self, "BOXART_END_Y", getattr(self, "BOXART_Y", 0.53)))
+                box_y = sy + int(sh * cur_y)
+                draw_by = box_y + (box_h - dh) // 2
 
             painter.drawPixmap(QRect(draw_bx, draw_by, dw, dh), box_pix)
             painter.restore()

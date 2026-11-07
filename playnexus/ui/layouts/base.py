@@ -1,6 +1,8 @@
+import os
 from pathlib import Path
 from PySide6.QtCore import Signal, QPoint, Qt
 from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QMediaPlayer
 from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_SELECT,
@@ -10,6 +12,27 @@ from playnexus.services.controls import (
     ACTION_PAGE_UP, ACTION_PAGE_DOWN
 )
 from playnexus.ui.layouts.wheel_worker import WheelPreloadWorker
+
+_GLOBAL_PIXMAP_CACHE: dict[str, QPixmap] = {}
+
+
+def get_cached_pixmap(path: str | Path | None) -> QPixmap | None:
+    """Carga y almacena en caché un QPixmap estático por su ruta absoluta en memoria."""
+    if not path:
+        return None
+    p_str = str(path).strip()
+    if not p_str:
+        return None
+    norm_path = os.path.normcase(os.path.abspath(p_str))
+    cached = _GLOBAL_PIXMAP_CACHE.get(norm_path)
+    if cached is not None:
+        return cached
+    if os.path.isfile(p_str):
+        pix = QPixmap(p_str)
+        if not pix.isNull():
+            _GLOBAL_PIXMAP_CACHE[norm_path] = pix
+            return pix
+    return None
 
 class BaseLayout(QWidget):
     """
@@ -32,6 +55,10 @@ class BaseLayout(QWidget):
         self.theme_name = theme_name
         self.games = []
         self.current_game_id = None
+
+    def _load_pixmap(self, path: str | Path | None) -> QPixmap | None:
+        """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
+        return get_cached_pixmap(path)
 
     def set_games(self, games: list):
         """Recibe la lista de juegos a mostrar (diccionarios de juegos)."""
@@ -129,6 +156,20 @@ class BaseLayout(QWidget):
                     getattr(self, timer_name).stop()
                 except Exception:
                     pass
+        for anim_timer_name in (
+            "_pointer_anim_timer", "_avatar_bounce_timer", "_wheel_spin_timer",
+            "_cart_anim_timer", "_logo_anim_timer", "_boxart_anim_timer"
+        ):
+            if hasattr(self, anim_timer_name):
+                try:
+                    getattr(self, anim_timer_name).stop()
+                except Exception:
+                    pass
+        if hasattr(self, "_wheel_worker") and self._wheel_worker:
+            try:
+                self._wheel_worker.clear()
+            except Exception:
+                pass
         for audio_name in ("audio_output", "game_audio", "_audio_output"):
             if hasattr(self, audio_name):
                 ao = getattr(self, audio_name)
@@ -170,6 +211,20 @@ class BaseLayout(QWidget):
                     getattr(self, timer_name).stop()
                 except Exception:
                     pass
+        for anim_timer_name in (
+            "_pointer_anim_timer", "_avatar_bounce_timer", "_wheel_spin_timer",
+            "_cart_anim_timer", "_logo_anim_timer", "_boxart_anim_timer"
+        ):
+            if hasattr(self, anim_timer_name):
+                try:
+                    getattr(self, anim_timer_name).stop()
+                except Exception:
+                    pass
+        if hasattr(self, "_wheel_worker") and self._wheel_worker:
+            try:
+                self._wheel_worker.clear()
+            except Exception:
+                pass
         for audio_name in ("audio_output", "game_audio", "_audio_output"):
             if hasattr(self, audio_name):
                 ao = getattr(self, audio_name)
@@ -195,6 +250,15 @@ class BaseLayout(QWidget):
     def showEvent(self, event):
         """Asegura que el video snap o tema comience al hacerse visible este layout."""
         super().showEvent(event)
+        # Reanudar timers de animación si estaban detenidos
+        for t_name in ("_pointer_anim_timer", "_avatar_bounce_timer"):
+            if hasattr(self, t_name):
+                t = getattr(self, t_name)
+                if t and not t.isActive():
+                    try:
+                        t.start(16 if "pointer" in t_name else 20)
+                    except Exception:
+                        pass
         if getattr(self, "_pending_video_play_on_show", False):
             self._pending_video_play_on_show = False
             if hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
@@ -213,6 +277,11 @@ class BaseLayout(QWidget):
                     elif hasattr(self, "_update_current_selection") and callable(self._update_current_selection):
                         self._update_current_selection()
                         break
+
+    def hideEvent(self, event):
+        """Detiene video, audio y timers de animación cuando el layout pasa a estar oculto o inactivo."""
+        super().hideEvent(event)
+        self.stop_media()
 
     def resume_media(self):
         """Reanuda la reproducción multimedia y el audio cuando el emulador finaliza."""
