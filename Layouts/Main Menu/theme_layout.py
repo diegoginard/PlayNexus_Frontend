@@ -164,6 +164,13 @@ class ThemeLayout(BaseLayout):
         self._video_watchdog_timer.setInterval(800)
         self._video_watchdog_timer.timeout.connect(self._on_video_watchdog_tick)
 
+        # Confirmación de selección diferida al soltar tecla o reposo (Commit on Release / Debounce)
+        self._nav_pending_commit = False
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.setInterval(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
+        self._commit_timer.timeout.connect(self._commit_selection)
+
     # -------------------------------------------------------------------------
     # GESTIÓN DE FUENTES Y RECURSOS
     # -------------------------------------------------------------------------
@@ -216,16 +223,6 @@ class ThemeLayout(BaseLayout):
         p_path = getattr(self, "_pending_video_path", None)
         if p_path and self.player.source() != QUrl.fromLocalFile(p_path):
             return
-
-        # Si la ruleta está girando activamente, no extraer frames pesados para mantener los 60 FPS
-        if hasattr(self, "_wheel_spin_timer") and self._wheel_spin_timer.isActive() and self._current_video_image is not None:
-            return
-
-        # Limitar extracción a ~30 FPS para evitar saturar el bucle de eventos de la GUI
-        now = time.perf_counter()
-        if now - getattr(self, "_last_video_frame_time", 0.0) < 0.033:
-            return
-        self._last_video_frame_time = now
 
         img = frame.toImage()
         if not img.isNull():
@@ -300,6 +297,9 @@ class ThemeLayout(BaseLayout):
         self._want_video_playing = False
         self._video_debounce_timer.stop()
         self._video_watchdog_timer.stop()
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._nav_pending_commit = False
         if self.player:
             try:
                 self.player.stop()
@@ -391,22 +391,20 @@ class ThemeLayout(BaseLayout):
             self._current_artwork_pixmap = None
 
         # Preparar video de fondo
-        snap_video = self.current_media.get("video") or self.current_media.get("snap")
+        snap_video = self.current_media.get("video") or self.current_media.get("snap") or game.get("video") or game.get("snap")
         video_to_play = snap_video if (snap_video and os.path.isfile(snap_video)) else None
 
         self._ensure_player_initialized()
         self._pending_video_path = video_to_play
-        self._want_video_playing = False
-        self._video_watchdog_timer.stop()
-        if self.audio_output:
-            self.audio_output.setVolume(0.0)
-        if self.player and self.player.mediaStatus() == QMediaPlayer.BufferedMedia:
-            try:
-                self.player.pause()
-            except Exception:
-                pass
-        self._current_video_image = None
-        self._video_debounce_timer.start()
+        if not video_to_play:
+            self._want_video_playing = False
+            if self.player:
+                self.player.stop()
+            self._current_video_image = None
+            self.update()
+            return
+
+        self._video_debounce_timer.start(100)
 
     def _play_debounced_video(self):
         """Reproduce el video de fondo una vez que la ruleta se estabiliza."""
@@ -424,10 +422,11 @@ class ThemeLayout(BaseLayout):
             try:
                 self.player.setLoops(QMediaPlayer.Infinite)
                 if self.player.source() == source_url:
-                    self.player.setPosition(0)
+                    if self.player.playbackState() != QMediaPlayer.PlayingState:
+                        self.player.play()
                 else:
                     self.player.setSource(source_url)
-                self.player.play()
+                    self.player.play()
                 self._video_watchdog_timer.start()
             except Exception:
                 pass
@@ -468,11 +467,26 @@ class ThemeLayout(BaseLayout):
 
         self._play_nav_sound()
         self._preload_around(new_idx)
-        self._update_current_selection()
+
+        # Diferir confirmación de medios al soltar la tecla (Commit on Release)
+        # El video previo continúa reproduciéndose fluidamente sin pausarse hasta el commit
+        self._video_debounce_timer.stop()
+        self._video_watchdog_timer.stop()
+        self._nav_pending_commit = True
+        self._commit_timer.start(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
 
         if not self._wheel_spin_timer.isActive():
             self._wheel_spin_timer.start(16)
         self.update()
+
+    def _commit_selection(self):
+        """Aplica y carga los medios del sistema seleccionado una vez detenido el desplazamiento."""
+        if not getattr(self, "_nav_pending_commit", False):
+            return
+        self._nav_pending_commit = False
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._update_current_selection()
 
     def jump_to_next_letter(self):
         """Salta al primer sistema que comience con la siguiente letra alfabética."""
@@ -486,6 +500,7 @@ class ThemeLayout(BaseLayout):
             t = (self.games[idx].get("title") or "").upper()
             if t and t[0] != curr_char and t[0].isalnum():
                 self._navigate_steps(offset)
+                self._commit_selection()
                 return
 
     def jump_to_prev_letter(self):
@@ -512,6 +527,7 @@ class ThemeLayout(BaseLayout):
                 if step > 0:
                     step -= n
                 self._navigate_steps(step)
+                self._commit_selection()
                 return
 
     def _on_wheel_spin_tick(self):
@@ -876,39 +892,48 @@ class ThemeLayout(BaseLayout):
         else:
             super().keyPressEvent(event)
 
-    def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        event.accept()
-
-    def wheelEvent(self, event):
+    def keyReleaseEvent(self, event):
+        """Al soltar la tecla de navegación, confirma la selección del sistema y actualiza medios."""
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
-        delta = event.angleDelta().y()
-        if delta > 0:
-            self._navigate_steps(-1)
-        elif delta < 0:
-            self._navigate_steps(1)
-        event.accept()
+        if not event.isAutoRepeat() and getattr(self, "_nav_pending_commit", False):
+            self._commit_selection()
+        super().keyReleaseEvent(event)
 
     def mousePressEvent(self, event):
+        """Captura el foco y almacena la posición del clic sin mover la ruleta ni cambiar medios."""
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
         self.setFocus()
         if event.button() == Qt.LeftButton:
+            self._mouse_pressed_pos = event.position()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """Al soltar el clic, ejecuta la acción en la ruleta de wheels o activación del sistema."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        if event.button() == Qt.LeftButton and hasattr(self, "_mouse_pressed_pos") and self._mouse_pressed_pos is not None:
+            pos = self._mouse_pressed_pos
+            self._mouse_pressed_pos = None
+
             sr = self._get_target_rect()
             sw = sr.width()
             sh = sr.height()
             sx = sr.x()
             sy = sr.y()
 
-            pos = event.position()
             mx, my = pos.x(), pos.y()
 
-            # Comprobar si se hizo clic sobre algún ítem de la ruleta
+            # Comprobar si se hizo clic sobre algún ítem de la ruleta (se ejecuta únicamente al soltar)
             n_games = len(self.games)
             if n_games > 0:
                 for offset in range(-6, 7):
@@ -936,18 +961,24 @@ class ThemeLayout(BaseLayout):
                                     self.game_activated.emit(gid)
                             else:
                                 self._navigate_steps(offset)
+                                self._commit_selection()
                             event.accept()
                             return
 
             # Clics en tercio superior o inferior para navegar
             if my < self.height() * 0.40:
                 self._navigate_steps(-1)
+                self._commit_selection()
             elif my > self.height() * 0.60:
                 self._navigate_steps(1)
+                self._commit_selection()
             else:
                 gid = self.get_selected_game_id()
                 if gid and self._can_activate_game():
                     self._play_select_sound()
                     self.game_activated.emit(gid)
             event.accept()
+            return
+        super().mouseReleaseEvent(event)
+        event.accept()
 

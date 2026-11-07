@@ -1,7 +1,7 @@
 # Configuración de Emulador: DuckStation
 id = 4
 name = DuckStation
-executable = C:/Attract/Emu/Sony PS1/Duckstation/duckstation-qt-x64-ReleaseLTCG.exe
+executable = D:/Emuladores/Sony PS1/Duckstation/duckstation-qt-x64-ReleaseLTCG.exe
 arguments = "{rom}" -fullscreen -nogui
 platform = Sony Playstation 1
 bezel_delay = 7.0

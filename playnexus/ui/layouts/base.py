@@ -418,10 +418,13 @@ class BaseLayout(QWidget):
                     import time
                     self._last_anim_time = time.perf_counter()
                     self._anim_timer.start(16)
-                if hasattr(self, "_update_selected_media"):
-                    self._update_selected_media(fast_repeat=False)
-                elif hasattr(self, "_update_current_selection"):
+                if hasattr(self, "_commit_timer"):
+                    self._commit_timer.stop()
+                self._nav_pending_commit = False
+                if hasattr(self, "_update_current_selection"):
                     self._update_current_selection()
+                elif hasattr(self, "_update_selected_media"):
+                    self._update_selected_media(fast_repeat=False)
                 if hasattr(self, "_play_nav_sound"):
                     self._play_nav_sound()
                 elif hasattr(self, "_play_wheel_sound"):
@@ -435,6 +438,9 @@ class BaseLayout(QWidget):
                 self._wheel_spin_offset = 2.0
                 if hasattr(self, "_wheel_spin_timer") and not self._wheel_spin_timer.isActive():
                     self._wheel_spin_timer.start(16)
+                if hasattr(self, "_commit_timer"):
+                    self._commit_timer.stop()
+                self._nav_pending_commit = False
                 if hasattr(self, "_update_current_selection"):
                     self._update_current_selection()
                 if hasattr(self, "_play_wheel_sound"):
@@ -532,10 +538,13 @@ class BaseLayout(QWidget):
                     import time
                     self._last_anim_time = time.perf_counter()
                     self._anim_timer.start(16)
-                if hasattr(self, "_update_selected_media"):
-                    self._update_selected_media(fast_repeat=False)
-                elif hasattr(self, "_update_current_selection"):
+                if hasattr(self, "_commit_timer"):
+                    self._commit_timer.stop()
+                self._nav_pending_commit = False
+                if hasattr(self, "_update_current_selection"):
                     self._update_current_selection()
+                elif hasattr(self, "_update_selected_media"):
+                    self._update_selected_media(fast_repeat=False)
                 if hasattr(self, "_play_nav_sound"):
                     self._play_nav_sound()
                 elif hasattr(self, "_play_wheel_sound"):
@@ -549,6 +558,9 @@ class BaseLayout(QWidget):
                 self._wheel_spin_offset = -2.0
                 if hasattr(self, "_wheel_spin_timer") and not self._wheel_spin_timer.isActive():
                     self._wheel_spin_timer.start(16)
+                if hasattr(self, "_commit_timer"):
+                    self._commit_timer.stop()
+                self._nav_pending_commit = False
                 if hasattr(self, "_update_current_selection"):
                     self._update_current_selection()
                 if hasattr(self, "_play_wheel_sound"):
@@ -631,10 +643,16 @@ class BaseLayout(QWidget):
             event.accept()
             return
         elif matches_action(event, ACTION_NAV_LETTER_BACK, getattr(self, "db", None)):
+            if event.isAutoRepeat():
+                event.accept()
+                return
             self.jump_to_prev_letter()
             event.accept()
             return
         elif matches_action(event, ACTION_NAV_LETTER_FWD, getattr(self, "db", None)) or matches_action(event, ACTION_NAV_LETTER, getattr(self, "db", None)):
+            if event.isAutoRepeat():
+                event.accept()
+                return
             self.jump_to_next_letter()
             event.accept()
             return

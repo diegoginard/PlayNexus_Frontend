@@ -1,7 +1,7 @@
 # Configuración de Emulador: RMG
 id = 24
 name = RMG
-executable = C:/Attract/Emu/Nintendo 64/RMG/RMG.exe
+executable = D:/Emuladores/Nintendo 64/RMG/RMG.exe
 arguments = "{romfilename}"
 platform = Nintendo 64
 bezel_delay = 0.0

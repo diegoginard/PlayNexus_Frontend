@@ -15,3 +15,4 @@ Dolphin (GameCube / Wii);Dolphin.exe;-b -e "[romfilename]";Nintendo GameCube;Dol
 PPSSPP (Sony PSP);PPSSPPWindows64.exe;"[romfilename]";Sony PSP;Emulador PPSSPP para PlayStation Portable en pantalla completa.;1.0;0.3
 Flycast (Dreamcast / Naomi);flycast.exe;"[romfilename]";Sega Dreamcast;Emulador Flycast para Sega Dreamcast, Naomi y Naomi 2.;1.5;0.3
 RPCS3 (PlayStation 3);rpcs3.exe;--no-gui "[romfilename]";Sony PlayStation 3;RPCS3 para PS3 en modo directo sin interfaz.;3.0;0.3
+Odin (Sega Hikaru / Arcade);odin.exe;-r [name] -R "[romdir]" -f;Arcade;Emulador Odin para placas arcade Sega Hikaru a pantalla completa.;1.5;0.3

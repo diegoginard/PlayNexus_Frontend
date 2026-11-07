@@ -1,7 +1,11 @@
 # Configuración de Emulador: ArcadeDuck
 id = 13
 name = ArcadeDuck
-executable = C:/Attract/Emu/ArcadeDuck/ArcadeDuck.exe
+executable = D:/Emuladores/ArcadeDuck/ArcadeDuck.exe
 arguments = "{rom}" -fullscreen -nogui
 platform = Varios sistemas arcades
+bezel_delay = 1.5
+bezel_fade = 0.3
+loading_time = 1.5
+exit_loading_time = 1.0
 created_at = 2026-10-29 01:53:00

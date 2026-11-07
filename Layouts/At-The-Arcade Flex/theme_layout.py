@@ -232,9 +232,16 @@ class ThemeLayout(BaseLayout):
         # Temporizador para diferir la lectura en disco de artes pesadas (cabinet/marquee/bezel) durante el giro
         self._art_debounce_timer = QTimer(self)
         self._art_debounce_timer.setSingleShot(True)
-        self._art_debounce_timer.setInterval(getattr(self, "ART_DEBOUNCE_MS", 250))
-        self._art_debounce_timer.timeout.connect(self._load_current_game_art)
+        self._art_debounce_timer.setInterval(getattr(self, "ART_DEBOUNCE_MS", 200))
+        self._art_debounce_timer.timeout.connect(self._on_art_debounce_timeout)
         self._last_nav_time = 0.0
+
+        # Confirmación de selección diferida al soltar tecla o reposo (Commit on Release / Debounce)
+        self._nav_pending_commit = False
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.setInterval(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
+        self._commit_timer.timeout.connect(self._commit_selection)
 
         # Worker en segundo plano para pre-carga asíncrona de logotipos de rueda
         self._text_wheel_cache = {}
@@ -397,8 +404,8 @@ class ThemeLayout(BaseLayout):
         if not self.bg_player or getattr(self, "_is_emulator_running", False):
             return
         if status == QMediaPlayer.EndOfMedia:
-            self.bg_player.setPosition(0)
-            self.bg_player.play()
+            if not getattr(self, "_is_emulator_running", False):
+                self.bg_player.play()
         elif status in (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferingMedia, QMediaPlayer.BufferedMedia):
             if not getattr(self, "_is_emulator_running", False) and self.bg_player.playbackState() != QMediaPlayer.PlayingState:
                 self.bg_player.play()
@@ -414,18 +421,11 @@ class ThemeLayout(BaseLayout):
         """Recibe los cuadros decodificados del video de fondo y actualiza el fondo de la pantalla."""
         if not frame.isValid():
             return
-        # Si la ruleta está en giro activo, no congelar el hilo de la UI extrayendo frames pesados de fondo
-        is_moving = abs(self._target_pos - self._current_pos) > 0.01 or (time.perf_counter() - getattr(self, "_last_nav_time", 0.0) < 0.20)
-        if is_moving and getattr(self, "_bg_video_pix", None) is not None:
-            return
 
         img = frame.toImage()
         if not img.isNull():
-            # Conservar resolución nativa original (1920x1080) sin degradación ni pixelado por vecino más próximo
-            self._bg_video_pix = QPixmap.fromImage(img)
             self._bg_video_image = img
-            if not is_moving:
-                self.update()
+            self.update()
 
     def _init_game_player(self):
         """Inicializa el reproductor de video gameplay/snap en el monitor CRT del mueble arcade."""
@@ -484,18 +484,15 @@ class ThemeLayout(BaseLayout):
                     self.game_player.play()
             else:
                 if self.game_audio:
-                    self.game_audio.setMuted(True)
                     try:
                         self.game_audio.setMuted(True)
                         self.game_audio.setVolume(0.0)
                     except Exception:
                         pass
-                if status == QMediaPlayer.BufferedMedia:
-                    self.game_player.pause()
         elif status == QMediaPlayer.EndOfMedia:
             if self._want_game_video_playing and self.isVisible():
-                self.game_player.setPosition(0)
-                self.game_player.play()
+                if self.game_player.playbackState() != QMediaPlayer.PlayingState:
+                    self.game_player.play()
 
     def _on_game_player_error(self, error, error_string=""):
         """Gestiona errores de decodificación en el video gameplay activando mecanismos de recuperación."""
@@ -510,9 +507,9 @@ class ThemeLayout(BaseLayout):
             return
         if not os.path.isfile(self._pending_video_path) or not self.game_player:
             return
-        if self.game_player.mediaStatus() in (QMediaPlayer.LoadingMedia, QMediaPlayer.BufferingMedia) and self.game_player.playbackState() == QMediaPlayer.PlayingState:
+        if self.game_player.mediaStatus() in (QMediaPlayer.LoadingMedia, QMediaPlayer.BufferingMedia, QMediaPlayer.BufferedMedia) and self.game_player.playbackState() == QMediaPlayer.PlayingState:
             return
-        if self._game_video_image is None or self.game_player.playbackState() != QMediaPlayer.PlayingState:
+        if self._game_video_image is None and self.game_player.playbackState() != QMediaPlayer.PlayingState:
             try:
                 src_url = QUrl.fromLocalFile(self._pending_video_path)
                 if self.game_player.source() != src_url:
@@ -528,13 +525,6 @@ class ThemeLayout(BaseLayout):
                 return
             if self._pending_video_path and self.game_player.source() != QUrl.fromLocalFile(self._pending_video_path):
                 return
-            is_moving = abs(self._target_pos - self._current_pos) > 0.01 or (time.perf_counter() - getattr(self, "_last_nav_time", 0.0) < 0.20)
-            if is_moving and self._game_video_image is not None:
-                return
-            now = time.perf_counter()
-            if now - getattr(self, "_last_game_frame_time", 0.0) < 0.033:  # Cap a 30 FPS para monitor CRT
-                return
-            self._last_game_frame_time = now
             img = frame.toImage()
             if not img.isNull():
                 self._game_video_image = img
@@ -747,6 +737,9 @@ class ThemeLayout(BaseLayout):
         self._video_watchdog_timer.stop()
         if hasattr(self, "_art_debounce_timer"):
             self._art_debounce_timer.stop()
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._nav_pending_commit = False
         if self.game_audio:
             try:
                 self.game_audio.setMuted(True)
@@ -804,6 +797,9 @@ class ThemeLayout(BaseLayout):
         self._reset_flyer_state()
         if hasattr(self, "_art_debounce_timer"):
             self._art_debounce_timer.stop()
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._nav_pending_commit = False
         if self.game_audio:
             self.game_audio.setVolume(0.0)
         if self.game_player and self.game_player.mediaStatus() == QMediaPlayer.BufferedMedia:
@@ -887,20 +883,77 @@ class ThemeLayout(BaseLayout):
             self._last_anim_time = time.perf_counter()
             self._anim_timer.start(16)
 
-        # Actualizar de inmediato el mueble, marquesina y bezel del juego enfocado
-        current_game = self.games[self.selected_index]
-        self.current_media = self._resolve_game_media(current_game)
-        self._load_current_game_art()
-
         now = time.perf_counter()
-        is_rapid = fast_repeat or (now - getattr(self, "_last_nav_time", 0.0) < 0.22)
         self._last_nav_time = now
 
-        self._update_selected_media(fast_repeat=is_rapid)
+        # Diferir confirmación de medios al soltar tecla o por reposo (Commit on Release)
+        # El video previo continúa reproduciéndose fluidamente sin pausarse hasta el commit
+        if hasattr(self, "_video_debounce_timer"):
+            self._video_debounce_timer.stop()
+        if hasattr(self, "_video_watchdog_timer"):
+            self._video_watchdog_timer.stop()
+        self._nav_pending_commit = True
+        self._commit_timer.start(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
+        self.update()
+
+    def _pause_game_video_for_nav(self):
+        """Pausa y silencia el video gameplay durante el giro de la ruleta."""
+        if self._want_game_video_playing:
+            self._want_game_video_playing = False
+            if self.game_audio:
+                try:
+                    self.game_audio.setMuted(True)
+                    self.game_audio.setVolume(0.0)
+                except Exception:
+                    pass
+            if self.game_player:
+                try:
+                    self.game_player.pause()
+                except Exception:
+                    pass
+        self._video_watchdog_timer.stop()
+        self._video_debounce_timer.stop()
+
+    def _commit_selection(self):
+        """Aplica y carga los medios del juego seleccionado una vez detenido el desplazamiento."""
+        if not getattr(self, "_nav_pending_commit", False):
+            return
+        self._nav_pending_commit = False
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        if hasattr(self, "_art_debounce_timer"):
+            self._art_debounce_timer.stop()
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._nav_pending_commit = False
+        if not self.games or not (0 <= self.selected_index < len(self.games)):
+            return
+        current_game = self.games[self.selected_index]
+        self.current_game_id = current_game.get("id")
+        self.current_media = self._resolve_game_media(current_game)
+        self._load_current_game_art()
         gid = self.get_selected_game_id()
         if gid:
             self.game_selected.emit(gid)
+        self._start_game_video()
+        self._flyer_delay_timer.start(1500)
         self.update()
+
+    def jump_to_next_letter(self):
+        """Salta al primer juego de la siguiente letra alfabética y actualiza medios de inmediato."""
+        super().jump_to_next_letter()
+        self._nav_pending_commit = False
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._update_current_selection(start_video=True)
+
+    def jump_to_prev_letter(self):
+        """Salta al primer juego de la letra alfabética anterior y actualiza medios de inmediato."""
+        super().jump_to_prev_letter()
+        self._nav_pending_commit = False
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._update_current_selection(start_video=True)
 
     def _on_flyer_delay_timeout(self):
         """Dispara la entrada suave del flyer publicitario tras transcurrir el tiempo de espera."""
@@ -1030,6 +1083,19 @@ class ThemeLayout(BaseLayout):
         self._art_pix_cache[path] = pix
         return pix
 
+    def _on_art_debounce_timeout(self):
+        """Carga el cabinet, marquesina y bezel del juego seleccionado una vez detenida la ruleta."""
+        if not self.games or not (0 <= self.selected_index < len(self.games)):
+            return
+        current_game = self.games[self.selected_index]
+        self.current_game_id = current_game.get("id")
+        self.current_media = self._resolve_game_media(current_game)
+        self._load_current_game_art()
+        gid = self.get_selected_game_id()
+        if gid:
+            self.game_selected.emit(gid)
+        self.update()
+
     def _load_current_game_art(self):
         """Carga de forma diferida las texturas pesadas (marquee, cabinet, bezel) del juego actual."""
         if not self.games or not (0 <= self.selected_index < len(self.games)):
@@ -1128,6 +1194,10 @@ class ThemeLayout(BaseLayout):
         """Prepara e inicia la reproducción del video snap del juego actual en el monitor."""
         if not self.games or not (0 <= self.selected_index < len(self.games)):
             return
+        current_game = self.games[self.selected_index]
+        if not self.current_media or self.current_game_id != current_game.get("id"):
+            self.current_game_id = current_game.get("id")
+            self.current_media = self._resolve_game_media(current_game)
         video_path = self.current_media.get("video") if self.current_media else None
         target_video = None
         is_snap = False
@@ -1196,13 +1266,13 @@ class ThemeLayout(BaseLayout):
         if w <= 0 or h <= 0:
             return
 
-        # 1. FONDO DE VIDEO O IMAGEN ESTÁTICA (acelerado por hardware mediante QPixmap 1:1)
-        bg_pix = getattr(self, "_bg_video_pix", None)
-        if bg_pix and not bg_pix.isNull():
-            if bg_pix.width() == w and bg_pix.height() == h:
-                painter.drawPixmap(0, 0, bg_pix)
+        # 1. FONDO DE VIDEO O IMAGEN ESTÁTICA
+        bg_img = getattr(self, "_bg_video_image", None)
+        if bg_img and not bg_img.isNull():
+            if bg_img.width() == w and bg_img.height() == h:
+                painter.drawImage(0, 0, bg_img)
             else:
-                painter.drawPixmap(0, 0, w, h, bg_pix)
+                painter.drawImage(QRect(0, 0, w, h), bg_img)
         elif self._pix_bg_fallback:
             if not hasattr(self, "_cached_bg_pix") or getattr(self, "_cached_bg_size", None) != (w, h):
                 self._cached_bg_pix = self._pix_bg_fallback.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
@@ -1481,9 +1551,15 @@ class ThemeLayout(BaseLayout):
             self._navigate_steps(5, fast_repeat=fast)
             event.accept()
         elif matches_action(event, ACTION_NAV_LETTER_BACK):
+            if event.isAutoRepeat():
+                event.accept()
+                return
             self.jump_to_prev_letter()
             event.accept()
         elif matches_action(event, ACTION_NAV_LETTER_FWD):
+            if event.isAutoRepeat():
+                event.accept()
+                return
             self.jump_to_next_letter()
             event.accept()
         elif matches_action(event, ACTION_SELECT) or key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
@@ -1504,32 +1580,40 @@ class ThemeLayout(BaseLayout):
         else:
             super().keyPressEvent(event)
 
-
-    def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        event.accept()
-
-    def wheelEvent(self, event):
-        """Permite navegar fluidamente por la lista utilizando la rueda de desplazamiento del ratón."""
+    def keyReleaseEvent(self, event):
+        """Al soltar la tecla de navegación, confirma la selección del juego y actualiza medios."""
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
-        delta = event.angleDelta().y()
-        if delta > 0:
-            self._navigate_steps(-1)
-        elif delta < 0:
-            self._navigate_steps(1)
-        event.accept()
+        if not event.isAutoRepeat() and getattr(self, "_nav_pending_commit", False):
+            self._commit_selection()
+        super().keyReleaseEvent(event)
+
 
     def mousePressEvent(self, event):
-        """Permite interactuar mediante clics directos sobre los elementos de la interfaz."""
+        """Captura el foco y almacena la posición del clic sin mover la ruleta ni cambiar medios."""
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
         self.setFocus()
         if event.button() == Qt.LeftButton:
+            self._mouse_pressed_pos = event.position().toPoint()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """Al soltar el clic, ejecuta la acción de navegación en la ruleta o activación del juego."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        if event.button() == Qt.LeftButton and hasattr(self, "_mouse_pressed_pos") and self._mouse_pressed_pos is not None:
+            pos = self._mouse_pressed_pos
+            self._mouse_pressed_pos = None
+
             # Si se hace click cerca del monitor, activar el juego
             cab_h = self.height()
             cab_w = int(cab_h * (self.CAB_BASE_W / float(self.CAB_BASE_H)))
@@ -1545,7 +1629,6 @@ class ThemeLayout(BaseLayout):
                 int(self.SNAP_LOCAL_RECT.width() * scale_x),
                 int(self.SNAP_LOCAL_RECT.height() * scale_y)
             )
-            pos = event.position().toPoint()
             if snap_rect.contains(pos):
                 gid = self.get_selected_game_id()
                 if gid and self._can_activate_game():
@@ -1554,14 +1637,18 @@ class ThemeLayout(BaseLayout):
                 event.accept()
                 return
 
-            # Clics arriba o abajo para navegar
+            # Clics arriba o abajo para navegar (se ejecuta exclusivamente al soltar el botón)
             if pos.y() < self.height() * 0.40:
                 self._navigate_steps(-1)
+                self._commit_selection()
             elif pos.y() > self.height() * 0.60:
                 self._navigate_steps(1)
+                self._commit_selection()
             else:
                 gid = self.get_selected_game_id()
                 if gid and self._can_activate_game():
                     self._play_select_sound()
                     self.game_activated.emit(gid)
             event.accept()
+            return
+        super().mouseReleaseEvent(event)

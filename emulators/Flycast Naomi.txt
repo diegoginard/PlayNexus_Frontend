@@ -1,7 +1,11 @@
 # Configuración de Emulador: Flycast Naomi
 id = 17
 name = Flycast Naomi
-executable = C:/Attract/Emu/Sega Naomi/Flycast/flycast.exe
+executable = D:/Emuladores/Sega Naomi/Flycast/flycast.exe
 arguments = "{rom}"
 platform = Sega Naomi
+bezel_delay = 1.5
+bezel_fade = 0.5
+loading_time = 1.5
+exit_loading_time = 1.0
 created_at = 2026-11-01 21:53:57

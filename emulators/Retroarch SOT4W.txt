@@ -1,7 +1,7 @@
 # Configuración de Emulador: Retroarch SOT4W
 id = 5
 name = Retroarch SOT4W
-executable = C:/Attract/Emu/RetroArch/retroarch.exe
+executable = D:/Emuladores/RetroArch/retroarch.exe
 arguments = -f -L "C:\Attract\Emu\RetroArch\cores\genesis_plus_gx_sot4w_libretro.dll" "{rom}"
 platform = 
 bezel_delay = 4.0

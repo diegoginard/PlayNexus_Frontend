@@ -1,7 +1,11 @@
 # Configuración de Emulador: Sega Genesis
 id = 3
 name = Sega Genesis
-executable = C:/Attract/Emu/Sega Genesis/plumsg/plumsg.exe
+executable = D:/Emuladores/Sega Genesis/plumsg/plumsg.exe
 arguments = "{rom}"
 platform = 
+bezel_delay = 0.0
+bezel_fade = 0.3
+loading_time = 1.5
+exit_loading_time = 1.0
 created_at = 2026-10-25 23:09:15

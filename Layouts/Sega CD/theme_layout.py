@@ -248,6 +248,13 @@ class ThemeLayout(BaseLayout):
         self._wheel_spin_timer.setTimerType(Qt.PreciseTimer)
         self._wheel_spin_timer.timeout.connect(self._on_wheel_spin_tick)
 
+        # Confirmación de selección diferida al soltar tecla o reposo (Commit on Release / Debounce)
+        self._nav_pending_commit = False
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.setInterval(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
+        self._commit_timer.timeout.connect(self._commit_selection)
+
         # Animación del Avatar (NiGHTS)
         self._avatar_anim_time = 0.0
         self._avatar_offset_x = 0.0
@@ -378,10 +385,28 @@ class ThemeLayout(BaseLayout):
         self._pointer_current_x_ratio = self._pointer_pulse_x_ratio
 
         self._play_wheel_sound()
-        self._update_current_selection()
+
+        # Diferir confirmación de medios al soltar la tecla (Commit on Release)
+        # El video previo continúa reproduciéndose fluidamente sin pausarse hasta el commit
+        if hasattr(self, "_video_debounce_timer"):
+            self._video_debounce_timer.stop()
+        if hasattr(self, "_video_watchdog_timer"):
+            self._video_watchdog_timer.stop()
+        self._nav_pending_commit = True
+        self._commit_timer.start(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
+
         if not self._wheel_spin_timer.isActive():
             self._wheel_spin_timer.start(16)
         self.update()
+
+    def _commit_selection(self):
+        """Aplica y carga los medios del juego seleccionado una vez detenido el desplazamiento."""
+        if not getattr(self, "_nav_pending_commit", False):
+            return
+        self._nav_pending_commit = False
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._update_current_selection()
 
     def _on_wheel_spin_tick(self):
         """Interpola la posición continua de la ruleta hacia el objetivo a 60 FPS con suavizado exponencial."""
@@ -478,6 +503,9 @@ class ThemeLayout(BaseLayout):
         self._player_initialized = True
         self._want_video_playing = False
         self._pending_video_path = None
+        if hasattr(self, "_commit_timer"):
+            self._commit_timer.stop()
+        self._nav_pending_commit = False
         self._pending_video_is_snap = False
         self._video_debounce_timer = QTimer(self)
         self._video_debounce_timer.setSingleShot(True)
@@ -520,8 +548,7 @@ class ThemeLayout(BaseLayout):
                         self.audio_output.setVolume(0.0)
                     except Exception:
                         pass
-                if status == QMediaPlayer.BufferedMedia:
-                    self.player.pause()
+                pass
         elif status == QMediaPlayer.EndOfMedia:
             if getattr(self, "_want_video_playing", False) and self.isVisible():
                 self.player.setPosition(0)
@@ -554,13 +581,6 @@ class ThemeLayout(BaseLayout):
             p_path = getattr(self, "_pending_video_path", None)
             if p_path and self.player.source() != QUrl.fromLocalFile(p_path):
                 return
-            # Si la ruleta esta girando activamente, no extraer frames pesados por PCIe para mantener 60 FPS
-            if hasattr(self, "_wheel_spin_timer") and self._wheel_spin_timer.isActive() and self._current_video_image is not None:
-                return
-            now = time.perf_counter()
-            if now - getattr(self, "_last_video_frame_time", 0.0) < 0.033:  # Cap a 30 FPS para CRT
-                return
-            self._last_video_frame_time = now
             img = frame.toImage()
             if not img.isNull():
                 self._current_video_image = img
@@ -719,17 +739,20 @@ class ThemeLayout(BaseLayout):
 
         self._pending_video_path = target_file
         self._pending_video_is_snap = is_snap
-        self._want_video_playing = False
-        self._video_watchdog_timer.stop()
-        if self.audio_output:
-            self.audio_output.setVolume(0.0)
-        if self.player and self.player.mediaStatus() == QMediaPlayer.BufferedMedia:
-            try:
-                self.player.pause()
-            except Exception:
-                pass
-        self._current_video_image = None
-        self._video_debounce_timer.start()
+        if not target_file:
+            self._want_video_playing = False
+            self._video_watchdog_timer.stop()
+            if self.player:
+                self.player.stop()
+            self._current_video_image = None
+            self.update()
+            return
+
+        if hasattr(self, "_video_debounce_timer"):
+            self._video_debounce_timer.stop()
+            self._video_debounce_timer.start(100)
+        else:
+            self._play_debounced_video()
 
     def _play_debounced_video(self):
         """Reproduce el video snap una vez que la ruleta se ha detenido para maximizar la fluidez."""
@@ -752,10 +775,12 @@ class ThemeLayout(BaseLayout):
             try:
                 src_url = QUrl.fromLocalFile(target_file)
                 if self.player.source() == src_url:
-                    self.player.setPosition(0)
+                    if self.player.playbackState() != QMediaPlayer.PlayingState:
+                        self.player.play()
                 else:
                     self.player.setSource(src_url)
-                self.player.play()
+                    self.player.play()
+                self._video_watchdog_timer.start()
                 self._video_watchdog_timer.start()
             except Exception:
                 pass
@@ -1273,10 +1298,62 @@ class ThemeLayout(BaseLayout):
         else:
             super().keyPressEvent(event)
 
+    def keyReleaseEvent(self, event):
+        """Al soltar la tecla de navegación, confirma la selección del juego y actualiza medios."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        if not event.isAutoRepeat() and getattr(self, "_nav_pending_commit", False):
+            self._commit_selection()
+        super().keyReleaseEvent(event)
+
+
+    def mousePressEvent(self, event):
+        """Captura el foco y almacena la posición del clic sin mover la ruleta ni cambiar medios."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        self.setFocus()
+        if event.button() == Qt.RightButton:
+            gid = self.get_selected_game_id()
+            if gid:
+                self.context_menu_requested.emit(gid, event.globalPosition().toPoint())
+            event.accept()
+            return
+        elif event.button() == Qt.LeftButton:
+            self._mouse_pressed_pos = event.position()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
+        """Al soltar el clic, ejecuta la acción de navegación en la ruleta o activación del juego."""
+        from playnexus.services.emulator_manager import EMULATOR_MANAGER
+        if EMULATOR_MANAGER.is_launching_or_running():
+            event.accept()
+            return
+        if event.button() == Qt.LeftButton and hasattr(self, "_mouse_pressed_pos") and self._mouse_pressed_pos is not None:
+            pos = self._mouse_pressed_pos
+            self._mouse_pressed_pos = None
+
+            sr = self._get_scaled_canvas()
+            pos_y = pos.y()
+            if pos_y < sr.y() + sr.height() * 0.45:
+                self._navigate_steps(-1)
+                self._commit_selection()
+            elif pos_y > sr.y() + sr.height() * 0.55:
+                self._navigate_steps(1)
+                self._commit_selection()
+            else:
+                gid = self.get_selected_game_id()
+                if gid and self._can_activate_game():
+                    self._play_select_sound()
+                    self.game_activated.emit(gid)
+            event.accept()
+            return
         super().mouseReleaseEvent(event)
-        event.accept()
 
     def wheelEvent(self, event):
         """Permite navegar fluidamente por la lista utilizando la rueda de desplazamiento del ratón."""
@@ -1290,35 +1367,6 @@ class ThemeLayout(BaseLayout):
         elif angle < 0:
             self._navigate_steps(1)
         event.accept()
-
-    def mousePressEvent(self, event):
-        """Permite interactuar mediante clics directos sobre los elementos de la interfaz."""
-        from playnexus.services.emulator_manager import EMULATOR_MANAGER
-        if EMULATOR_MANAGER.is_launching_or_running():
-            event.accept()
-            return
-        self.setFocus()
-        if event.button() == Qt.RightButton:
-            gid = self.get_selected_game_id()
-            if gid:
-                self.context_menu_requested.emit(gid, event.globalPosition().toPoint())
-            event.accept()
-            return
-        elif event.button() == Qt.LeftButton:
-            sr = self._get_scaled_canvas()
-            pos_y = event.position().y()
-            if pos_y < sr.y() + sr.height() * 0.45:
-                self._navigate_steps(-1)
-            elif pos_y > sr.y() + sr.height() * 0.55:
-                self._navigate_steps(1)
-            else:
-                gid = self.get_selected_game_id()
-                if gid and self._can_activate_game():
-                    self._play_select_sound()
-                    self.game_activated.emit(gid)
-            event.accept()
-            return
-        super().mousePressEvent(event)
 
     # -------------------------------------------------------------------------
     # CONTROL DE CICLO DE VIDA Y RECURSOS DEL SISTEMA

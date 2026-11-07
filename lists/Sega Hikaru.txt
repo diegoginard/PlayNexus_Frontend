@@ -1,0 +1,43 @@
+# Lista de PlayNexus: Sega Hikaru
+[List]
+id = 24
+name = Sega Hikaru
+list_type = games
+platform = Sega Hikaru
+icon_path = D:/PlayNexus/icons/Arcade.png
+default_emulator_id = 26
+default_emulator = Odin
+layout = At-The-Arcade Flex
+allowed_extensions = .zip
+roms_path = D:/Roms/Hikaru/roms
+scan_subfolders = false
+exclude_folder_if_zip = false
+media_path = 
+boxart_path = 
+flyer_path = D:/Roms/Hikaru/media/flyer
+wheel_path = D:/Roms/Hikaru/media/wheel
+video_path = D:/Roms/Hikaru/media/videos
+cartart_path = 
+cabinet_path = 
+marquee_path = D:/Roms/Hikaru/media/marquee
+bezel_path = 
+bezel_hud_enabled = false
+bezel_hud_path = D:/Roms/Hikaru/media/bezel
+loading_path = 
+loading_in_path = 
+loading_out_path = 
+xml_path = 
+created_at = 2026-11-07 13:40:22
+source_list_id = 
+filter_rules = []
+filter_match_mode = all
+menu_items = 
+
+[Games]
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+38734;airtrix;airtrix;D:\\Roms\\Hikaru\\roms\\airtrix.zip;;;;;;;;;;;;{};2026-11-07 13:40:22;;
+38735;braveff;braveff;D:\\Roms\\Hikaru\\roms\\braveff.zip;;;;;;;;;;;;{};2026-11-07 13:40:22;;
+38738;pharrier;pharrier;D:\\Roms\\Hikaru\\roms\\pharrier.zip;;;;;;;;;;;;{};2026-11-07 13:40:22;;
+38739;sgnascar;sgnascar;D:\\Roms\\Hikaru\\roms\\sgnascar.zip;;;;;;;;;;;;{};2026-11-07 13:40:22;;
+38740;swracer;swracer;D:\\Roms\\Hikaru\\roms\\swracer.zip;;;;;;;;;;;;{};2026-11-07 13:40:22;;
+38741;von4;von4;D:\\Roms\\Hikaru\\roms\\von4.zip;;;;;;;;;;;;{};2026-11-07 13:40:22;;

@@ -137,6 +137,15 @@ DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
         "bezel_delay": "3.0",
         "bezel_fade": "0.3",
     },
+    {
+        "name": "Odin (Sega Hikaru / Arcade)",
+        "executable": "odin.exe",
+        "arguments": '-r [name] -R "[romdir]" -f',
+        "platform": "Arcade",
+        "description": "Emulador Odin para placas arcade Sega Hikaru a pantalla completa.",
+        "bezel_delay": "1.5",
+        "bezel_fade": "0.3",
+    },
 ]
 
 

@@ -591,17 +591,6 @@ class WheelLayout(BaseLayout):
         self._want_video_playing = False
         if hasattr(self, "_video_watchdog_timer"):
             self._video_watchdog_timer.stop()
-        if self.audio_output:
-            try:
-                self.audio_output.setMuted(True)
-                self.audio_output.setVolume(0.0)
-            except Exception:
-                pass
-        if self.player:
-            try:
-                self.player.pause()
-            except Exception:
-                pass
         if hasattr(self, "video_timer"):
             self.video_timer.stop()
 
@@ -694,10 +683,26 @@ class WheelLayout(BaseLayout):
             self.setFocus()
 
     def eventFilter(self, watched, event):
-        if watched == getattr(self, "wheel_list", None) and event.type() == QEvent.KeyPress:
-            self.keyPressEvent(event)
-            if event.isAccepted():
-                return True
+        if watched == getattr(self, "wheel_list", None):
+            if event.type() == QEvent.KeyPress:
+                self.keyPressEvent(event)
+                if event.isAccepted():
+                    return True
+            elif event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.LeftButton:
+                    self._wheel_pressed_pos = event.position().toPoint()
+                    self.wheel_list.setFocus()
+                    return True  # Ignorar en mouse press para no variar la ruleta hasta el release
+            elif event.type() == QEvent.MouseButtonRelease:
+                if event.button() == Qt.LeftButton and hasattr(self, "_wheel_pressed_pos"):
+                    pos = self._wheel_pressed_pos
+                    self._wheel_pressed_pos = None
+                    item = self.wheel_list.itemAt(pos)
+                    if item:
+                        row = self.wheel_list.row(item)
+                        if row != self.wheel_list.currentRow():
+                            self.wheel_list.setCurrentRow(row)
+                    return True
         return super().eventFilter(watched, event)
 
     def mousePressEvent(self, event):

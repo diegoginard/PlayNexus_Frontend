@@ -274,7 +274,26 @@ Todos los métodos siguientes deben implementarse:
 
 ---
 
-### 9. Descubrimiento automático
+### 9. Estándar de Navegación Diferida (Commit on Release / Debounce)
+
+Para garantizar 60 FPS estables y evitar desfasajes entre el arte (cabinets, carátulas, cartuchos) y los videos durante la navegación rápida o con botón mantenido, todos los layouts deben implementar el patrón de **confirmación al soltar la tecla (Commit on Release)**:
+
+1. **Durante `_navigate_steps(delta)`:**
+   - La ruleta o carrusel se desplaza de inmediato y actualiza el título/contador inferior.
+   - El arte pesado del juego anterior se **mantiene en pantalla** sin recargar archivos intermedios.
+   - **Ningún video se pausa:** El video gameplay del juego actual continúa reproduciéndose fluidamente mientras se gira la ruleta, y los videos de fondo (background) se reproducen de forma continua e ininterrumpida sin pausarse ni saltear cuadros.
+   - Se marca `self._nav_pending_commit = True` y se inicia/reinicia `self._commit_timer.start(180)`.
+2. **En `keyReleaseEvent(event)`:**
+   - Si `not event.isAutoRepeat()` y `self._nav_pending_commit` es verdadero, se cancela `_commit_timer` y se ejecuta inmediatamente `_commit_selection()`.
+3. **En `_commit_selection()`:**
+   - Se limpia `_nav_pending_commit = False`.
+   - Se invoca `_update_current_selection()` para cargar el arte del juego definitivo, lanzar las animaciones de entrada, emitir `game_selected` y reproducir el video snap.
+4. **Respaldo:** `_commit_timer` asegura la confirmación automática a los 180 ms en caso de desplazamientos mediante rueda de ratón o mandos analógicos.
+5. **Interacción con Mouse (Clics):** Al hacer clic con el mouse (`mousePressEvent`) y mantener presionado, no debe producirse ningún desplazamiento en la ruleta de wheels ni activación de juegos. El evento de pulsación solo guarda la posición y toma foco (`setFocus()`); cualquier variación de la ruleta de wheels o activación del juego se ejecuta única y exclusivamente al soltar el botón en `mouseReleaseEvent`.
+
+---
+
+### 10. Descubrimiento automático
 
 El sistema descubre los layouts automáticamente buscando:
 ```
@@ -285,7 +304,7 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 
 ---
 
-### 10. Checklist rápido para un nuevo layout
+### 11. Checklist rápido para un nuevo layout
 
 - [ ] Carpeta en `Layouts/<NombreTema>/`
 - [ ] Archivo `theme_layout.py` con clase `ThemeLayout(BaseLayout)`
@@ -295,13 +314,14 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 - [ ] Bloque **Recursos desde gtc-common**: `WHEEL_SHADOW_IMAGE`, `SOUND_NAV`, `SOUND_SELECT`, etc. como constantes de clase
 - [ ] `__init__` usa `self.CONSTANT_NAME` — nunca rutas hardcodeadas
 - [ ] Métodos obligatorios implementados (`set_games`, `select_game_by_id`, `get_selected_game_id`, `pause_media`, `resume_media`, `stop_media`, `set_media_muted`)
-- [ ] Eventos `keyPressEvent`, `wheelEvent`, `mousePressEvent`, `mouseReleaseEvent` con check de `EMULATOR_MANAGER`
+- [ ] Eventos `keyPressEvent`, `keyReleaseEvent`, `wheelEvent`, `mousePressEvent`, `mouseReleaseEvent` con check de `EMULATOR_MANAGER`
+- [ ] Confirmación de navegación en `keyReleaseEvent` y `_commit_timer` implementada
 - [ ] Señales `game_selected`, `game_activated`, `nav_back_requested` emitidas correctamente
 - [ ] `py_compile` sin errores: `.\.venv\Scripts\python.exe -m py_compile Layouts/<NombreTema>/theme_layout.py`
 
 ---
 
-## 11. Catálogo de Layouts Oficiales Activos
+## 12. Catálogo de Layouts Oficiales Activos
 
 | Layout | Tipo de Soporte | Medios Requeridos | Elementos Destacados |
 |--------|-----------------|-------------------|----------------------|

@@ -1,7 +1,7 @@
 # Configuración de Emulador: Retroarch PC-Engine
 id = 22
 name = Retroarch PC-Engine
-executable = C:/Attract/Emu/RetroArch/retroarch.exe
+executable = D:/Emuladores/Emu/RetroArch/retroarch.exe
 arguments = -f -L "C:\Attract\Emu\RetroArch\cores\geargrafx_libretro.dll" "{rom}"
 platform = pc engine y pc engine cd
 bezel_delay = 4.0

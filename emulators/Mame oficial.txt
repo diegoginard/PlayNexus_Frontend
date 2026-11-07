@@ -1,7 +1,11 @@
 # Configuración de Emulador: Mame oficial
 id = 15
 name = Mame oficial
-executable = C:/Attract/Emu/Mame_oficial/mame_.exe
+executable = D:/Emuladores/Mame_oficial/mame_.exe
 arguments = "{rom}" -skip_gameinfo
 platform = 
+bezel_delay = 1.5
+bezel_fade = 0.5
+loading_time = 1.5
+exit_loading_time = 1.0
 created_at = 2026-10-30 17:13:51

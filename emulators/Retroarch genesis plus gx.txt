@@ -1,10 +1,10 @@
 # Configuración de Emulador: Retroarch genesis plus gx
 id = 8
 name = Retroarch genesis plus gx
-executable = C:/Attract/Emu/RetroArch/retroarch.exe
+executable = D:/Emuladores/RetroArch/retroarch.exe
 arguments = -f -L "C:\Attract\Emu\RetroArch\cores\genesis_plus_gx_libretro.dll" "{rom}"
 platform = 
-bezel_delay = 4.5
+bezel_delay = 4.0
 bezel_fade = 0.5
 loading_time = 4.0
 exit_loading_time = 1.5
