@@ -155,13 +155,15 @@ class ThemeLayout(BaseLayout):
 
         # Temporizador para inicio diferido de video (debounce) y watchdog de bucle
         self._last_video_frame_time = 0.0
+        self._video_frame_painting = False
         self._video_debounce_timer = QTimer(self)
         self._video_debounce_timer.setSingleShot(True)
         self._video_debounce_timer.setInterval(180)
         self._video_debounce_timer.timeout.connect(self._play_debounced_video)
 
         self._video_watchdog_timer = QTimer(self)
-        self._video_watchdog_timer.setInterval(800)
+        self._video_watchdog_timer.setSingleShot(True)
+        self._video_watchdog_timer.setInterval(1200)
         self._video_watchdog_timer.timeout.connect(self._on_video_watchdog_tick)
 
         # Confirmación de selección diferida al soltar tecla o reposo (Commit on Release / Debounce)
@@ -224,28 +226,43 @@ class ThemeLayout(BaseLayout):
         if p_path and self.player.source() != QUrl.fromLocalFile(p_path):
             return
 
+        if getattr(self, "_video_frame_painting", False):
+            return
+        self._video_frame_painting = True
+
         img = frame.toImage()
         if not img.isNull():
             self._current_video_image = img
             self.update()
+        else:
+            self._video_frame_painting = False
 
     def _on_media_status_changed(self, status):
         """Garantiza la reproducción en bucle continuo de los videos de fondo."""
+        if not self.player:
+            return
         if status == QMediaPlayer.EndOfMedia:
-            if getattr(self, "_want_video_playing", False) and self.player:
-                self.player.setPosition(0)
+            if getattr(self, "_want_video_playing", False):
+                if self.player.playbackState() != QMediaPlayer.PlayingState:
+                    self.player.play()
+        elif status in (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferingMedia, QMediaPlayer.BufferedMedia):
+            if getattr(self, "_want_video_playing", False) and self.player.playbackState() != QMediaPlayer.PlayingState:
                 self.player.play()
 
     def _on_video_watchdog_tick(self):
-        """Supervisa el reproductor y reactiva el bucle si se detuvo inesperadamente."""
+        """Supervisa el reproductor y reactiva la reproducción si se detuvo inesperadamente."""
         if not getattr(self, "_want_video_playing", False) or not self.player:
             return
-        st = self.player.mediaStatus()
-        pos = self.player.position()
-        dur = self.player.duration()
-        if st == QMediaPlayer.EndOfMedia or (dur > 0 and pos >= dur - 200):
-            self.player.setPosition(0)
-            self.player.play()
+        p_path = getattr(self, "_pending_video_path", None)
+        if p_path and os.path.isfile(p_path):
+            if self.player.playbackState() != QMediaPlayer.PlayingState:
+                try:
+                    src_url = QUrl.fromLocalFile(p_path)
+                    if self.player.source() != src_url:
+                        self.player.setSource(src_url)
+                    self.player.play()
+                except Exception:
+                    pass
 
     def pause_media(self):
         """Pausa el video y silencia el audio (ej: al ejecutar un juego o sub-lista)."""
@@ -404,7 +421,7 @@ class ThemeLayout(BaseLayout):
             self.update()
             return
 
-        self._video_debounce_timer.start(100)
+        self._play_debounced_video()
 
     def _play_debounced_video(self):
         """Reproduce el video de fondo una vez que la ruleta se estabiliza."""
@@ -704,6 +721,7 @@ class ThemeLayout(BaseLayout):
             self._draw_bottom_bar(painter, sr)
 
         finally:
+            self._video_frame_painting = False
             painter.end()
 
     def _draw_wheel_conveyor(self, painter: QPainter, sr: QRect):
