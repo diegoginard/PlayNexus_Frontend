@@ -73,6 +73,9 @@ class WheelPreloadWorker(QThread):
             return
         with self._lock:
             if gid not in self._queued_ids:
+                if len(self._queue) >= 16:
+                    evicted = self._queue.pop()
+                    self._queued_ids.discard(evicted.get("id"))
                 if priority:
                     self._queue.appendleft(game)
                 else:
@@ -87,6 +90,9 @@ class WheelPreloadWorker(QThread):
             for g in items:
                 gid = g.get("id")
                 if gid and gid not in self._queued_ids:
+                    if len(self._queue) >= 16:
+                        evicted = self._queue.pop()
+                        self._queued_ids.discard(evicted.get("id"))
                     if priority:
                         self._queue.appendleft(g)
                     else:
@@ -102,6 +108,7 @@ class WheelPreloadWorker(QThread):
             with self._lock:
                 if self._queue:
                     game = self._queue.popleft()
+                    self._queued_ids.discard(game.get("id"))
                 else:
                     self._event.clear()
 
@@ -238,6 +245,8 @@ class ThemeLayout(BaseLayout):
 
         # Confirmación de selección diferida al soltar tecla o reposo (Commit on Release / Debounce)
         self._nav_pending_commit = False
+        self._key_released_waiting_rest = False
+        self._nav_key_pressed = False
         self._commit_timer = QTimer(self)
         self._commit_timer.setSingleShot(True)
         self._commit_timer.setInterval(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
@@ -607,6 +616,17 @@ class ThemeLayout(BaseLayout):
                 return True
         return False
 
+    def _get_cab_dimensions(self) -> tuple[int, int]:
+        """Calcula el ancho y alto responsivo del mueble arcade para la resolución actual."""
+        h = self.height()
+        w = self.width()
+        cab_h = h
+        cab_w = int(cab_h * (self.CAB_BASE_W / float(self.CAB_BASE_H)))
+        max_cab_w = int(w * getattr(self, "CAB_MAX_WIDTH_RATIO", 0.82))
+        if cab_w > max_cab_w:
+            cab_w = max_cab_w
+        return cab_w, cab_h
+
     def _preload_around(self, center_idx: int):
         """Encola en segundo plano la precarga de los logotipos vecinos al índice actual y precarga artes adyacentes."""
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
@@ -638,7 +658,7 @@ class ThemeLayout(BaseLayout):
         direction = 1 if steps > 0 else -1
         window = []
         start = self.selected_index
-        count = 8
+        count = 3
         for i in range(1, count + 1):
             idx = (start + (i * direction)) % n
             g = self.games[idx]
@@ -736,6 +756,8 @@ class ThemeLayout(BaseLayout):
         if hasattr(self, "_commit_timer"):
             self._commit_timer.stop()
         self._nav_pending_commit = False
+        self._key_released_waiting_rest = False
+        self._nav_key_pressed = False
         if self.game_audio:
             try:
                 self.game_audio.setMuted(True)
@@ -796,6 +818,8 @@ class ThemeLayout(BaseLayout):
         if hasattr(self, "_commit_timer"):
             self._commit_timer.stop()
         self._nav_pending_commit = False
+        self._key_released_waiting_rest = False
+        self._nav_key_pressed = False
         if self.game_audio:
             self.game_audio.setVolume(0.0)
         if self.game_player and self.game_player.mediaStatus() == QMediaPlayer.BufferedMedia:
@@ -901,6 +925,7 @@ class ThemeLayout(BaseLayout):
         if hasattr(self, "_video_watchdog_timer"):
             self._video_watchdog_timer.stop()
         self._nav_pending_commit = True
+        self._key_released_waiting_rest = False
         self._commit_timer.start(getattr(self, "NAV_COMMIT_DEBOUNCE_MS", 180))
         self.update()
 
@@ -926,16 +951,25 @@ class ThemeLayout(BaseLayout):
         """Aplica y carga los medios del juego seleccionado una vez detenido el desplazamiento."""
         if not getattr(self, "_nav_pending_commit", False):
             return
+        # Si la tecla sigue mantenida presionada por el usuario, PROHIBIDO hacer commit
+        if getattr(self, "_nav_key_pressed", False):
+            return
+        # Si la ruleta todavía tiene un desplazamiento perceptible en curso, posponer al reposo
+        if abs(getattr(self, "_wheel_spin_offset", 0.0)) >= 0.05:
+            self._key_released_waiting_rest = True
+            return
+
         self._nav_pending_commit = False
+        self._key_released_waiting_rest = False
+        self._nav_key_pressed = False
         if hasattr(self, "_commit_timer"):
             self._commit_timer.stop()
         if hasattr(self, "_art_debounce_timer"):
             self._art_debounce_timer.stop()
-        if hasattr(self, "_commit_timer"):
-            self._commit_timer.stop()
-        self._nav_pending_commit = False
+
         if not self.games or not (0 <= self.selected_index < len(self.games)):
             return
+
         current_game = self.games[self.selected_index]
         self.current_game_id = current_game.get("id")
         self.current_media = self._resolve_game_media(current_game)
@@ -943,7 +977,13 @@ class ThemeLayout(BaseLayout):
         gid = self.get_selected_game_id()
         if gid:
             self.game_selected.emit(gid)
-        self._start_game_video()
+
+        # Desacoplar el inicio del video snap mediante debounce para evitar congelar el hilo principal
+        if hasattr(self, "_video_debounce_timer"):
+            self._video_debounce_timer.start(getattr(self, "VIDEO_DEBOUNCE_MS", 100))
+        else:
+            self._start_game_video()
+
         self._flyer_delay_timer.start(1500)
         self._preload_around(self.selected_index)
         self.update()
@@ -1026,6 +1066,9 @@ class ThemeLayout(BaseLayout):
             self._wheel_spin_offset *= 0.70
             if abs(self._wheel_spin_offset) < 0.012:
                 self._wheel_spin_offset = 0.0
+                if getattr(self, "_key_released_waiting_rest", False) and getattr(self, "_nav_pending_commit", False):
+                    self._key_released_waiting_rest = False
+                    self._commit_selection()
             needs_update = True
 
         # 2. Desvanecimiento suave de la ruleta (Wheel fadeout)
@@ -1278,12 +1321,7 @@ class ThemeLayout(BaseLayout):
             painter.fillRect(QRect(0, 0, w, h), QColor(10, 8, 16))
 
         # Calcular geometría responsiva del mueble arcade (escala a la altura)
-        cab_h = h
-        cab_w = int(cab_h * (self.CAB_BASE_W / float(self.CAB_BASE_H)))
-        # Limitar ancho del mueble solo si la parte visible (1070/1300) supera el 68% del ancho (w * 0.82)
-        max_cab_w = int(w * getattr(self, 'CAB_MAX_WIDTH_RATIO', 0.82))
-        if cab_w > max_cab_w:
-            cab_w = max_cab_w
+        cab_w, cab_h = self._get_cab_dimensions()
         cab_x = 0
         cab_y = 0
 
@@ -1414,7 +1452,10 @@ class ThemeLayout(BaseLayout):
             pulse_offset = int(w * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
             idle_oscillation = int(w * (math.sin(self._pointer_anim_tick * 0.08) * 0.002))
             ptr_x = w - edge_margin - visible_w - pulse_offset + idle_oscillation
-            painter.drawPixmap(ptr_x, ptr_y, ptr_size, ptr_size, self._pix_pointer)
+            if not hasattr(self, "_cached_pointer") or getattr(self, "_cached_pointer_size", 0) != ptr_size:
+                self._cached_pointer = self._pix_pointer.scaled(ptr_size, ptr_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self._cached_pointer_size = ptr_size
+            painter.drawPixmap(ptr_x, ptr_y, self._cached_pointer)
 
         # Dibujar cada slot a lo largo del arco elíptico
         for offset in range(-half_slots, half_slots + 1):
@@ -1469,9 +1510,11 @@ class ThemeLayout(BaseLayout):
         pix.fill(Qt.transparent)
         p = QPainter(pix)
         p.setRenderHint(QPainter.Antialiasing, True)
-        f_title = QFont(self._font_bebas, 24, QFont.Bold)
-        p.setFont(f_title)
-        p.setPen(QColor(240, 240, 240))
+        if not hasattr(self, "_cached_bebas_font"):
+            self._cached_bebas_font = QFont(self._font_bebas, 24, QFont.Bold)
+            self._cached_bebas_pen = QColor(240, 240, 240)
+        p.setFont(self._cached_bebas_font)
+        p.setPen(self._cached_bebas_pen)
         p.drawText(pix.rect(), Qt.AlignCenter | Qt.TextWordWrap, (title or "Arcade Game").upper())
         p.end()
         return pix
@@ -1507,18 +1550,22 @@ class ThemeLayout(BaseLayout):
         current_game = self.games[self.selected_index]
         title = current_game.get("title") or "Desconocido"
 
-        f_size = max(11, int(h * 0.024))
-        f_title = QFont(self._font_title, f_size, QFont.Bold)
-        f_title.setLetterSpacing(QFont.AbsoluteSpacing, 1.2)
-        painter.setFont(f_title)
+        if not hasattr(self, "_cached_footer_h") or getattr(self, "_cached_footer_h", None) != h:
+            f_size = max(11, int(h * 0.024))
+            f_t = QFont(self._font_title, f_size, QFont.Bold)
+            f_t.setLetterSpacing(QFont.AbsoluteSpacing, 1.2)
+            self._cached_footer_title_font = f_t
+            self._cached_footer_counter_font = QFont(self._font_counter, max(10, int(h * 0.020)), QFont.Bold)
+            self._cached_footer_h = h
+
+        painter.setFont(self._cached_footer_title_font)
         painter.setPen(getattr(self, "COLOR_FOOTER_TITLE", QColor(255, 255, 255)))
         title_rect = QRect(int(w * 0.04), bar_y, int(w * 0.65), bar_h)
         painter.drawText(title_rect, Qt.AlignVCenter | Qt.AlignLeft, title.upper())
 
         counter_prefix = getattr(self, "FOOTER_COUNTER_PREFIX", "ARCADE:")
         counter_text = f"{counter_prefix} {self.selected_index + 1} / {len(self.games)}"
-        f_counter = QFont(self._font_counter, max(10, int(h * 0.020)), QFont.Bold)
-        painter.setFont(f_counter)
+        painter.setFont(self._cached_footer_counter_font)
         painter.setPen(getattr(self, "COLOR_FOOTER_COUNTER", QColor(245, 185, 35)))
         counter_rect = QRect(int(w * 0.70), bar_y, int(w * 0.26), bar_h)
         painter.drawText(counter_rect, Qt.AlignVCenter | Qt.AlignRight, counter_text)
@@ -1534,31 +1581,36 @@ class ThemeLayout(BaseLayout):
             return
         key = event.key()
         fast = event.isAutoRepeat()
-        if matches_action(event, ACTION_NAV_UP):
+        db = getattr(self, "db", None)
+        if key == Qt.Key_Up or matches_action(event, ACTION_NAV_UP, db):
+            self._nav_key_pressed = True
             self._navigate_steps(-1, fast_repeat=fast)
             event.accept()
-        elif matches_action(event, ACTION_NAV_DOWN):
+        elif key == Qt.Key_Down or matches_action(event, ACTION_NAV_DOWN, db):
+            self._nav_key_pressed = True
             self._navigate_steps(1, fast_repeat=fast)
             event.accept()
-        elif matches_action(event, ACTION_NAV_STEP5_BACK) or matches_action(event, ACTION_PAGE_UP):
+        elif key in (Qt.Key_PageUp, Qt.Key_Left) or matches_action(event, ACTION_NAV_STEP5_BACK, db) or matches_action(event, ACTION_PAGE_UP, db):
+            self._nav_key_pressed = True
             self._navigate_steps(-5, fast_repeat=fast)
             event.accept()
-        elif matches_action(event, ACTION_NAV_STEP5_FWD) or matches_action(event, ACTION_PAGE_DOWN):
+        elif key in (Qt.Key_PageDown, Qt.Key_Right) or matches_action(event, ACTION_NAV_STEP5_FWD, db) or matches_action(event, ACTION_PAGE_DOWN, db):
+            self._nav_key_pressed = True
             self._navigate_steps(5, fast_repeat=fast)
             event.accept()
-        elif matches_action(event, ACTION_NAV_LETTER_BACK):
+        elif key == Qt.Key_Home or matches_action(event, ACTION_NAV_LETTER_BACK, db):
             if event.isAutoRepeat():
                 event.accept()
                 return
             self.jump_to_prev_letter()
             event.accept()
-        elif matches_action(event, ACTION_NAV_LETTER_FWD):
+        elif key == Qt.Key_End or matches_action(event, ACTION_NAV_LETTER_FWD, db):
             if event.isAutoRepeat():
                 event.accept()
                 return
             self.jump_to_next_letter()
             event.accept()
-        elif matches_action(event, ACTION_SELECT) or key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
+        elif key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space) or matches_action(event, ACTION_SELECT, db):
             if event.isAutoRepeat():
                 event.accept()
                 return
@@ -1567,10 +1619,10 @@ class ThemeLayout(BaseLayout):
                 self._play_select_sound()
                 self.game_activated.emit(gid)
             event.accept()
-        elif matches_action(event, ACTION_NAV_BACK):
+        elif key == Qt.Key_Escape or matches_action(event, ACTION_NAV_BACK, db):
             self.nav_back_requested.emit()
             event.accept()
-        elif matches_action(event, ACTION_MUTE) or key == Qt.Key_M:
+        elif key == Qt.Key_M or matches_action(event, ACTION_MUTE, db):
             self.set_media_muted(not self._media_muted)
             event.accept()
         else:
@@ -1582,8 +1634,13 @@ class ThemeLayout(BaseLayout):
         if EMULATOR_MANAGER.is_launching_or_running():
             event.accept()
             return
-        if not event.isAutoRepeat() and getattr(self, "_nav_pending_commit", False):
-            self._commit_selection()
+        if not event.isAutoRepeat():
+            self._nav_key_pressed = False
+            if getattr(self, "_nav_pending_commit", False):
+                if abs(getattr(self, "_wheel_spin_offset", 0.0)) < 0.05:
+                    self._commit_selection()
+                else:
+                    self._key_released_waiting_rest = True
         super().keyReleaseEvent(event)
 
 
@@ -1636,10 +1693,10 @@ class ThemeLayout(BaseLayout):
             # Clics arriba o abajo para navegar (se ejecuta exclusivamente al soltar el botón)
             if pos.y() < self.height() * 0.40:
                 self._navigate_steps(-1)
-                self._commit_selection()
+                self._key_released_waiting_rest = True
             elif pos.y() > self.height() * 0.60:
                 self._navigate_steps(1)
-                self._commit_selection()
+                self._key_released_waiting_rest = True
             else:
                 gid = self.get_selected_game_id()
                 if gid and self._can_activate_game():
