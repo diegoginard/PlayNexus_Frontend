@@ -667,16 +667,12 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def resume_media(self):
-        """Reanuda la reproducción de video y audio cuando el emulador finaliza."""
+        """Reanuda la reproducción de video y audio cuando el emulador finaliza o se restaura la ventana."""
         self._want_video_playing = True
-        if self.player and getattr(self, "_pending_video_path", None) and os.path.isfile(self._pending_video_path):
-            try:
-                if self.audio_output:
-                    self.audio_output.setMuted(self._media_muted)
-                    self.audio_output.setVolume(0.0 if self._media_muted else 0.8)
-                self.player.play()
-            except Exception:
-                pass
+        if not getattr(self, "_pending_video_path", None) or not os.path.isfile(self._pending_video_path):
+            self._update_current_selection()
+        else:
+            self._play_debounced_video()
         self.update()
 
     def stop_media(self):

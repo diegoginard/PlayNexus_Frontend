@@ -307,7 +307,10 @@ class BaseLayout(QWidget):
                     try:
                         from PySide6.QtMultimedia import QMediaPlayer
                         if p.source().isEmpty() or p.playbackState() != QMediaPlayer.PlayingState:
-                            if hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
+                            if not getattr(self, "_pending_video_path", None) and hasattr(self, "_update_current_selection") and callable(self._update_current_selection):
+                                self._update_current_selection()
+                                break
+                            elif hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
                                 self._play_debounced_video()
                                 break
                             elif hasattr(self, "_update_current_selection") and callable(self._update_current_selection):

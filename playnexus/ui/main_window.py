@@ -3,7 +3,7 @@ import os
 import subprocess
 from pathlib import Path
 import playnexus
-from PySide6.QtCore import Qt, QSize, QPoint, QTimer, QUrl
+from PySide6.QtCore import Qt, QSize, QPoint, QTimer, QUrl, QEvent
 from PySide6.QtGui import QAction, QFont, QIcon, QColor, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel,
@@ -1618,17 +1618,24 @@ class MainWindow(QMainWindow):
         self.main_tabs.setCurrentWidget(self.frontend_tab)
 
     def _on_tab_changed(self, index: int):
-        """Mantiene sincronizados los datos al alternar entre pestañas."""
+        """Mantiene sincronizados los datos al alternar entre pestañas y suspende la multimedia inactiva."""
         current_widget = self.main_tabs.widget(index)
         if current_widget == self.main_tabs.widget(0):
             self.refresh_emulators()
             self.refresh_games()
+            cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
+            if cur and hasattr(cur, "resume_media") and callable(cur.resume_media):
+                cur.resume_media()
+            elif cur and hasattr(cur, "_update_current_selection") and callable(cur._update_current_selection):
+                cur._update_current_selection()
             if self.current_game_id:
                 self._select_game_by_id(self.current_game_id)
-        elif current_widget == self.emulator_tab:
-            self.emulator_tab.refresh()
-        elif current_widget == self.frontend_tab:
-            self.frontend_tab.refresh_data()
+        else:
+            self.stop_all_active_media()
+            if current_widget == self.emulator_tab:
+                self.emulator_tab.refresh()
+            elif current_widget == self.frontend_tab:
+                self.frontend_tab.refresh_data()
 
     def _on_frontend_layout_changed(self, list_id: int, layout_name: str):
         """Sincroniza el diseño visual cuando se edita desde la pestaña de Modo Frontend."""
@@ -1716,6 +1723,22 @@ class MainWindow(QMainWindow):
                         if event.isAccepted():
                             return
         super().keyPressEvent(event)
+
+    def changeEvent(self, event):
+        """Gestiona el ciclo de vida de la multimedia al minimizar o restaurar la ventana."""
+        if event.type() == QEvent.Type.WindowStateChange:
+            old_state = event.oldState()
+            if self.isMinimized():
+                self.stop_all_active_media()
+            elif (old_state & Qt.WindowMinimized) and not self.isMinimized():
+                if hasattr(self, "main_tabs") and self.main_tabs.currentIndex() == 0:
+                    cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
+                    if cur:
+                        if hasattr(cur, "resume_media") and callable(cur.resume_media):
+                            cur.resume_media()
+                        elif hasattr(cur, "_update_current_selection") and callable(cur._update_current_selection):
+                            cur._update_current_selection()
+        super().changeEvent(event)
 
     def closeEvent(self, event):
         """Detiene cualquier reproducción activa antes de cerrar la ventana para evitar errores de Media Foundation."""

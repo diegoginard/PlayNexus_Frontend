@@ -416,6 +416,17 @@ class PlayerWindow(QMainWindow):
             cur = self.layout_stack.currentWidget()
             if cur:
                 cur.setFocus()
+        elif event.type() == QEvent.Type.WindowStateChange:
+            old_state = event.oldState()
+            if self.isMinimized():
+                self.stop_all_active_media()
+            elif (old_state & Qt.WindowMinimized) and not self.isMinimized():
+                cur = self.layout_stack.currentWidget()
+                if cur:
+                    if hasattr(cur, "resume_media") and callable(cur.resume_media):
+                        cur.resume_media()
+                    elif hasattr(cur, "_update_current_selection") and callable(cur._update_current_selection):
+                        cur._update_current_selection()
         super().changeEvent(event)
 
     def _on_gamepad_action(self, action_id: str):
