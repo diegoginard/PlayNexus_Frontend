@@ -270,9 +270,8 @@ class ThemeLayout(BaseLayout):
         self._media_muted = False
         self._is_emulator_running = False
 
-        # Animación suave de la ruleta (posición interpolada a 60 FPS con precisión de temporizador)
-        self._current_pos = 0.0
-        self._target_pos = 0.0
+        # Animación suave de la ruleta (física elástica compensatoria a 60 FPS)
+        self._wheel_spin_offset = 0.0
         self._anim_timer = QTimer(self)
         self._anim_timer.setTimerType(Qt.PreciseTimer)
         self._anim_timer.setInterval(getattr(self, "ANIM_TICK_MS", 16))
@@ -601,10 +600,9 @@ class ThemeLayout(BaseLayout):
         if not self.games:
             return False
         n = len(self.games)
-        half_slots = 5
-        curr_center = int(round(self._current_pos))
+        half_slots = 4
         for offset in range(-half_slots, half_slots + 1):
-            idx = (curr_center + offset) % n
+            idx = (self.selected_index + offset) % n
             if self.games[idx].get("id") == game_id:
                 return True
         return False
@@ -633,14 +631,14 @@ class ThemeLayout(BaseLayout):
                 self._get_cached_art_pixmap(adj_media["marquee"])
 
     def _preload_direction(self, steps: int):
-        """Encola la precarga predictiva de logotipos en la dirección en que el usuario está navegando."""
+        """Encola la precarga predictiva inmediata de los pocos juegos en la dirección de giro."""
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
             return
         n = len(self.games)
         direction = 1 if steps > 0 else -1
         window = []
         start = self.selected_index
-        count = 30 if abs(steps) <= 1 else 50
+        count = 8
         for i in range(1, count + 1):
             idx = (start + (i * direction)) % n
             g = self.games[idx]
@@ -669,8 +667,7 @@ class ThemeLayout(BaseLayout):
         if hasattr(self, "_wheel_worker") and self._wheel_worker:
             self._wheel_worker.clear()
         self.selected_index = 0
-        self._current_pos = 0.0
-        self._target_pos = 0.0
+        self._wheel_spin_offset = 0.0
         self._reset_flyer_state()
         self._init_bg_player()
         if self.games:
@@ -691,8 +688,7 @@ class ThemeLayout(BaseLayout):
             if g.get("id") == game_id:
                 need_flyer_restart = (self.selected_index != idx or not self._flyer_ready)
                 self.selected_index = idx
-                self._current_pos = float(idx)
-                self._target_pos = float(idx)
+                self._wheel_spin_offset = 0.0
                 if need_flyer_restart:
                     self._reset_flyer_state()
                     self._flyer_delay_timer.start(1500)
@@ -839,6 +835,18 @@ class ThemeLayout(BaseLayout):
             except Exception:
                 pass
 
+    def clear(self):
+        """Limpia la lista de juegos y detiene la animación de la ruleta."""
+        self._wheel_spin_offset = 0.0
+        if hasattr(self, "_anim_timer") and self._anim_timer.isActive():
+            self._anim_timer.stop()
+        self.stop_media()
+        super().clear()
+        self._wheel_pixmaps.clear()
+        self._text_wheel_cache.clear()
+        if hasattr(self, "_wheel_worker") and self._wheel_worker:
+            self._wheel_worker.clear()
+
     def closeEvent(self, event):
         """Libera los hilos de precarga, temporizadores y reproductores al cerrar la ventana."""
         if hasattr(self, "_wheel_worker") and self._wheel_worker:
@@ -860,13 +868,13 @@ class ThemeLayout(BaseLayout):
     # NAVEGACIÓN Y ANIMACIÓN
     # -------------------------------------------------------------------------
     def _navigate_steps(self, steps: int, fast_repeat: bool = False):
-        """Avanza o retrocede N posiciones en la lista de juegos y dispara la física de la ruleta."""
+        """Avanza o retrocede N posiciones en la lista de juegos y dispara la física elástica de la ruleta."""
         if not self.games:
             return
         n = len(self.games)
-        new_idx = (self.selected_index + steps) % n
-        self.selected_index = new_idx
-        self._target_pos += steps
+        self.selected_index = (self.selected_index + steps) % n
+        self._wheel_spin_offset += float(steps)
+        self._wheel_spin_offset = max(-3.5, min(3.5, self._wheel_spin_offset))
         self._flyer_ready = False
         self._flyer_slide = 1.0  # Ocultar el flyer mientras se mueve la ruleta
         self._current_flyer_pix = None
@@ -875,7 +883,7 @@ class ThemeLayout(BaseLayout):
         self._reset_wheel_fade()
         self._play_nav_sound()
 
-        # Encolar pre-carga en segundo plano de los juegos en la dirección de giro
+        # Encolar pre-carga ligera inmediata en la dirección de giro
         self._preload_direction(steps)
 
         # Iniciar timer de animación si no estaba corriendo
@@ -937,12 +945,14 @@ class ThemeLayout(BaseLayout):
             self.game_selected.emit(gid)
         self._start_game_video()
         self._flyer_delay_timer.start(1500)
+        self._preload_around(self.selected_index)
         self.update()
 
     def jump_to_next_letter(self):
         """Salta al primer juego de la siguiente letra alfabética y actualiza medios de inmediato."""
         super().jump_to_next_letter()
         self._nav_pending_commit = False
+        self._wheel_spin_offset = 0.0
         if hasattr(self, "_commit_timer"):
             self._commit_timer.stop()
         self._update_current_selection(start_video=True)
@@ -951,6 +961,7 @@ class ThemeLayout(BaseLayout):
         """Salta al primer juego de la letra alfabética anterior y actualiza medios de inmediato."""
         super().jump_to_prev_letter()
         self._nav_pending_commit = False
+        self._wheel_spin_offset = 0.0
         if hasattr(self, "_commit_timer"):
             self._commit_timer.stop()
         self._update_current_selection(start_video=True)
@@ -1010,32 +1021,17 @@ class ThemeLayout(BaseLayout):
         """Temporizador maestro a 60 FPS que coordina la interpolación física de la ruleta, puntero y flyer."""
         needs_update = False
 
-        now = time.perf_counter()
-        dt = now - getattr(self, "_last_anim_time", now)
-        self._last_anim_time = now
-        dt = min(max(dt, 0.001), 0.050)
-
-        # 1. Interpolación suave de la ruleta basada en delta-time
-        diff = self._target_pos - self._current_pos
-        if abs(diff) > 0.004:
-            ease = 1.0 - math.exp(-22.0 * dt)
-            self._current_pos += diff * ease
+        # 1. Amortiguación elástica ultra-rápida de la ruleta
+        if abs(self._wheel_spin_offset) > 0.001:
+            self._wheel_spin_offset *= 0.70
+            if abs(self._wheel_spin_offset) < 0.012:
+                self._wheel_spin_offset = 0.0
             needs_update = True
-            # Mientras el carrusel de wheels sigue girando, reiniciar los 1.5 segundos del flyer
-            self._flyer_ready = False
-            self._flyer_slide = 1.0
-            self._flyer_delay_timer.start(1200)
-        else:
-            if self._current_pos != self._target_pos:
-                self._current_pos = self._target_pos
-                needs_update = True
-                self._flyer_delay_timer.start(1000)
 
         # 2. Desvanecimiento suave de la ruleta (Wheel fadeout)
         a_diff = self._target_wheel_alpha - self._wheel_alpha
         if abs(a_diff) > 1.0:
-            a_ease = 1.0 - math.exp(-12.0 * dt)
-            self._wheel_alpha += a_diff * a_ease
+            self._wheel_alpha += a_diff * 0.15
             needs_update = True
         else:
             if self._wheel_alpha != self._target_wheel_alpha:
@@ -1045,8 +1041,9 @@ class ThemeLayout(BaseLayout):
         # 3. Deslizamiento suave del flyer
         if self._flyer_ready and self._current_flyer_pix is not None:
             if self._flyer_slide > 0.005:
-                f_ease = 1.0 - math.exp(-14.0 * dt)
-                self._flyer_slide += (0.0 - self._flyer_slide) * f_ease
+                self._flyer_slide *= 0.82
+                if self._flyer_slide < 0.005:
+                    self._flyer_slide = 0.0
                 needs_update = True
             elif self._flyer_slide != 0.0:
                 self._flyer_slide = 0.0
@@ -1056,8 +1053,7 @@ class ThemeLayout(BaseLayout):
         self._pointer_anim_tick += 1
         p_diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
         if abs(p_diff) > 0.001:
-            p_ease = 1.0 - math.exp(-20.0 * dt)
-            self._pointer_current_x_ratio += p_diff * p_ease
+            self._pointer_current_x_ratio += p_diff * 0.25
             needs_update = True
         else:
             self._pointer_current_x_ratio = self._pointer_rest_x_ratio
@@ -1067,7 +1063,7 @@ class ThemeLayout(BaseLayout):
         else:
             # Si todo llegó a reposo, detener el timer de animación para liberar 100% de CPU
             flyer_at_rest = (not self._flyer_ready) or (self._flyer_slide <= 0.0)
-            if flyer_at_rest and self._current_pos == self._target_pos and self._wheel_alpha == self._target_wheel_alpha:
+            if flyer_at_rest and self._wheel_spin_offset == 0.0 and self._wheel_alpha == self._target_wheel_alpha:
                 if hasattr(self, "_anim_timer") and self._anim_timer.isActive():
                     self._anim_timer.stop()
 
@@ -1406,7 +1402,7 @@ class ThemeLayout(BaseLayout):
             return
 
         n = len(self.games)
-        total_slots = 11
+        total_slots = 9
         half_slots = total_slots // 2
 
         # Puntero central (anclado al borde derecho de la pantalla, apuntando hacia la ruleta)
@@ -1422,14 +1418,13 @@ class ThemeLayout(BaseLayout):
 
         # Dibujar cada slot a lo largo del arco elíptico
         for offset in range(-half_slots, half_slots + 1):
-            slot_idx = int(round(self._current_pos)) + offset
-            game_idx = slot_idx % n
-            game = self.games[game_idx]
-
-            # Distancia continua al centro
-            dist = (slot_idx - self._current_pos)
-            if abs(dist) > half_slots + 0.5:
+            # Distancia continua relativa al centro
+            dist = float(offset) - self._wheel_spin_offset
+            if abs(dist) > half_slots + 0.6:
                 continue
+
+            game_idx = (self.selected_index + offset) % n
+            game = self.games[game_idx]
 
             # Curvatura elíptica
             angle = (dist / float(half_slots + 1)) * (math.pi * 0.42)
@@ -1442,15 +1437,16 @@ class ThemeLayout(BaseLayout):
 
             # Escala destacada para el ítem central
             is_center = abs(dist) < 0.5
-            slot_scale = 1.0 - (abs(dist) * 0.10)
+            slot_scale = max(0.4, 1.0 - (abs(dist) * 0.10))
             if is_center:
-                slot_w = int(w * 0.22 * 1.25)
-                slot_h = int(h * 0.12 * 1.25)
+                center_factor = max(0.0, 1.0 - abs(dist) * 2.0)
+                slot_w = int(w * 0.18 * (1.0 + 0.52 * center_factor))
+                slot_h = int(h * 0.09 * (1.0 + 0.66 * center_factor))
                 alpha = 255
             else:
                 slot_w = int(w * 0.18 * slot_scale)
                 slot_h = int(h * 0.09 * slot_scale)
-                alpha = max(60, int(220 - abs(dist) * 35))
+                alpha = max(50, int(220 - abs(dist) * 35))
 
             logo_rect = QRect(center_x - slot_w // 2, center_y - slot_h // 2, slot_w, slot_h)
 
