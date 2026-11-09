@@ -628,14 +628,7 @@ def sync_quiet_studio_instance(inst, games: list[dict[str, Any]], selected_game:
             pass
     for player in inst.findChildren(QMediaPlayer):
         try:
-            player.mediaStatusChanged.disconnect()
-        except Exception:
-            pass
-        try:
-            player.errorOccurred.disconnect()
-        except Exception:
-            pass
-        try:
+            player.blockSignals(True)
             player.stop()
             player.setSource(QUrl())
         except Exception:

@@ -415,7 +415,11 @@ class MainWindow(QMainWindow):
 
         # Carga perezosa de Layout Studio: no instanciar motores pesados hasta abrir la pestaña
         self.layout_studio_tab = None
-        self._layout_studio_tab_index = self.main_tabs.addTab(QWidget(), "🎨  Layout Studio")
+        self._layout_studio_container = QWidget()
+        studio_container_layout = QVBoxLayout(self._layout_studio_container)
+        studio_container_layout.setContentsMargins(0, 0, 0, 0)
+        studio_container_layout.setSpacing(0)
+        self._layout_studio_tab_index = self.main_tabs.addTab(self._layout_studio_container, "🎨  Layout Studio")
 
         self.settings_tab = SystemSettingsWidget(self.db, self)
         self.settings_tab.settings_saved.connect(self._on_settings_saved)
@@ -1641,17 +1645,11 @@ class MainWindow(QMainWindow):
                 self.emulator_tab.refresh()
             elif current_widget == self.frontend_tab:
                 self.frontend_tab.refresh_data()
-            elif index == getattr(self, "_layout_studio_tab_index", -1):
+            elif current_widget == getattr(self, "_layout_studio_container", None):
                 if self.layout_studio_tab is None:
                     from playnexus.ui.layout_studio import LayoutStudioWidget
-                    self.layout_studio_tab = LayoutStudioWidget(self.db, self)
-                    self.main_tabs.removeTab(self._layout_studio_tab_index)
-                    self._layout_studio_tab_index = self.main_tabs.insertTab(
-                        self._layout_studio_tab_index,
-                        self.layout_studio_tab,
-                        "🎨  Layout Studio"
-                    )
-                    self.main_tabs.setCurrentIndex(self._layout_studio_tab_index)
+                    self.layout_studio_tab = LayoutStudioWidget(self.db, self._layout_studio_container)
+                    self._layout_studio_container.layout().addWidget(self.layout_studio_tab)
                 elif not getattr(self.layout_studio_tab, "current_project", None):
                     self.layout_studio_tab.refresh_layouts_list()
 

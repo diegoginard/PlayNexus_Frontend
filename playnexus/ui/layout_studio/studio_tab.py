@@ -782,6 +782,7 @@ class LayoutStudioWidget(QWidget):
         """Sincroniza la instancia real de ThemeLayout con la lista y el juego de muestra activos."""
         if not self.current_project:
             return
+        already_synced = existing_inst is not None
         if existing_inst is None and code_override and self.current_project.folder_path:
             existing_inst = self._instantiate_quiet_theme(
                 self.current_project.name,
@@ -789,12 +790,13 @@ class LayoutStudioWidget(QWidget):
                 code_override,
             )
             self.canvas.set_layout_instance(existing_inst)
+            already_synced = True
 
         if hasattr(self.canvas, "set_sample_games_list"):
             self.canvas.set_sample_games_list(self.current_list_games)
         selected_game = self.cb_sample_games.currentData()
         if selected_game:
-            if self.canvas.layout_instance is not None:
+            if self.canvas.layout_instance is not None and not already_synced:
                 sync_quiet_studio_instance(self.canvas.layout_instance, self.current_list_games, selected_game)
             self.canvas.set_sample_game(selected_game)
         self.canvas.update()

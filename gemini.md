@@ -28,4 +28,8 @@
    - El Layout Studio debe leer, instanciar y replicar tal cual el código de `theme_layout.py` de cada layout (incluyendo todos los elementos locales y los tomados de `gtc-common`, puntero, sombra de ruleta, scanlines, flyer, cabinet, consola, cartucho/disco y barra inferior).
    - El Sandbox debe reflejar el 100 % del tamaño real de los elementos del layout (sin doble reescalado entre el espacio canónico `1920x1080` y la resolución de la ventana), ejecutarse con fluidez (>60 FPS mediante caché de texturas pre-escaladas) y permitir elegir modo (`Ventana`, `Pantalla Completa`, `Sin Bordes`) y resolución.
 
+7. **VERSIONADO AUTOMÁTICO EN CORRECCIÓN DE BUGS (INCREMENTO DEL ÚLTIMO DÍGITO):**
+   - Toda corrección de bugs debe sumar de `1` en `1` el último dígito del versionador central en `playnexus/__version__.py` (`__version__`, por ejemplo `1.1.0` -> `1.1.1` -> `1.1.2`).
+
+
 
