@@ -26,6 +26,7 @@ from playnexus.ui.dialogs import (
 )
 from playnexus.ui.frontend_tab import FrontendSettingsWidget
 from playnexus.ui.settings_tab import SystemSettingsWidget
+from playnexus.ui.layout_studio import LayoutStudioWidget
 from playnexus.ui.layouts import LAYOUT_REGISTRY, get_available_layouts, create_layout, resolve_theme_name
 from playnexus import __version__, __version_full__
 
@@ -411,6 +412,10 @@ class MainWindow(QMainWindow):
         self.frontend_tab.layout_changed.connect(self._on_frontend_layout_changed)
         self.frontend_tab.launch_requested.connect(self.launch_frontend_player)
         self.main_tabs.addTab(self.frontend_tab, "📺  Modo Frontend")
+
+        # Carga perezosa de Layout Studio: no instanciar motores pesados hasta abrir la pestaña
+        self.layout_studio_tab = None
+        self._layout_studio_tab_index = self.main_tabs.addTab(QWidget(), "🎨  Layout Studio")
 
         self.settings_tab = SystemSettingsWidget(self.db, self)
         self.settings_tab.settings_saved.connect(self._on_settings_saved)
@@ -1636,6 +1641,19 @@ class MainWindow(QMainWindow):
                 self.emulator_tab.refresh()
             elif current_widget == self.frontend_tab:
                 self.frontend_tab.refresh_data()
+            elif index == getattr(self, "_layout_studio_tab_index", -1):
+                if self.layout_studio_tab is None:
+                    from playnexus.ui.layout_studio import LayoutStudioWidget
+                    self.layout_studio_tab = LayoutStudioWidget(self.db, self)
+                    self.main_tabs.removeTab(self._layout_studio_tab_index)
+                    self._layout_studio_tab_index = self.main_tabs.insertTab(
+                        self._layout_studio_tab_index,
+                        self.layout_studio_tab,
+                        "🎨  Layout Studio"
+                    )
+                    self.main_tabs.setCurrentIndex(self._layout_studio_tab_index)
+                elif not getattr(self.layout_studio_tab, "current_project", None):
+                    self.layout_studio_tab.refresh_layouts_list()
 
     def _on_frontend_layout_changed(self, list_id: int, layout_name: str):
         """Sincroniza el diseño visual cuando se edita desde la pestaña de Modo Frontend."""
@@ -1744,13 +1762,22 @@ class MainWindow(QMainWindow):
         """Detiene cualquier reproducción activa antes de cerrar la ventana para evitar errores de Media Foundation."""
         self.stop_all_active_media()
         # Cerrar y liberar hilos de layouts cargados en layout_stack
-        if hasattr(self, "layout_instances"):
-            for inst in self.layout_instances.values():
+        if hasattr(self, "layout_stack"):
+            for i in range(self.layout_stack.count()):
+                inst = self.layout_stack.widget(i)
                 try:
                     if hasattr(inst, "close"):
                         inst.close()
                 except Exception:
                     pass
+        if hasattr(self, "layout_studio_tab") and self.layout_studio_tab:
+            try:
+                if hasattr(self.layout_studio_tab, "canvas") and hasattr(self.layout_studio_tab.canvas, "cleanup"):
+                    self.layout_studio_tab.canvas.cleanup()
+                if hasattr(self.layout_studio_tab, "close"):
+                    self.layout_studio_tab.close()
+            except Exception:
+                pass
         # Detener gestor global de mandos si existiera
         try:
             from playnexus.services.gamepad import _GLOBAL_GAMEPAD_MANAGER

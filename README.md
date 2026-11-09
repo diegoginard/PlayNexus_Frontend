@@ -1,4 +1,4 @@
-# PlayNexus — Frontend de Emulación para Windows
+# PlayNexus v1.1.0 — Frontend de Emulación para Windows
 
 ![PlayNexus Logo](PlayNexus_Logo.png)
 
@@ -193,6 +193,21 @@ Inspirado y perfeccionado a partir del script oficial de Attract-Mode (`screensa
   - Al presionar la acción **SELECT** (tecla `Enter` o botón `A` del mando), el salvapantallas se cierra y salta directamente al juego exhibido en ese preciso momento, seleccionándolo en la rueda o lista.
 - **Configuración completa en la pestaña *Modo Frontend*:** Tiempo de espera (1 a 120 min), selección de modos habilitados, selector de arte superpuesto (*Wheel*, *Flyer*, *Marquee* o *Ninguno*), activación de sonido, relación de aspecto y botón **«▶ Probar salvapantallas»**.
 
+### 15. Layout Studio (Editor Visual WYSIWYG e Interactivo en Tiempo Real — v1.1.0)
+La pestaña **🎨 Layout Studio** ofrece un entorno de edición visual y de código en tiempo real para todos los temas de `Layouts/`:
+- **Ejecución directa del código real (`theme_layout.py`):** Lee, instancia y ejecuta directamente el `ThemeLayout` de cada layout sin diccionarios paralelos ni heurísticas, respetando el 100 % de sus elementos locales y compartidos (`gtc-common`, puntero, sombra de ruleta, scanlines, consola, cartucho/disco, flyer, cabinet, marquee, barra inferior).
+- **Edición en tiempo real en el lienzo 16:9 (`1920x1080`):**
+  - Arrastrar y redimensionar cualquier elemento con gizmos interactivos.
+  - **Deformación 4 Puntos (`🔮 Deformación 4 Puntos`):** Transformación proyectiva de perspectiva (`QTransform.quadToQuad` / `corner_pins`) arrastrando individualmente cada esquina de cualquier capa.
+  - Gestión de orden de capas (Z-Order), visibilidad individual, opacidad y bloqueo.
+  - **Línea de tiempo de animaciones:** Controles de reproducción a 60 FPS (`▶ Play`, `⏸ Pausa`, `⏮ 0.0s`, `±0.1s` y barra deslizante de `0.00s` a `5.00s`) para previsualizar las trayectorias reales de entrada y flotación de cada elemento.
+- **Restablecimiento y copias de seguridad automáticas:**
+  - Botón **`🔄 Restablecer Cambios`** para devolver todos los elementos a su posición, tamaño, forma y visibilidad originales de fábrica.
+  - Al guardar (`💾 Guardar Cambios`), genera automáticamente un respaldo fechado en `Layouts/<Tema>/backups/` antes de escribir en `theme_layout.py`.
+- **Sandbox Interactivo en Vivo (`▶ Probar en Sandbox`):**
+  - Selector de modo de visualización (`🪟 Modo Ventana`, `🖥 Pantalla Completa`, `🔲 Ventana sin Bordes`) y selector de resolución (`1280x720`, `1920x1080`, `1600x900`, `1366x768`, `2560x1440`, `3840x2160`, `16:10`, `5:4`, `4:3` y `Nativa del Monitor`).
+  - Sincronización en tiempo real: cualquier cambio de posición, tamaño, deformación o resolución en el Studio se refleja al instante en la ventana del Sandbox a >170–285 FPS gracias al cacheo de texturas pre-escaladas en espacio de pantalla (`_studio_pix_cache`).
+
 ---
 
 ## 🗂 Estructura del proyecto
@@ -200,6 +215,7 @@ Inspirado y perfeccionado a partir del script oficial de Attract-Mode (`screensa
 ```text
 PlayNexus_Frontend/
 ├── README.md                 # Documentación técnica y guía de uso
+├── gemini.md                 # Reglas y directivas de arquitectura del proyecto
 ├── requirements.txt          # Dependencias del proyecto (PySide6)
 ├── PlayNexus.bat             # Menú interactivo de selección (.bat)
 ├── PlayNexus_Config.bat      # Lanzador directo del Modo Configurador (.bat)
@@ -226,9 +242,10 @@ PlayNexus_Frontend/
 ├── emulators/                # Archivos .txt de emuladores del entorno local
 ├── lists/                    # Archivos .txt de listas del entorno local
 ├── icons/                    # Logotipos e iconos de consolas y arcades (.png)
-├── Layouts/                  # Carpetas de temas y layouts dedicados por consola
+├── Layouts/                  # Carpetas de temas y layouts dedicados por consola y arcade
 └── playnexus/
     ├── __init__.py
+    ├── __version__.py        # Versión centralizada del sistema (v1.1.0)
     ├── __main__.py           # Enrutador principal (--player o configurador)
     ├── db.py                 # Motor de almacenamiento en memoria y archivos de texto plano (.txt)
     ├── services/
@@ -246,12 +263,23 @@ PlayNexus_Frontend/
         ├── bezel_overlay.py  # Ventana de overlay transparente para Bezel HUD con fade
         ├── cover_utils.py    # Generador procedural de carátulas dinámicas y carga de arte
         ├── dialogs.py        # Diálogos: Listas, Emuladores (retardo/fade/loading), Escaneo, Filtros
-        ├── frontend_tab.py   # Configuración de video, pantalla y Splash Screen
+        ├── exit_confirm_dialog.py # Diálogo modal de confirmación de salida del Frontend
+        ├── frontend_tab.py   # Configuración de video, pantalla, Salvapantallas y Splash Screen
         ├── loading_overlay.py# Ventana a pantalla completa para Loading HUD (apertura/cierre)
         ├── main_window.py    # Ventana principal del Configurador
         ├── player_window.py  # Ventana del Modo Frontend / Jugador (pantalla completa)
+        ├── screensaver.py    # Motor de salvapantallas arcade (4 modos visuales)
         ├── settings_tab.py   # Pestaña de configuración general y controles
         ├── splash_screen.py  # Reproductor a pantalla completa del video de bienvenida
+        ├── layout_studio/    # Entorno visual de diseño de layouts en tiempo real (v1.1.0)
+        │   ├── __init__.py
+        │   ├── canvas.py         # Lienzo WYSIWYG interactivo 16:9, gizmos y deformación 4 puntos
+        │   ├── code_editor.py    # Editor de código Python con resaltado y Hot Reload
+        │   ├── inspector.py      # Inspector de capas (Z-Order), geometría y propiedades
+        │   ├── models.py         # Modelos de datos (LayoutProject, LayoutElement)
+        │   ├── runtime_hook.py   # Introspección AST/píxel y renderizado en vivo de ThemeLayout
+        │   ├── studio_tab.py     # Pestaña principal, línea de tiempo y Sandbox multi-resolución
+        │   └── templates.py      # Generador de plantillas base para nuevos layouts
         └── layouts/          # Fábrica y modos de layouts
             ├── __init__.py
             ├── base.py       # Clase base abstracta BaseLayout

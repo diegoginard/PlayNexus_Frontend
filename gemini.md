@@ -23,3 +23,9 @@
    - La carga del nuevo juego (arte, animaciones de entrada, emisión de `game_selected` y reproducción de video) debe ejecutarse de forma sincronizada y unificada única y exclusivamente cuando el usuario suelta la tecla (`keyReleaseEvent`) o tras el vencimiento del temporizador de confirmación (`_commit_timer` a ~180 ms).
    - **Interacción con Mouse / Clics:** Al hacer clic con el mouse y no soltar el botón, queda estrictamente prohibido mover la ruleta de wheels, cambiar el arte o activar el juego. Nada debe variar hasta el evento de soltado (`mouseReleaseEvent`); la ruleta de wheels y los medios solo cambian o se activan al producirse el release.
 
+6. **FIDELIDAD 100 % EN LAYOUT STUDIO Y SANDBOX (EJECUCIÓN DIRECTA DE `theme_layout.py`):**
+   - Prohibido crear diccionarios paralelos, heurísticas o inventar geometrías en `playnexus/ui/layout_studio/`.
+   - El Layout Studio debe leer, instanciar y replicar tal cual el código de `theme_layout.py` de cada layout (incluyendo todos los elementos locales y los tomados de `gtc-common`, puntero, sombra de ruleta, scanlines, flyer, cabinet, consola, cartucho/disco y barra inferior).
+   - El Sandbox debe reflejar el 100 % del tamaño real de los elementos del layout (sin doble reescalado entre el espacio canónico `1920x1080` y la resolución de la ventana), ejecutarse con fluidez (>60 FPS mediante caché de texturas pre-escaladas) y permitir elegir modo (`Ventana`, `Pantalla Completa`, `Sin Bordes`) y resolución.
+
+

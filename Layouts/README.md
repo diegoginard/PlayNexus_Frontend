@@ -325,6 +325,8 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 
 | Layout | Tipo de Soporte | Medios Requeridos | Elementos Destacados |
 |--------|-----------------|-------------------|----------------------|
+| **At-The-Arcade Flex** | Gabinete Arcade | `video`, `wheel`, `cabinet`, `flyer`, `marquee`, `bezel` | Mueble arcade frontal, marquesina iluminada, monitor CRT con scratches y scanlines, flyer deslizante y ruleta curva |
+| **Main Menu** | Menú de Sistemas | `video`, `wheel` | Video temático a pantalla completa, ruleta de logotipos de sistemas y barra inferior |
 | **NEC TurboGrafx-16** | Cartucho (HuCard) | `video`, `wheel`, `cartart` | TV CRT, animación de inserción vertical en consola, tapa de ranura, nave espacial animada |
 | **NEC TurboGrafx-CD** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, nave espacial animada |
 | **NEC PC-FX** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, giro continuo de disco CD a 60 FPS, carátula dinámica, avatar temático animado |
@@ -337,4 +339,14 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 | **Sony Playstation** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación de disco negro PlayStation, avatar Crash Bandicoot |
 | **Nintendo 64** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción frontal, avatar Mario 64 |
 | **Super Nintendo** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción vertical en SNES, avatar Mario animado |
+
+---
+
+## 13. Integración con Layout Studio (v1.1.0)
+
+El editor **🎨 Layout Studio** (`playnexus/ui/layout_studio/`) opera directamente sobre el código real de cada `theme_layout.py`:
+
+- **Introspección en vivo sin diccionarios paralelos:** El Studio instancia silenciosamente `ThemeLayout`, analiza el orden de pintado de `paintEvent` mediante AST y mide la caja delimitadora real (`orig_rect` en espacio canónico `1920x1080`) de cada capa pintada por el layout, incluyendo todos los recursos locales y los compartidos de `gtc-common` (`wheel_shadow.png`, `scanlines_1920.png`, `frame.png`, punteros, etc.).
+- **Persistencia limpia mediante `STUDIO_ELEMENTS`:** Cuando se guardan cambios desde Layout Studio, las constantes originales de `theme_layout.py` se conservan intactas (evitando doble reescalado) y al final del archivo se anexa el bloque `# --- PLAYNEXUS STUDIO OVERRIDES START ---` con `STUDIO_ELEMENTS` e `install_studio_overrides`, aplicando posición, escala, orden Z, visibilidad y deformación de perspectiva de 4 puntos (`corner_pins`) tanto en el Sandbox como en el Frontend.
+- **Restablecimiento y copias de seguridad:** Antes de guardar, Layout Studio crea automáticamente una copia en `Layouts/<NombreTema>/backups/`. El botón `🔄 Restablecer Cambios` restaura la geometría original del `theme_layout.py`.
 
