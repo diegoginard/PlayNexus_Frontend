@@ -70,6 +70,13 @@ class ThemeLayout(BaseLayout):
         }
     ]
 
+    # -------------------------------------------------------------------------
+    # FUENTES TIPOGRÁFICAS DEL TEMA
+    # -------------------------------------------------------------------------
+    FONT_TITLE_FILE = "BebasNeue Bold.otf"    # Fuente para títulos destacados del juego
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"   # Fuente para contadores, año, desarrollador e info general
+    FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
+
     # Recursos compartidos desde gtc-common
     WHEEL_SHADOW_IMAGE = COMMON_DIR / "wheel" / "wheel_shadow.png"
     COMMON_WHEEL_ART   = COMMON_DIR / "art" / "wheel_art.png"
@@ -77,6 +84,7 @@ class ThemeLayout(BaseLayout):
     STATIC_VIDEO       = COMMON_DIR / "videos" / "static.mp4"
     SOUND_NAV          = COMMON_DIR / "sounds" / "joystick.mp3"
     SOUND_SELECT       = COMMON_DIR / "sounds" / "Mame_coin.mp3"
+    SCANLINES_IMAGE    = COMMON_DIR / "art" / "scanlines_1920.png"
     SCRATCHES_IMAGE    = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
 
     # -------------------------------------------------------------------------
@@ -93,10 +101,7 @@ class ThemeLayout(BaseLayout):
     BOXART_IMAGE = None
     WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
     POINTER_IMAGE = LAYOUT_DIR / "pointers/default.png"
-    # Tipografías del tema (declaradas al inicio para modificarlas fácilmente)
-    FONT_TITLE_FILE = "BebasNeue Bold.otf"    # Fuente para títulos destacados del juego
-    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"   # Fuente para contadores, año, desarrollador e info general
-    FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
+
 
     # -------------------------------------------------------------------------
     # CONFIGURACIÓN GEOMÉTRICA DE SEGA 32X

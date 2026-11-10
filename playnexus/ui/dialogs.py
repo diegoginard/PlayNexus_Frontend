@@ -1590,19 +1590,22 @@ class EmulatorManagerWidget(QWidget):
             h_layout.addWidget(desc)
             layout.addWidget(header_card)
 
-        # Tabla de emuladores
+        # Tabla de emuladores con anchos iniciales optimizados para respuesta instantánea
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
             "Nombre", "Plataforma", "Ejecutable", "Argumentos", "Retardo Bezel", "Fade Bezel", "Carga (In)", "Cierre (Out)"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        for col in range(8):
+            self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+
+        self.table.setColumnWidth(0, 180)
+        self.table.setColumnWidth(1, 130)
+        self.table.setColumnWidth(3, 160)
+        self.table.setColumnWidth(4, 100)
+        self.table.setColumnWidth(5, 95)
+        self.table.setColumnWidth(6, 95)
+        self.table.setColumnWidth(7, 95)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -1629,52 +1632,56 @@ class EmulatorManagerWidget(QWidget):
         layout.addLayout(btn_row)
 
     def refresh(self):
-        rows = self.db.get_emulators()
-        self.table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            name_item = QTableWidgetItem(row["name"])
-            name_item.setData(Qt.UserRole, row["id"])
-            self.table.setItem(i, 0, name_item)
-            self.table.setItem(i, 1, QTableWidgetItem(row["platform"] or "—"))
-            self.table.setItem(i, 2, QTableWidgetItem(row["executable"]))
-            self.table.setItem(i, 3, QTableWidgetItem(row["arguments"]))
+        self.setUpdatesEnabled(False)
+        try:
+            rows = self.db.get_emulators()
+            self.table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                name_item = QTableWidgetItem(row["name"])
+                name_item.setData(Qt.UserRole, row["id"])
+                self.table.setItem(i, 0, name_item)
+                self.table.setItem(i, 1, QTableWidgetItem(row["platform"] or "—"))
+                self.table.setItem(i, 2, QTableWidgetItem(row["executable"]))
+                self.table.setItem(i, 3, QTableWidgetItem(row["arguments"]))
 
-            d_raw = row.get("bezel_delay", "0.0")
-            f_raw = row.get("bezel_fade", "0.3")
-            load_raw = row.get("loading_time", "1.5")
-            exit_load_raw = row.get("exit_loading_time", "1.0")
-            try:
-                d_str = f"{float(d_raw):.1f} s"
-            except Exception:
-                d_str = "0.0 s"
-            try:
-                f_str = f"{float(f_raw):.1f} s"
-            except Exception:
-                f_str = "0.3 s"
-            try:
-                load_str = f"{float(load_raw):.1f} s"
-            except Exception:
-                load_str = "1.5 s"
-            try:
-                exit_load_str = f"{float(exit_load_raw):.1f} s"
-            except Exception:
-                exit_load_str = "1.0 s"
+                d_raw = row.get("bezel_delay", "0.0")
+                f_raw = row.get("bezel_fade", "0.3")
+                load_raw = row.get("loading_time", "1.5")
+                exit_load_raw = row.get("exit_loading_time", "1.0")
+                try:
+                    d_str = f"{float(d_raw):.1f} s"
+                except Exception:
+                    d_str = "0.0 s"
+                try:
+                    f_str = f"{float(f_raw):.1f} s"
+                except Exception:
+                    f_str = "0.3 s"
+                try:
+                    load_str = f"{float(load_raw):.1f} s"
+                except Exception:
+                    load_str = "1.5 s"
+                try:
+                    exit_load_str = f"{float(exit_load_raw):.1f} s"
+                except Exception:
+                    exit_load_str = "1.0 s"
 
-            item_d = QTableWidgetItem(d_str)
-            item_d.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 4, item_d)
+                item_d = QTableWidgetItem(d_str)
+                item_d.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(i, 4, item_d)
 
-            item_f = QTableWidgetItem(f_str)
-            item_f.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 5, item_f)
+                item_f = QTableWidgetItem(f_str)
+                item_f.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(i, 5, item_f)
 
-            item_load = QTableWidgetItem(load_str)
-            item_load.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 6, item_load)
+                item_load = QTableWidgetItem(load_str)
+                item_load.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(i, 6, item_load)
 
-            item_exit_load = QTableWidgetItem(exit_load_str)
-            item_exit_load.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(i, 7, item_exit_load)
+                item_exit_load = QTableWidgetItem(exit_load_str)
+                item_exit_load.setTextAlignment(Qt.AlignCenter)
+                self.table.setItem(i, 7, item_exit_load)
+        finally:
+            self.setUpdatesEnabled(True)
 
     def _get_selected_id(self):
         selected = self.table.selectionModel().selectedRows()

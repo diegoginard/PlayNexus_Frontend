@@ -225,10 +225,14 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
 
     # 3. Scanlines CRT
     if eid == "scanlines_crt":
-        if not getattr(inst, "_pix_scanlines", None) and hasattr(inst, "layout_dir"):
-            scan_path = Path(inst.layout_dir).parent / "gtc-common" / "art" / "scanlines_1920.png"
-            if scan_path.is_file() and hasattr(inst, "_load_pixmap"):
-                inst._pix_scanlines = inst._load_pixmap(str(scan_path))
+        if not getattr(inst, "_pix_scanlines", None):
+            scan_const = getattr(inst, "SCANLINES_IMAGE", None)
+            if scan_const and Path(scan_const).is_file() and hasattr(inst, "_load_pixmap"):
+                inst._pix_scanlines = inst._load_pixmap(str(scan_const))
+            elif hasattr(inst, "layout_dir"):
+                scan_path = Path(inst.layout_dir).parent / "gtc-common" / "art" / "scanlines_1920.png"
+                if scan_path.is_file() and hasattr(inst, "_load_pixmap"):
+                    inst._pix_scanlines = inst._load_pixmap(str(scan_path))
         pix_scan = getattr(inst, "_pix_scanlines", None)
         if pix_scan and not pix_scan.isNull():
             snap_rect = _get_native_snap_rect(inst)
@@ -476,11 +480,12 @@ def measure_native_layer_bbox(inst, elem_id: str) -> tuple[float, float, float, 
         y = round(CANONICAL_H * 0.26, 1)
         return (x, y, w, h)
 
-    if eid == "cartart" and hasattr(inst, "CART_RECT"):
-        cx = float(getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", inst.CART_RECT[0])))
-        cy = float(getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", inst.CART_RECT[1])))
-        cw = float(inst.CART_RECT[2])
-        ch = float(inst.CART_RECT[3])
+    if eid == "cartart" and (hasattr(inst, "CART_RECT") or hasattr(inst, "DISC_RECT")):
+        rect_attr = getattr(inst, "DISC_RECT", getattr(inst, "CART_RECT", (0.55, 0.60, 0.19, 0.30)))
+        cx = float(getattr(inst, "_disc_end_x_ratio", getattr(inst, "DISC_END_X", getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", rect_attr[0])))))
+        cy = float(getattr(inst, "_disc_end_y_ratio", getattr(inst, "DISC_END_Y", getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", rect_attr[1])))))
+        cw = float(rect_attr[2])
+        ch = float(rect_attr[3])
         return (
             round(cx * CANONICAL_W, 1),
             round(cy * CANONICAL_H, 1),
@@ -647,6 +652,10 @@ def sync_quiet_studio_instance(inst, games: list[dict[str, Any]], selected_game:
         inst._logo_current_y_offset_ratio = 0.0
     if hasattr(inst, "_boxart_current_x_offset_ratio"):
         inst._boxart_current_x_offset_ratio = 0.0
+    if hasattr(inst, "_boxart_current_x_ratio"):
+        inst._boxart_current_x_ratio = getattr(inst, "_boxart_end_x_ratio", getattr(inst, "BOXART_END_X", getattr(inst, "BOXART_X", 0.015)))
+    if hasattr(inst, "_boxart_current_y_ratio"):
+        inst._boxart_current_y_ratio = getattr(inst, "_boxart_end_y_ratio", getattr(inst, "BOXART_END_Y", getattr(inst, "BOXART_BOTTOM_Y", 0.928)))
     if hasattr(inst, "_boxart_alpha"):
         inst._boxart_alpha = 1.0
     if hasattr(inst, "_avatar_offset_x"):
@@ -656,6 +665,11 @@ def sync_quiet_studio_instance(inst, games: list[dict[str, Any]], selected_game:
     if hasattr(inst, "CART_RECT"):
         inst._cart_current_x_ratio = getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", inst.CART_RECT[0]))
         inst._cart_current_y_ratio = getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", inst.CART_RECT[1]))
+    if hasattr(inst, "DISC_RECT") or hasattr(inst, "_disc_current_y_ratio"):
+        disc_rect = getattr(inst, "DISC_RECT", getattr(inst, "CART_RECT", (0.55, 0.60, 0.19, 0.30)))
+        if hasattr(inst, "_disc_current_x_ratio"):
+            inst._disc_current_x_ratio = getattr(inst, "_disc_end_x_ratio", getattr(inst, "DISC_END_X", disc_rect[0]))
+        inst._disc_current_y_ratio = getattr(inst, "_disc_end_y_ratio", getattr(inst, "DISC_END_Y", disc_rect[1]))
     if hasattr(inst, "_pointer_rest_x_ratio"):
         inst._pointer_current_x_ratio = inst._pointer_rest_x_ratio
         inst._pointer_anim_tick = 0
@@ -722,6 +736,10 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
         inst._logo_current_y_offset_ratio = 0.0
     if hasattr(inst, "_boxart_current_x_offset_ratio"):
         inst._boxart_current_x_offset_ratio = 0.0
+    if hasattr(inst, "_boxart_current_x_ratio"):
+        inst._boxart_current_x_ratio = getattr(inst, "_boxart_end_x_ratio", getattr(inst, "BOXART_END_X", getattr(inst, "BOXART_X", 0.015)))
+    if hasattr(inst, "_boxart_current_y_ratio"):
+        inst._boxart_current_y_ratio = getattr(inst, "_boxart_end_y_ratio", getattr(inst, "BOXART_END_Y", getattr(inst, "BOXART_BOTTOM_Y", 0.928)))
     if hasattr(inst, "_boxart_alpha"):
         inst._boxart_alpha = 1.0
     if hasattr(inst, "_avatar_offset_x"):
@@ -731,6 +749,11 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
     if hasattr(inst, "CART_RECT"):
         inst._cart_current_x_ratio = getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", inst.CART_RECT[0]))
         inst._cart_current_y_ratio = getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", inst.CART_RECT[1]))
+    if hasattr(inst, "DISC_RECT") or hasattr(inst, "_disc_current_y_ratio"):
+        disc_rect = getattr(inst, "DISC_RECT", getattr(inst, "CART_RECT", (0.55, 0.60, 0.19, 0.30)))
+        if hasattr(inst, "_disc_current_x_ratio"):
+            inst._disc_current_x_ratio = getattr(inst, "_disc_end_x_ratio", getattr(inst, "DISC_END_X", disc_rect[0]))
+        inst._disc_current_y_ratio = getattr(inst, "_disc_end_y_ratio", getattr(inst, "DISC_END_Y", disc_rect[1]))
     if hasattr(inst, "_pointer_rest_x_ratio"):
         inst._pointer_current_x_ratio = inst._pointer_rest_x_ratio
         inst._pointer_anim_tick = 0
@@ -967,10 +990,14 @@ def render_element_in_screen_space(
         return
 
     if eid == "scanlines_crt":
-        if not getattr(inst, "_pix_scanlines", None) and hasattr(inst, "layout_dir"):
-            scan_path = Path(inst.layout_dir).parent / "gtc-common" / "art" / "scanlines_1920.png"
-            if scan_path.is_file() and hasattr(inst, "_load_pixmap"):
-                inst._pix_scanlines = inst._load_pixmap(str(scan_path))
+        if not getattr(inst, "_pix_scanlines", None):
+            scan_const = getattr(inst, "SCANLINES_IMAGE", None)
+            if scan_const and Path(scan_const).is_file() and hasattr(inst, "_load_pixmap"):
+                inst._pix_scanlines = inst._load_pixmap(str(scan_const))
+            elif hasattr(inst, "layout_dir"):
+                scan_path = Path(inst.layout_dir).parent / "gtc-common" / "art" / "scanlines_1920.png"
+                if scan_path.is_file() and hasattr(inst, "_load_pixmap"):
+                    inst._pix_scanlines = inst._load_pixmap(str(scan_path))
         pix_scan = getattr(inst, "_pix_scanlines", None)
         if pix_scan and not pix_scan.isNull():
             spix = _get_cached_scaled_pixmap(inst, ("scanlines", id(pix_scan), dst_w, dst_h), pix_scan, None, dst_w, dst_h)

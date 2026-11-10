@@ -65,17 +65,31 @@ class ThemeLayout(BaseLayout):
     ]
 
     # -------------------------------------------------------------------------
+    # FUENTES TIPOGRÁFICAS DEL TEMA
+    # -------------------------------------------------------------------------
+    FONT_FILE       = LAYOUT_DIR / "SF Slapstick Comic Bold Oblique.ttf"
+    FONT_TITLE_FILE = FONT_FILE
+    FONT_MAIN_FILE  = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
+    FONT_BEBAS      = FONT_MAIN_FILE
+    FONT_FILES      = [FONT_TITLE_FILE, FONT_MAIN_FILE]
+
+    # -------------------------------------------------------------------------
     # RECURSOS LOCALES PROPIOS DEL LAYOUT
     # -------------------------------------------------------------------------
     WHEEL_ART_IMAGE = LAYOUT_DIR / "wheel_art.png"
     POINTER_IMAGE   = LAYOUT_DIR / "pointers" / "default.png"
-    FONT_FILE       = LAYOUT_DIR / "SF Slapstick Comic Bold Oblique.ttf"
 
-    # Recursos compartidos desde gtc-common
+    # -------------------------------------------------------------------------
+    # RECURSOS COMPARTIDOS DESDE gtc-common
+    # -------------------------------------------------------------------------
     WHEEL_SHADOW_IMAGE = COMMON_DIR / "wheel" / "wheel_shadow.png"
+    COMMON_WHEEL_ART   = COMMON_DIR / "art" / "wheel_art.png"
+    COMMON_FRAME       = COMMON_DIR / "art" / "frame.png"
+    SCANLINES_IMAGE    = COMMON_DIR / "art" / "scanlines_1920.png"
+    SCRATCHES_IMAGE    = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
+    STATIC_VIDEO       = COMMON_DIR / "videos" / "static.mp4"
     SOUND_NAV          = COMMON_DIR / "sounds" / "joystick.mp3"
     SOUND_SELECT       = COMMON_DIR / "sounds" / "hs_click.mp3"
-    FONT_BEBAS         = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
 
     # -------------------------------------------------------------------------
     # CONFIGURACIÓN GEOMÉTRICA DE LA RULETA CURVA (14 NODOS INTERPOLADOS A 60 FPS)

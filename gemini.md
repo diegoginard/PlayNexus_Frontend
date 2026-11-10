@@ -31,5 +31,15 @@
 7. **VERSIONADO AUTOMÁTICO EN CORRECCIÓN DE BUGS (INCREMENTO DEL ÚLTIMO DÍGITO):**
    - Toda corrección de bugs debe sumar de `1` en `1` el último dígito del versionador central en `playnexus/__version__.py` (`__version__`, por ejemplo `1.1.0` -> `1.1.1` -> `1.1.2`).
 
+8. **ORDEN Y DECLARACIÓN EXPLÍCITA DE REQUERIMIENTOS, FUENTES Y MEDIOS AL INICIO DE TODO `theme_layout.py`:**
+   - Todo layout debe respetar estrictamente el siguiente orden en la cabecera de la clase `ThemeLayout`:
+     1. **Requerimientos de Medios (`MEDIA_REQUIREMENTS`):** Debe ubicarse en primer lugar inmediatamente al inicio de la clase (leídos directamente por el creador de listas y el sistema de escaneo).
+     2. **Fuentes Tipográficas (Fonts):** Inmediatamente después de los requerimientos de medios. Declarar obligatoriamente: `FONT_TITLE_FILE` (para títulos destacados), `FONT_MAIN_FILE` o `FONT_COUNTER_FILE` (para contadores, información técnica y texto general) y la lista agrupada `FONT_FILES = [FONT_TITLE_FILE, ...]`. Si un layout no utiliza fuentes externas personalizadas, debe declararse explícitamente como `None`.
+     3. **Recursos de Medios Compartidos y Locales:**
+        - Compartidos desde `gtc-common`: `SCANLINES_IMAGE`, `SCRATCHES_IMAGE`, `WHEEL_SHADOW_IMAGE`, `COMMON_WHEEL_ART`, `COMMON_FRAME`, `STATIC_VIDEO`, `SOUND_NAV`, `SOUND_SELECT`.
+        - Locales del layout: `BKG_IMAGE`, `TV_IMAGE`, `CONSOLE_IMAGE`, `CONSOLE_COVER_IMAGE`, `JOYSTICK_IMAGE`, `AVATAR_IMAGE`, `LOGO_IMAGE`, `CARTART_IMAGE` (o `DISCART_IMAGE`), `BOXART_IMAGE`, `WHEEL_IMAGE`, `POINTER_IMAGE`, etc. Si un recurso no se utiliza o es opcional en dicho layout, debe declararse explícitamente como `None`.
+     4. **Configuración Geométrica y Métricas:** (`TV_RECT`, `CART_RECT`, `CONVEYOR_*`, etc.).
+   - Prohibido dejar rutas "mágicas" o resoluciones en tiempo de ejecución hardcodeadas dentro de los métodos; el Layout Studio debe poder inspeccionar y leer directamente estas constantes de clase desde `ThemeLayout`.
+
 
 

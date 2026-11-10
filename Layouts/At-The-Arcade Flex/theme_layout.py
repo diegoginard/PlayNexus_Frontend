@@ -24,7 +24,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink, QSoundEffect
 
-from playnexus.ui.layouts.base import BaseLayout
+from playnexus.ui.layouts.base import BaseLayout, WheelPreloadWorker
 from playnexus.ui.cover_utils import load_cover
 from playnexus.services.media import find_media_file as cached_find_media_file
 from playnexus.services.controls import (
@@ -38,102 +38,6 @@ LAYOUT_DIR = Path(__file__).resolve().parent
 COMMON_DIR = LAYOUT_DIR.parent / "gtc-common"
 
 
-class WheelPreloadWorker(QThread):
-    """
-    Hilo de trabajo en segundo plano para pre-cargar y pre-escalar logotipos de rueda (wheel)
-    de forma asíncrona sin bloquear jamás el renderizado de la interfaz ni la tasa de cuadros.
-    """
-    wheel_loaded = Signal(int, QImage)  # (game_id, scaled_qimage)
-
-    def __init__(self, parent=None):
-        """Inicializa los componentes internos, estructuras de datos y temporizadores del objeto."""
-        super().__init__(parent)
-        self._queue = deque()
-        self._queued_ids = set()
-        self._lock = threading.Lock()
-        self._running = True
-        self._event = threading.Event()
-
-    def stop(self):
-        """Detiene de forma segura el hilo de trabajo y espera su finalización."""
-        self._running = False
-        self._event.set()
-        self.wait(500)
-
-    def clear(self):
-        """Limpia la lista de juegos y cachés de texturas en memoria."""
-        with self._lock:
-            self._queue.clear()
-            self._queued_ids.clear()
-
-    def queue_game(self, game: dict, priority: bool = False):
-        """Encola un juego para precargar y escalar su logotipo de rueda en segundo plano."""
-        gid = game.get("id")
-        if not gid:
-            return
-        with self._lock:
-            if gid not in self._queued_ids:
-                if len(self._queue) >= 16:
-                    evicted = self._queue.pop()
-                    self._queued_ids.discard(evicted.get("id"))
-                if priority:
-                    self._queue.appendleft(game)
-                else:
-                    self._queue.append(game)
-                self._queued_ids.add(gid)
-        self._event.set()
-
-    def queue_games(self, games_list: list[dict], priority: bool = False):
-        """Encola una lista de juegos para su procesamiento predictivo en segundo plano."""
-        with self._lock:
-            items = reversed(games_list) if priority else games_list
-            for g in items:
-                gid = g.get("id")
-                if gid and gid not in self._queued_ids:
-                    if len(self._queue) >= 16:
-                        evicted = self._queue.pop()
-                        self._queued_ids.discard(evicted.get("id"))
-                    if priority:
-                        self._queue.appendleft(g)
-                    else:
-                        self._queue.append(g)
-                    self._queued_ids.add(gid)
-        self._event.set()
-
-    def run(self):
-        """Bucle principal del hilo de trabajo: extrae juegos de la cola, carga sus logotipos de rueda y los emite escalados."""
-        img_exts = (".png", ".webp", ".jpg", ".jpeg")
-        while self._running:
-            game = None
-            with self._lock:
-                if self._queue:
-                    game = self._queue.popleft()
-                    self._queued_ids.discard(game.get("id"))
-                else:
-                    self._event.clear()
-
-            if not game:
-                self._event.wait(timeout=0.05)
-                continue
-
-            gid = game.get("id")
-            try:
-                w_file = None
-                wheel_folder = game.get("wheel_path")
-                rom = game.get("rom_path", "")
-                stem = Path(rom).stem if rom else ""
-                if wheel_folder and stem:
-                    w_file = cached_find_media_file(wheel_folder, stem, img_exts)
-                if w_file and os.path.isfile(w_file):
-                    img = QImage(w_file)
-                    if not img.isNull():
-                        if img.width() > 480 or img.height() > 240:
-                            img = img.scaled(480, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                        self.wheel_loaded.emit(gid, img)
-            except Exception:
-                pass
-
-
 class ThemeLayout(BaseLayout):
     LAYOUT_NAME = "At-The-Arcade Flex"
     LAYOUT_DESCRIPTION = "Layout arcade fotorrealista con mueble interactivo, video de fondo y ruleta"
@@ -142,13 +46,27 @@ class ThemeLayout(BaseLayout):
     CANONICAL_H = 1080
 
     # =========================================================================
-    # 1. FUENTES TIPOGRÁFICAS (Rutas directas a los archivos)
+    # 1. REQUERIMIENTOS DE MEDIOS PARA ESTE LAYOUT (CREADOR DE LISTAS)
     # =========================================================================
-    FONT_TITLE_FILE = LAYOUT_DIR / "BebasNeue Bold.otf"
-    FONT_COUNTER_FILE = LAYOUT_DIR / "Handel Gothic BT.ttf"
+    MEDIA_REQUIREMENTS = [
+        {"key": "video", "label": "Videos", "extensions": [".mp4", ".mkv", ".avi", ".webm"], "required": True},
+        {"key": "wheel", "label": "Wheel", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": True},
+        {"key": "cabinet", "label": "Cabinets", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
+        {"key": "flyer", "label": "Flyers", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
+        {"key": "marquee", "label": "Marquees", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
+        {"key": "bezel", "label": "Bezels", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
+    ]
 
     # =========================================================================
-    # 2. ARCHIVOS DE IMÁGENES Y ARTES PROPIOS DEL LAYOUT
+    # 2. FUENTES TIPOGRÁFICAS (Rutas directas a los archivos)
+    # =========================================================================
+    FONT_TITLE_FILE   = LAYOUT_DIR / "BebasNeue Bold.otf"
+    FONT_COUNTER_FILE = LAYOUT_DIR / "Handel Gothic BT.ttf"
+    FONT_MAIN_FILE    = FONT_COUNTER_FILE
+    FONT_FILES        = [FONT_TITLE_FILE, FONT_COUNTER_FILE]
+
+    # =========================================================================
+    # 3. ARCHIVOS DE IMÁGENES Y ARTES PROPIOS DEL LAYOUT
     # =========================================================================
     CABINET_IMAGE       = LAYOUT_DIR / "cabinets.png"
     MARQUEE_IMAGE       = LAYOUT_DIR / "marquee1.jpg"
@@ -157,9 +75,13 @@ class ThemeLayout(BaseLayout):
     DEFAULT_WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
 
     # =========================================================================
-    # 3. RECURSOS COMPARTIDOS DESDE gtc-common
+    # 4. RECURSOS COMPARTIDOS DESDE gtc-common
     # =========================================================================
+    SCANLINES_IMAGE     = COMMON_DIR / "art" / "scanlines_1920.png"
     SCRATCHES_IMAGE     = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
+    WHEEL_SHADOW_IMAGE  = COMMON_DIR / "wheel" / "wheel_shadow.png"
+    COMMON_WHEEL_ART    = COMMON_DIR / "art" / "wheel_art.png"
+    COMMON_FRAME        = COMMON_DIR / "art" / "frame.png"
     FALLBACK_BG_IMAGE   = COMMON_DIR / "art" / "arcade" / "bkg.jpg"
     BG_VIDEO            = COMMON_DIR / "videos" / "bkg_anim.mp4"
     STATIC_VIDEO        = COMMON_DIR / "videos" / "static.mp4"
@@ -169,7 +91,7 @@ class ThemeLayout(BaseLayout):
     SELECT_SOUND_VOLUME = 0.5
 
     # =========================================================================
-    # 4. GEOMETRÍA VIRTUAL DEL MUEBLE ARCADE (Base 1300 x 1080)
+    # 5. GEOMETRÍA VIRTUAL DEL MUEBLE ARCADE (Base 1300 x 1080)
     # =========================================================================
     CAB_BASE_W = 1300
     CAB_BASE_H = 1080
@@ -180,7 +102,7 @@ class ThemeLayout(BaseLayout):
     POINTER_PULSE_X_RATIO = 0.880
 
     # =========================================================================
-    # 5. TIEMPOS Y ANIMACIÓN (TEMPORIZADORES EN MILISEGUNDOS)
+    # 6. TIEMPOS Y ANIMACIÓN (TEMPORIZADORES EN MILISEGUNDOS)
     # =========================================================================
     ANIM_TICK_MS = 16
     VIDEO_DEBOUNCE_MS = 150
@@ -190,23 +112,11 @@ class ThemeLayout(BaseLayout):
     VIDEO_WATCHDOG_MS = 1200
 
     # =========================================================================
-    # 6. TEXTOS Y COLORES DE LA BARRA INFERIOR (FOOTER)
+    # 7. TEXTOS Y COLORES DE LA BARRA INFERIOR (FOOTER)
     # =========================================================================
     FOOTER_COUNTER_PREFIX = "ARCADE:"
     COLOR_FOOTER_TITLE = QColor(255, 255, 255)
     COLOR_FOOTER_COUNTER = QColor(245, 185, 35)
-
-    # =========================================================================
-    # 7. REQUERIMIENTOS DE MEDIOS PARA ESTE LAYOUT (CREADOR DE LISTAS)
-    # =========================================================================
-    MEDIA_REQUIREMENTS = [
-        {"key": "video", "label": "Videos", "extensions": [".mp4", ".mkv", ".avi", ".webm"], "required": True},
-        {"key": "wheel", "label": "Wheel", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": True},
-        {"key": "cabinet", "label": "Cabinets", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
-        {"key": "flyer", "label": "Flyers", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
-        {"key": "marquee", "label": "Marquees", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
-        {"key": "bezel", "label": "Bezels", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
-    ]
 
     def __init__(self, theme_name: str = "At-The-Arcade Flex", parent=None):
         """Inicializa los componentes internos, estructuras de datos y temporizadores del objeto."""
