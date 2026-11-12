@@ -4,7 +4,7 @@ Información centralizada de versión y metadatos de PlayNexus.
 import subprocess
 from pathlib import Path
 
-__version__ = "1.1.12"
+__version__ = "1.1.13"
 __app_name__ = "PlayNexus"
 __release_date__ = "Noviembre 2026"
 _FALLBACK_COMMIT = "dbe34a0"

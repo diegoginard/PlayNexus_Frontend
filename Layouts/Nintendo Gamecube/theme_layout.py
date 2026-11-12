@@ -36,7 +36,7 @@ COMMON_DIR = LAYOUT_DIR.parent / "gtc-common"
 
 class ThemeLayout(BaseLayout):
     LAYOUT_NAME = "Nintendo Gamecube"
-    LAYOUT_DESCRIPTION = "Layout temático oficial de Nintendo Gamecube con soporte de video snaps, ruleta curva y HUD dinámico"
+    LAYOUT_DESCRIPTION = "Layout temático interactivo oficial de Nintendo Gamecube"
 
     CANONICAL_W = 1920
     CANONICAL_H = 1080
@@ -74,8 +74,8 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # 2. FUENTES TIPOGRÁFICAS DEL TEMA (DIRECTIVA 8 DE GEMINI.md)
     # -------------------------------------------------------------------------
-    FONT_TITLE_FILE = "FuturaBoldItalic.ttf"   # Títulos destacados
-    FONT_MAIN_FILE  = "BebasNeue Bold.otf"     # Textos generales e información técnica
+    FONT_TITLE_FILE = "BebasNeue Bold.otf"   # Títulos destacados
+    FONT_MAIN_FILE  = "GamecubenDualset-L85D.ttf"     # Textos generales e información técnica
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # -------------------------------------------------------------------------
@@ -92,23 +92,23 @@ class ThemeLayout(BaseLayout):
     SCRATCHES_IMAGE    = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
 
     # Recursos propios locales del layout
-    BKG_IMAGE = LAYOUT_DIR / "bg.jpg"
-    TV_IMAGE = LAYOUT_DIR / "tv.png"
-    CONSOLE_IMAGE = LAYOUT_DIR / "console.png"
-    CONSOLE_COVER_IMAGE = LAYOUT_DIR / "console_cover.png"
-    JOYSTICK_IMAGE = None
-    AVATAR_IMAGE = LAYOUT_DIR / "avatar.png"
-    LOGO_IMAGE = LAYOUT_DIR / "logo.png"
-    CARTART_IMAGE = LAYOUT_DIR / ("discart.png" if True else "cartart.png")
-    BOXART_IMAGE = LAYOUT_DIR / "boxart.png"
-    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
-    POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png"
+    BKG_IMAGE = LAYOUT_DIR / "bkg.jpg" if (LAYOUT_DIR / "bkg.jpg").is_file() else None
+    TV_IMAGE = LAYOUT_DIR / "tv.png" if (LAYOUT_DIR / "tv.png").is_file() else None
+    CONSOLE_IMAGE = LAYOUT_DIR / "console.png" if (LAYOUT_DIR / "console.png").is_file() else None
+    CONSOLE_COVER_IMAGE = LAYOUT_DIR / "console_cover.png" if (LAYOUT_DIR / "console_cover.png").is_file() else None
+    JOYSTICK_IMAGE = LAYOUT_DIR / "" if (LAYOUT_DIR / "").is_file() else None
+    AVATAR_IMAGE = LAYOUT_DIR / "samus.png" if (LAYOUT_DIR / "samus.png").is_file() else None
+    LOGO_IMAGE = LAYOUT_DIR / "logo.png" if (LAYOUT_DIR / "logo.png").is_file() else None
+    CARTART_IMAGE = LAYOUT_DIR / "cartart.png" if (LAYOUT_DIR / "cartart.png").is_file() else None
+    BOXART_IMAGE = LAYOUT_DIR / "boxart.png" if (LAYOUT_DIR / "boxart.png").is_file() else None
+    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png" if (LAYOUT_DIR / "wheel.png").is_file() else None
+    POINTER_IMAGE = LAYOUT_DIR / "default.png" if (LAYOUT_DIR / "default.png").is_file() else None
 
     # -------------------------------------------------------------------------
     # 4. CONFIGURACIÓN GEOMÉTRICA Y MÉTRICAS (DIRECTIVA 8 DE GEMINI.md)
     # -------------------------------------------------------------------------
     # Pantalla CRT o monitor LCD: (x, y, w, h) en ratios de pantalla canónica (1920x1080)
-    TV_RECT = (0.044, 0.240, 0.315, 0.425)
+    TV_RECT = (0.054, 0.196, 0.313, 0.43)
 
     # Cartucho o Disco
     CART_RECT = (0.428, 0.540, 0.121, 0.250)
@@ -176,8 +176,8 @@ class ThemeLayout(BaseLayout):
             self._select_sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_SELECT)))
 
         # Precargar imágenes
-        bkg_cand = str(self.BKG_IMAGE) if self.BKG_IMAGE and self.BKG_IMAGE.is_file() else str(LAYOUT_DIR / "bg.jpg")
-        self._pix_bkg = self._load_pixmap(bkg_cand)
+        bkg_cand = str(self.BKG_IMAGE) if self.BKG_IMAGE and self.BKG_IMAGE.is_file() else None
+        self._pix_bkg = self._load_pixmap(bkg_cand) if bkg_cand else None
         self._pix_tv = self._load_pixmap(str(self.TV_IMAGE)) if self.TV_IMAGE and self.TV_IMAGE.is_file() else None
         self._pix_console = self._load_pixmap(str(self.CONSOLE_IMAGE)) if self.CONSOLE_IMAGE and self.CONSOLE_IMAGE.is_file() else None
         self._pix_console_cover = self._load_pixmap(str(self.CONSOLE_COVER_IMAGE)) if self.CONSOLE_COVER_IMAGE and self.CONSOLE_COVER_IMAGE.is_file() else None
@@ -761,11 +761,17 @@ class ThemeLayout(BaseLayout):
 
         # Capa 3: TV Bezel / Mueble
         if self._pix_tv:
-            painter.drawPixmap(sx + int(0.02 * sw), sy + int(0.18 * sh), int(0.38 * sw), int(0.55 * sh), self._pix_tv)
+            if self._pix_tv.width() >= 1200:
+                painter.drawPixmap(sx, sy, sw, sh, self._pix_tv)
+            else:
+                painter.drawPixmap(sx + int(0.02 * sw), sy + int(0.18 * sh), int(0.38 * sw), int(0.55 * sh), self._pix_tv)
 
         # Capa 4: Consola
         if self._pix_console:
-            painter.drawPixmap(sx + int(0.38 * sw), sy + int(0.60 * sh), int(0.32 * sw), int(0.35 * sh), self._pix_console)
+            if self._pix_console.width() >= 1200:
+                painter.drawPixmap(sx, sy, sw, sh, self._pix_console)
+            else:
+                painter.drawPixmap(sx + int(0.38 * sw), sy + int(0.60 * sh), int(0.32 * sw), int(0.35 * sh), self._pix_console)
 
         # Capa 5: Cartucho / Disco animado
         self._draw_cart_or_disc(painter, sr)
@@ -828,21 +834,29 @@ class ThemeLayout(BaseLayout):
         sx, sy, sw, sh = sr.x(), sr.y(), sr.width(), sr.height()
         rx = sw / self.CANONICAL_W
         ry = sh / self.CANONICAL_H
-        ax = sx + int((0.68 + self.AVATAR_X) * sw + self._avatar_offset_x * rx)
-        ay = sy + int((0.08 + self.AVATAR_Y) * sh + self._avatar_offset_y * ry)
-        aw = int(0.25 * sw * self.AVATAR_SCALE)
-        ah = int(0.50 * sh * self.AVATAR_SCALE)
-        painter.drawPixmap(ax, ay, aw, ah, self._pix_avatar)
+        if self._pix_avatar.width() >= 1200:
+            ax = sx + int(self._avatar_offset_x * rx)
+            ay = sy + int(self._avatar_offset_y * ry)
+            painter.drawPixmap(ax, ay, sw, sh, self._pix_avatar)
+        else:
+            ax = sx + int((0.68 + self.AVATAR_X) * sw + self._avatar_offset_x * rx)
+            ay = sy + int((0.08 + self.AVATAR_Y) * sh + self._avatar_offset_y * ry)
+            aw = int(0.25 * sw * self.AVATAR_SCALE)
+            ah = int(0.50 * sh * self.AVATAR_SCALE)
+            painter.drawPixmap(ax, ay, aw, ah, self._pix_avatar)
 
     def _draw_logo(self, painter: QPainter, sr: QRect):
         if not self._pix_logo:
             return
         sx, sy, sw, sh = sr.x(), sr.y(), sr.width(), sr.height()
-        lx = sx + int(0.04 * sw)
-        ly = sy + int((0.02 + self._logo_current_y_offset_ratio) * sh)
-        lw = int(0.35 * sw * self.LOGO_SCALE)
-        lh = int(0.18 * sh * self.LOGO_SCALE)
-        painter.drawPixmap(lx, ly, lw, lh, self._pix_logo)
+        if self._pix_logo.width() >= 1200:
+            painter.drawPixmap(sx, sy, sw, sh, self._pix_logo)
+        else:
+            lx = sx + int(0.04 * sw)
+            ly = sy + int((0.02 + self._logo_current_y_offset_ratio) * sh)
+            lw = int(0.35 * sw * self.LOGO_SCALE)
+            lh = int(0.18 * sh * self.LOGO_SCALE)
+            painter.drawPixmap(lx, ly, lw, lh, self._pix_logo)
 
     def _draw_pointer(self, painter: QPainter, sr: QRect):
         """Dibuja la flecha indicadora o puntero que señala el juego seleccionado en la ruleta."""
@@ -946,20 +960,3 @@ class ThemeLayout(BaseLayout):
         painter.drawText(counter_rect, Qt.AlignVCenter | Qt.AlignRight, counter_text)
         painter.restore()
 
-# --- PLAYNEXUS STUDIO OVERRIDES START ---
-STUDIO_ELEMENTS = [
-
-]
-try:
-    from playnexus.ui.layout_studio.runtime_hook import install_studio_overrides as _install_studio_overrides
-    _orig_init = ThemeLayout.__init__
-    def _studio_patched_init(self, *args, **kwargs):
-        _orig_init(self, *args, **kwargs)
-        _install_studio_overrides(self, STUDIO_ELEMENTS)
-    if not getattr(ThemeLayout.__init__, '_is_studio_patched', False):
-        _orig_init = ThemeLayout.__init__
-        _studio_patched_init._is_studio_patched = True
-        ThemeLayout.__init__ = _studio_patched_init
-except Exception:
-    pass
-# --- PLAYNEXUS STUDIO OVERRIDES END ---

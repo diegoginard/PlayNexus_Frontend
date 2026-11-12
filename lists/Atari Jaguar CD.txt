@@ -21,6 +21,11 @@ cartart_path = D:/Roms/Atari Jaguar Cd/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = 
+loading_path = 
+loading_in_path = 
+loading_out_path = 
 xml_path = 
 created_at = 2026-10-27 21:08:38
 source_list_id = 
@@ -29,26 +34,26 @@ filter_match_mode = all
 menu_items = 
 
 [Games]
-# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile
-2484;Baldies (U);Baldies (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Baldies (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2485;Battlemorph (U);Battlemorph (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Battlemorph (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2486;Beebris (U);Beebris (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Beebris (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2487;Blue Lightening (U);Blue Lightening (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Blue Lightening (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2488;Brain Dead 13 Starring Fritz (U);Brain Dead 13 Starring Fritz (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Brain Dead 13 Starring Fritz (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2489;Dragons Lair (U);Dragons Lair (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Dragons Lair (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2490;Highlander - The Last of the MacLeods (U);Highlander - The Last of the MacLeods (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Highlander - The Last of the MacLeods (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2491;Hover Strike - Unconquered Lands (U);Hover Strike - Unconquered Lands (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Hover Strike - Unconquered Lands (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2492;Myst (U);Myst (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Myst (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2493;Primal Rage (U);Primal Rage (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Primal Rage (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2494;Space Ace (U);Space Ace (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Space Ace (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;
-2495;Ants (USA) (Unl);Ants (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Ants (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2496;Fast Food 64 (USA) (Unl);Fast Food 64 (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Fast Food 64 (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2497;Fast Food 64 - Holiday Snacks (USA) (Unl);Fast Food 64 - Holiday Snacks (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Fast Food 64 - Holiday Snacks (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2498;Frogz 64 (USA) (Unl);Frogz 64 (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Frogz 64 (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2499;Iron Soldier 2 (USA) (Songbird Limited Edition);Iron Soldier 2 (USA) (Songbird Limited Edition);D:\\Roms\\Atari Jaguar Cd\\Roms\\Iron Soldier 2 (USA) (Songbird Limited Edition).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2500;Klax (USA) (Unl);Klax (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Klax (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2501;Robinson's Requiem (USA) (Unl);Robinson's Requiem (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Robinson's Requiem (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2502;Saucer Wars (USA) (Unl);Saucer Wars (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Saucer Wars (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2503;Soul Star (U);Soul Star (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Soul Star (U).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2504;Vid Grid (USA);Vid Grid (USA);D:\\Roms\\Atari Jaguar Cd\\Roms\\Vid Grid (USA).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
-2505;World Tour Racing (USA) (Songbird);World Tour Racing (USA) (Songbird);D:\\Roms\\Atari Jaguar Cd\\Roms\\World Tour Racing (USA) (Songbird).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+2484;Baldies (U);Baldies (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Baldies (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2485;Battlemorph (U);Battlemorph (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Battlemorph (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2486;Beebris (U);Beebris (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Beebris (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2487;Blue Lightening (U);Blue Lightening (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Blue Lightening (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2488;Brain Dead 13 Starring Fritz (U);Brain Dead 13 Starring Fritz (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Brain Dead 13 Starring Fritz (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2489;Dragons Lair (U);Dragons Lair (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Dragons Lair (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2490;Highlander - The Last of the MacLeods (U);Highlander - The Last of the MacLeods (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Highlander - The Last of the MacLeods (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2491;Hover Strike - Unconquered Lands (U);Hover Strike - Unconquered Lands (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Hover Strike - Unconquered Lands (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2492;Myst (U);Myst (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Myst (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2493;Primal Rage (U);Primal Rage (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Primal Rage (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2494;Space Ace (U);Space Ace (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Space Ace (U).cdi;;;;;;;;;;;;{};2026-10-27 21:08:38;;
+2495;Ants (USA) (Unl);Ants (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Ants (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2496;Fast Food 64 (USA) (Unl);Fast Food 64 (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Fast Food 64 (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2497;Fast Food 64 - Holiday Snacks (USA) (Unl);Fast Food 64 - Holiday Snacks (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Fast Food 64 - Holiday Snacks (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2498;Frogz 64 (USA) (Unl);Frogz 64 (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Frogz 64 (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2499;Iron Soldier 2 (USA) (Songbird Limited Edition);Iron Soldier 2 (USA) (Songbird Limited Edition);D:\\Roms\\Atari Jaguar Cd\\Roms\\Iron Soldier 2 (USA) (Songbird Limited Edition).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2500;Klax (USA) (Unl);Klax (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Klax (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2501;Robinson's Requiem (USA) (Unl);Robinson's Requiem (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Robinson's Requiem (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2502;Saucer Wars (USA) (Unl);Saucer Wars (USA) (Unl);D:\\Roms\\Atari Jaguar Cd\\Roms\\Saucer Wars (USA) (Unl).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2503;Soul Star (U);Soul Star (U);D:\\Roms\\Atari Jaguar Cd\\Roms\\Soul Star (U).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2504;Vid Grid (USA);Vid Grid (USA);D:\\Roms\\Atari Jaguar Cd\\Roms\\Vid Grid (USA).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
+2505;World Tour Racing (USA) (Songbird);World Tour Racing (USA) (Songbird);D:\\Roms\\Atari Jaguar Cd\\Roms\\World Tour Racing (USA) (Songbird).cue;;;;;;;;;;;;{};2026-10-27 21:09:23;;
