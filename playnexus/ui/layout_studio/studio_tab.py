@@ -10,7 +10,7 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, QRect, QPoint, QSize
+from PySide6.QtCore import Qt, QTimer, QRect, QPoint, QSize, Signal
 from PySide6.QtGui import QIcon, QFont, QColor, QImage, QPixmap, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (
 from playnexus.services.themes import get_layouts_root, get_all_theme_layouts
 from playnexus.ui.layout_studio.models import LayoutProject, LayoutElement, CANONICAL_W, CANONICAL_H
 from playnexus.ui.layout_studio.templates import (
-    TEMPLATES_LIBRARY, generate_layout_code, create_arcade_cabinet_template
+    TEMPLATES_LIBRARY, generate_layout_code, create_arcade_cabinet_template,
+    setup_new_layout_files
 )
 from playnexus.ui.layout_studio.canvas import LayoutCanvasWidget
 from playnexus.ui.layout_studio.inspector import LayoutInspectorWidget
@@ -82,6 +83,7 @@ class LayoutStudioWidget(QWidget):
     Permite diseñar visualmente, mover y distorsionar elementos,
     editar código Python en tiempo real y probar layouts antes de producción.
     """
+    layout_saved = Signal(str)  # layout_name
     def __init__(self, db=None, parent=None):
         super().__init__(parent)
         self.db = db
@@ -1034,6 +1036,12 @@ class LayoutStudioWidget(QWidget):
         target_dir.mkdir(parents=True, exist_ok=True)
         new_proj.folder_path = str(target_dir)
 
+        # Copiar / inicializar archivos esenciales (punteros, fondos, wheels)
+        try:
+            setup_new_layout_files(target_dir, tpl_name, name)
+        except Exception as e:
+            print(f"[LayoutStudio] Advertencia al configurar archivos base: {e}")
+
         # Generar theme_layout.py inicial
         py_file = target_dir / "theme_layout.py"
         code = generate_layout_code(new_proj)
@@ -1050,52 +1058,59 @@ class LayoutStudioWidget(QWidget):
 
     def _on_save_layout(self):
         """Guarda los cambios en theme_layout.py generando previamente una copia de seguridad en /backups."""
-        if not self.current_project or not self.current_project.folder_path:
-            return
-
-        if getattr(self, "_pending_code_sync", False):
-            self._pending_code_sync = False
-            self.code_editor.set_code(self._cached_code)
-
-        # Validar sintaxis antes de guardar
-        if not self.code_editor._validate_syntax():
-            res = QMessageBox.warning(
-                self,
-                "Error de Sintaxis",
-                "El código contiene errores de sintaxis Python.\n¿Deseas guardarlo de todos modos?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if res != QMessageBox.Yes:
+        try:
+            if not self.current_project or not self.current_project.folder_path:
                 return
 
-        target_dir = Path(self.current_project.folder_path)
-        target_dir.mkdir(parents=True, exist_ok=True)
+            if getattr(self, "_pending_code_sync", False):
+                self._pending_code_sync = False
+                self.code_editor.set_code(self._cached_code)
 
-        py_file = target_dir / "theme_layout.py"
-        backup_path: Path | None = None
+            # Validar sintaxis antes de guardar
+            if not self.code_editor._validate_syntax():
+                res = QMessageBox.warning(
+                    self,
+                    "Error de Sintaxis",
+                    "El código contiene errores de sintaxis Python.\n¿Deseas guardarlo de todos modos?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                if res != QMessageBox.Yes:
+                    return
 
-        if py_file.is_file():
-            # Crear directorio de copias de seguridad
-            backup_dir = target_dir / "backups"
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = backup_dir / f"theme_layout_backup_{timestamp}.py"
-            try:
-                shutil.copy2(py_file, backup_file)
-                backup_path = backup_file
-            except Exception as e:
-                print(f"[LayoutStudio] Error al crear backup: {e}")
+            target_dir = Path(self.current_project.folder_path)
+            target_dir.mkdir(parents=True, exist_ok=True)
 
-        code = self.code_editor.get_code()
-        py_file.write_text(code, encoding="utf-8")
+            py_file = target_dir / "theme_layout.py"
+            backup_path: Path | None = None
 
-        get_all_theme_layouts(force_reload=True)
+            if py_file.is_file():
+                # Crear directorio de copias de seguridad
+                backup_dir = target_dir / "backups"
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_file = backup_dir / f"theme_layout_backup_{timestamp}.py"
+                try:
+                    shutil.copy2(py_file, backup_file)
+                    backup_path = backup_file
+                except Exception as e:
+                    print(f"[LayoutStudio] Error al crear backup: {e}")
 
-        msg = f"✓ Se guardaron los cambios de '{self.current_project.name}' exitosamente."
-        if backup_path:
-            msg += f"\n\n📁 Copia de seguridad generada en:\nbackups/{backup_path.name}"
-        QMessageBox.information(self, "Layout Guardado", msg)
+            code = self.code_editor.get_code()
+            py_file.write_text(code, encoding="utf-8")
+
+            get_all_theme_layouts(force_reload=True)
+            proj_name = self.current_project.name
+            self.layout_saved.emit(proj_name)
+
+            msg = f"✓ Se guardaron los cambios de '{proj_name}' exitosamente."
+            if backup_path:
+                msg += f"\n\n📁 Copia de seguridad generada en:\nbackups/{backup_path.name}"
+            QMessageBox.information(self, "Layout Guardado", msg)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error al Guardar Layout", f"Ocurrió un error inesperado al guardar:\n{e}")
 
     def _on_save_as_layout(self):
         """Guarda una copia del layout con un nuevo nombre."""

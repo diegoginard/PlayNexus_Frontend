@@ -980,6 +980,15 @@ class MainWindow(QMainWindow):
 
         inst = create_layout(layout_name)
         inst.db = self.db
+        from playnexus.services.themes import get_theme_info
+        info = get_theme_info(layout_name)
+        if info and info.get("folder"):
+            py_file = Path(info["folder"]) / "theme_layout.py"
+            if py_file.is_file():
+                try:
+                    inst._loaded_mtime = py_file.stat().st_mtime
+                except Exception:
+                    pass
         inst.game_selected.connect(self._select_game_by_id)
         inst.game_activated.connect(self._on_game_activated)
         inst.context_menu_requested.connect(self._on_game_context_menu)
@@ -1630,6 +1639,29 @@ class MainWindow(QMainWindow):
         """Mantiene sincronizados los datos al alternar entre pestañas y suspende la multimedia inactiva."""
         current_widget = self.main_tabs.widget(index)
         if current_widget == self.main_tabs.widget(0):
+            # Recargar layout si su archivo theme_layout.py fue modificado o guardado mientras estábamos en otra pestaña
+            cur_layout_name = self.layout_combo.currentText().strip()
+            needs_reload = getattr(self, "_pending_layout_reload", False)
+            if cur_layout_name in self.active_layouts:
+                from playnexus.services.themes import get_theme_info
+                info = get_theme_info(cur_layout_name)
+                if info and info.get("folder"):
+                    py_file = Path(info["folder"]) / "theme_layout.py"
+                    if py_file.is_file():
+                        try:
+                            file_mtime = py_file.stat().st_mtime
+                            inst = self.active_layouts[cur_layout_name]
+                            if getattr(inst, "_loaded_mtime", 0.0) != file_mtime:
+                                needs_reload = True
+                        except Exception:
+                            pass
+            elif cur_layout_name:
+                needs_reload = True
+
+            if needs_reload and cur_layout_name:
+                self._pending_layout_reload = False
+                self._on_layout_studio_saved(cur_layout_name)
+
             self.refresh_emulators()
             self.refresh_games()
             cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
@@ -1649,9 +1681,75 @@ class MainWindow(QMainWindow):
                 if self.layout_studio_tab is None:
                     from playnexus.ui.layout_studio import LayoutStudioWidget
                     self.layout_studio_tab = LayoutStudioWidget(self.db, self._layout_studio_container)
+                    self.layout_studio_tab.layout_saved.connect(self._on_layout_studio_saved)
                     self._layout_studio_container.layout().addWidget(self.layout_studio_tab)
                 elif not getattr(self.layout_studio_tab, "current_project", None):
                     self.layout_studio_tab.refresh_layouts_list()
+
+    def _on_layout_studio_saved(self, layout_name: str):
+        """Invalida la caché del layout y lo recarga de forma segura y sin bloquear la interfaz."""
+        try:
+            from playnexus.ui.layouts.theme_layout import _THEME_CLASS_CACHE
+            _THEME_CLASS_CACHE.clear()
+
+            # Si el usuario NO está en la pestaña 0 (Listas de Juegos), no tocar widgets ni hilos en segundo plano;
+            # simplemente marcar como pendiente para que se recargue limpiamente cuando regrese a dicha pestaña.
+            if self.main_tabs.currentIndex() != 0:
+                self._pending_layout_reload = True
+                return
+
+            # Comprobar si la instancia activa ya está actualizada con el mtime del archivo
+            matching_keys = [k for k in list(self.active_layouts.keys()) if k.strip().lower() == layout_name.strip().lower()]
+            from playnexus.services.themes import get_theme_info
+            info = get_theme_info(layout_name)
+            target_mtime = None
+            if info and info.get("folder"):
+                py_file = Path(info["folder"]) / "theme_layout.py"
+                if py_file.is_file():
+                    try:
+                        target_mtime = py_file.stat().st_mtime
+                    except Exception:
+                        pass
+
+            for k in matching_keys:
+                inst = self.active_layouts.get(k)
+                if inst and target_mtime is not None and getattr(inst, "_loaded_mtime", 0.0) == target_mtime:
+                    # Ya está actualizada con la versión guardada en disco
+                    continue
+
+                old_inst = self.active_layouts.pop(k, None)
+                if old_inst:
+                    try:
+                        self.layout_stack.removeWidget(old_inst)
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(old_inst, "cleanup") and callable(old_inst.cleanup):
+                            old_inst.cleanup()
+                        elif hasattr(old_inst, "close") and callable(old_inst.close):
+                            old_inst.close()
+                        elif hasattr(old_inst, "stop_media") and callable(old_inst.stop_media):
+                            old_inst.stop_media()
+                    except Exception:
+                        pass
+                    # Salvaguarda crítica: asegurar parada garantizada de worker antes de deleteLater
+                    if hasattr(old_inst, "_wheel_worker") and old_inst._wheel_worker:
+                        try:
+                            old_inst._wheel_worker.stop()
+                            old_inst._wheel_worker.wait(500)
+                        except Exception:
+                            pass
+                    old_inst.deleteLater()
+
+            # Recrear y enfocar la vista en Listas de Juegos (tab 0)
+            cur_layout = self.layout_combo.currentText().strip()
+            cur_list_data = self.db.get_list(self.current_list_id) if (self.db and self.current_list_id) else None
+            list_layout = (cur_list_data.get("layout", "") if cur_list_data else "").strip().lower()
+            if cur_layout.lower() == layout_name.lower() or list_layout == layout_name.lower():
+                if layout_name not in self.active_layouts:
+                    self._apply_layout_view(layout_name, render=True)
+        except Exception as e:
+            print(f"[MainWindow] Error en recarga segura de layout '{layout_name}': {e}")
 
     def _on_frontend_layout_changed(self, list_id: int, layout_name: str):
         """Sincroniza el diseño visual cuando se edita desde la pestaña de Modo Frontend."""
@@ -1759,15 +1857,25 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Detiene cualquier reproducción activa antes de cerrar la ventana para evitar errores de Media Foundation."""
         self.stop_all_active_media()
-        # Cerrar y liberar hilos de layouts cargados en layout_stack
+        # Cerrar y liberar hilos de layouts cargados en layout_stack y active_layouts
         if hasattr(self, "layout_stack"):
             for i in range(self.layout_stack.count()):
                 inst = self.layout_stack.widget(i)
                 try:
-                    if hasattr(inst, "close"):
+                    if hasattr(inst, "cleanup"):
+                        inst.cleanup()
+                    elif hasattr(inst, "close"):
                         inst.close()
                 except Exception:
                     pass
+        for inst in list(getattr(self, "active_layouts", {}).values()):
+            try:
+                if hasattr(inst, "cleanup"):
+                    inst.cleanup()
+                elif hasattr(inst, "close"):
+                    inst.close()
+            except Exception:
+                pass
         if hasattr(self, "layout_studio_tab") and self.layout_studio_tab:
             try:
                 if hasattr(self.layout_studio_tab, "canvas") and hasattr(self.layout_studio_tab.canvas, "cleanup"):

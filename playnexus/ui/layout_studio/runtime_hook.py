@@ -497,8 +497,11 @@ def measure_native_layer_bbox(inst, elem_id: str) -> tuple[float, float, float, 
         bw = round(float(inst.BOXART_W) * CANONICAL_W, 1)
         bh = round(float(inst.BOXART_H) * CANONICAL_H, 1)
         bx = round(float(getattr(inst, "BOXART_X", 0.015)) * CANONICAL_W, 1)
-        bottom_y = float(getattr(inst, "BOXART_BOTTOM_Y", 0.928)) * CANONICAL_H
-        by = round(bottom_y - bh, 1)
+        if getattr(inst, "BOXART_ANCHOR", "bottom") == "bottom":
+            bottom_y = float(getattr(inst, "BOXART_BOTTOM_Y", 0.928)) * CANONICAL_H
+            by = round(bottom_y - bh, 1)
+        else:
+            by = round(float(getattr(inst, "BOXART_Y", 0.43)) * CANONICAL_H, 1)
         return (bx, by, bw, bh)
 
     if eid in ("footer_frame", "title_text", "counter_text"):
@@ -603,6 +606,37 @@ def sync_quiet_studio_instance(inst, games: list[dict[str, Any]], selected_game:
                 except Exception:
                     pass
 
+    # Si el juego seleccionado no tenía cartucho en disco, buscar en la lista actual el primer cartucho disponible
+    if hasattr(inst, "_current_cart_pixmap") and (inst._current_cart_pixmap is None or inst._current_cart_pixmap.isNull()):
+        if safe_games and hasattr(inst, "_resolve_game_media") and hasattr(inst, "_load_pixmap"):
+            for g in safe_games[:80]:
+                try:
+                    m = inst._resolve_game_media(g)
+                    cf = m.get("cartart") if m else None
+                    if cf and os.path.isfile(cf):
+                        cpix = inst._load_pixmap(cf)
+                        if cpix and not cpix.isNull():
+                            inst._current_cart_pixmap = cpix
+                            break
+                except Exception:
+                    pass
+
+    # Si el juego seleccionado no tenía boxart en disco, buscar en la lista actual la primera carátula disponible
+    if hasattr(inst, "_current_box_pixmap") and (inst._current_box_pixmap is None or inst._current_box_pixmap.isNull()):
+        if safe_games and hasattr(inst, "_resolve_game_media"):
+            from playnexus.ui.cover_utils import load_cover
+            for g in safe_games[:80]:
+                try:
+                    m = inst._resolve_game_media(g)
+                    bf = m.get("boxart") if m else None
+                    if bf and os.path.isfile(bf):
+                        bpix = load_cover(bf, 463, 600)
+                        if bpix and not bpix.isNull():
+                            inst._current_box_pixmap = bpix
+                            break
+                except Exception:
+                    pass
+
     # Precargar sincrónicamente solo los 13 logos visibles alrededor del juego seleccionado
     if safe_games and hasattr(inst, "_wheel_pixmaps"):
         from playnexus.services.media import resolve_game_media
@@ -624,8 +658,13 @@ def sync_quiet_studio_instance(inst, games: list[dict[str, Any]], selected_game:
     inst._want_game_video_playing = False
     inst._want_video_playing = False
 
-    # Detener todos los QTimer y QMediaPlayer hijos de esta instancia de edición
+    # Detener todos los QTimer, QMediaPlayer y QThread hijos de esta instancia de edición
     from PySide6.QtCore import QUrl
+    if hasattr(inst, "_wheel_worker") and inst._wheel_worker:
+        try:
+            inst._wheel_worker.stop()
+        except Exception:
+            pass
     for timer in inst.findChildren(QTimer):
         try:
             timer.stop()
@@ -1097,10 +1136,34 @@ def render_element_in_screen_space(
         painter.restore()
         return
 
-    if eid in ("cartart", "boxart", "wheel_list"):
-        if eid == "wheel_list" and hasattr(inst, "_wheel_alpha"):
+    if eid == "cartart":
+        cart_pix = getattr(inst, "_current_cart_pixmap", None) or getattr(inst, "_pix_cartart_frame", None)
+        if cart_pix and not cart_pix.isNull():
+            pw, ph = cart_pix.width(), cart_pix.height()
+            s = min(dst_w / pw, dst_h / ph) if pw > 0 and ph > 0 else 1.0
+            dw, dh = int(pw * s), int(ph * s)
+            ax = dst_x + (dst_w - dw) // 2
+            ay = dst_y + (dst_h - dh) // 2
+            painter.drawPixmap(QRect(ax, ay, dw, dh), cart_pix)
+        painter.restore()
+        return
+
+    if eid == "boxart":
+        box_pix = getattr(inst, "_current_box_pixmap", None) or getattr(inst, "_pix_boxart_frame", None)
+        if box_pix and not box_pix.isNull():
+            pw, ph = box_pix.width(), box_pix.height()
+            s = min(dst_w / pw, dst_h / ph) if pw > 0 and ph > 0 else 1.0
+            dw, dh = int(pw * s), int(ph * s)
+            ax = dst_x + (dst_w - dw) // 2
+            ay = dst_y + (dst_h - dh) // 2
+            painter.drawPixmap(QRect(ax, ay, dw, dh), box_pix)
+        painter.restore()
+        return
+
+    if eid == "wheel_list":
+        if hasattr(inst, "_wheel_alpha"):
             painter.setOpacity(painter.opacity() * (getattr(inst, "_wheel_alpha", 255.0) / 255.0))
-        if eid == "wheel_list" and not hasattr(inst, "_draw_wheel_conveyor") and hasattr(inst, "_draw_wheel"):
+        if not hasattr(inst, "_draw_wheel_conveyor") and hasattr(inst, "_draw_wheel"):
             painter.translate(mx, my)
             render_native_layer(painter, inst, eid, QRect(0, 0, mw, mh), elem=elem)
         else:
@@ -1189,12 +1252,105 @@ def update_studio_overrides(layout_widget, elements_list: list[LayoutElement | d
     layout_widget.update()
 
 
+def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, float, float]:
+    """
+    Calcula el desplazamiento cinemático (dx, dy) y el factor de opacidad
+    según el instante de tiempo t (en segundos) para el elemento según su anim_type.
+    """
+    if not elem.has_animation():
+        return 0.0, 0.0, 1.0
+
+    atype = elem.anim_type
+    dur = max(0.2, elem.anim_duration)
+
+    if atype == "flyer_slide_right":
+        prog = max(0.0, min(1.0, t / max(0.8, dur)))
+        ease = 1.0 - (1.0 - prog) ** 3
+        dx = (CANONICAL_W - elem.x) * (1.0 - ease)
+        return dx, 0.0, max(0.75, prog)
+
+    elif atype == "cart_drop":
+        prog = max(0.0, min(1.0, t / max(0.7, dur)))
+        ease = 1.0 - (1.0 - prog) ** 3
+        dy = -(elem.y + elem.h * 0.85) * (1.0 - ease)
+        return 0.0, dy, max(0.80, prog)
+
+    elif atype == "boxart_slide_fade":
+        prog = max(0.0, min(1.0, t / max(0.6, dur)))
+        ease = 1.0 - (1.0 - prog) ** 3
+        dx = -(elem.x + elem.w * 0.85) * (1.0 - ease)
+        return dx, 0.0, max(0.30, prog)
+
+    elif atype == "logo_bounce":
+        prog = max(0.0, min(1.0, t / max(1.0, dur)))
+        p = 0.3
+        s = p / 4.0
+        ease = 2.0 ** (-10.0 * prog) * math.sin((prog - s) * (2.0 * math.pi) / p) + 1.0 if prog < 1.0 else 1.0
+        dy = -160.0 * (1.0 - ease)
+        return 0.0, dy, min(1.0, 0.4 + prog * 1.5)
+
+    elif atype == "avatar_float":
+        dx = math.sin(t * 2.5 * 0.9) * 14.0
+        dy = (math.sin(t * 2.5 * 1.8) * 18.0) + (math.cos(t * 2.5 * 0.45) * 6.0)
+        return dx, dy, 1.0
+
+    elif atype == "pointer_pulse":
+        dx = math.sin(t * 8.0) * 18.0
+        return dx, 0.0, 1.0
+
+    return 0.0, 0.0, 1.0
+
+
 def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | dict[str, Any]]):
     """
     Instala el motor de renderizado de alta velocidad (1:1 pre-escalado) sobre `layout_widget`
     (Sandbox o Layout guardado), respetando el 100% del tamaño real y animaciones del layout.
     """
+    import time
+    from PySide6.QtCore import QTimer
+
     update_studio_overrides(layout_widget, elements_list)
+
+    # Motor cinemático de animaciones de entrada en tiempo de ejecución (~60 FPS)
+    layout_widget._studio_anim_start_time = time.time()
+    anim_timer = QTimer(layout_widget)
+    anim_timer.setInterval(16)
+
+    def _on_studio_anim_tick():
+        elapsed = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
+        layout_widget.update()
+        if elapsed >= 1.5:
+            anim_timer.stop()
+
+    anim_timer.timeout.connect(_on_studio_anim_tick)
+    layout_widget._studio_anim_timer = anim_timer
+
+    def _trigger_studio_animations(*args, **kwargs):
+        layout_widget._studio_anim_start_time = time.time()
+        if not anim_timer.isActive():
+            anim_timer.start()
+
+    # Enlazar inicio de animaciones ante navegación o cambio de selección de juego
+    for hook_name in ("_load_pending_art", "_update_current_selection", "_commit_selection"):
+        if hasattr(layout_widget, hook_name):
+            orig_hook = getattr(layout_widget, hook_name)
+            def _make_wrapper(orig):
+                def _wrapper(*a, **k):
+                    res = orig(*a, **k)
+                    _trigger_studio_animations()
+                    return res
+                return _wrapper
+            setattr(layout_widget, hook_name, _make_wrapper(orig_hook))
+
+    if hasattr(layout_widget, "select_game_by_id"):
+        orig_sel = layout_widget.select_game_by_id
+        def _sel_wrapper(*a, **k):
+            res = orig_sel(*a, **k)
+            _trigger_studio_animations()
+            return res
+        layout_widget.select_game_by_id = _sel_wrapper
+
+    _trigger_studio_animations()
 
     def _studio_paint_event(event):
         painter = QPainter(layout_widget)
@@ -1213,11 +1369,13 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
         else:
             sr = QRect(0, 0, w, h)
 
+        t = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
         elems: list[LayoutElement] = getattr(layout_widget, "_studio_elements", [])
         for elem in elems:
             if not elem.visible:
                 continue
-            render_element_in_screen_space(painter, layout_widget, elem, sr)
+            adx, ady, aop = compute_element_animation(elem, t)
+            render_element_in_screen_space(painter, layout_widget, elem, sr, anim_dx=adx, anim_dy=ady, anim_op=aop)
 
         painter.end()
 

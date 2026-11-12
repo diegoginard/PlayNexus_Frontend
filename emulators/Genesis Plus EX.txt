@@ -1,0 +1,11 @@
+# Configuración de Emulador: Genesis Plus EX
+id = 27
+name = Genesis Plus EX
+executable = D:/Emuladores/Sega Genesis/Genesis Plus/Genesis Plus EX.exe
+arguments = "{rom}" --fullscreen --exit-on-close
+platform = Sega genesis, Sega CD, Sega 32x, Sega MasterSystem, Sega GameGear
+bezel_delay = 2.0
+bezel_fade = 0.4
+loading_time = 2.0
+exit_loading_time = 1.0
+created_at = 2026-11-11 17:40:42

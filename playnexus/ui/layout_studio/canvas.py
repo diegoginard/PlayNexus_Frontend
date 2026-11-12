@@ -18,6 +18,7 @@ from playnexus.ui.layout_studio.runtime_hook import (
     get_trimmed_image_info,
     should_trim_alpha,
     render_element_with_transform,
+    compute_element_animation,
 )
 from playnexus.services.media import resolve_game_media
 
@@ -178,10 +179,16 @@ class LayoutCanvasWidget(QWidget):
             try:
                 if hasattr(inst, "_anim_timer") and hasattr(inst._anim_timer, "stop"):
                     inst._anim_timer.stop()
-                if hasattr(inst, "close"):
+                if hasattr(inst, "cleanup") and callable(inst.cleanup):
+                    inst.cleanup()
+                elif hasattr(inst, "close"):
                     inst.close()
-                elif hasattr(inst, "_wheel_worker") and inst._wheel_worker:
-                    inst._wheel_worker.stop()
+                if hasattr(inst, "_wheel_worker") and inst._wheel_worker:
+                    try:
+                        inst._wheel_worker.stop()
+                        inst._wheel_worker.wait(500)
+                    except Exception:
+                        pass
                 if hasattr(inst, "stop_media"):
                     inst.stop_media()
                 inst.deleteLater()
@@ -265,52 +272,7 @@ class LayoutCanvasWidget(QWidget):
         """
         if not self._is_previewing_anim or not elem.has_animation():
             return 0.0, 0.0, 1.0
-
-        atype = elem.anim_type
-        dur = max(0.2, elem.anim_duration)
-
-        if atype == "flyer_slide_right":
-            # Deslizamiento suave desde el borde derecho hacia elem.x (respuesta inmediata desde 0.0s)
-            prog = max(0.0, min(1.0, t / max(0.8, dur)))
-            ease = 1.0 - (1.0 - prog) ** 3  # Cubic ease-out
-            dx = (CANONICAL_W - elem.x) * (1.0 - ease)
-            return dx, 0.0, max(0.75, prog)
-
-        elif atype == "cart_drop":
-            # Caída vertical e inserción del cartucho o disco hacia elem.y
-            prog = max(0.0, min(1.0, t / max(0.7, dur)))
-            ease = 1.0 - (1.0 - prog) ** 3
-            dy = -(elem.y + elem.h * 0.85) * (1.0 - ease)
-            return 0.0, dy, max(0.80, prog)
-
-        elif atype == "boxart_slide_fade":
-            # Carátula con entrada lateral izquierda y transición de opacidad
-            prog = max(0.0, min(1.0, t / max(0.6, dur)))
-            ease = 1.0 - (1.0 - prog) ** 3
-            dx = -(elem.x + elem.w * 0.85) * (1.0 - ease)
-            return dx, 0.0, max(0.30, prog)
-
-        elif atype == "logo_bounce":
-            # Caída con rebote elástico desde arriba
-            prog = max(0.0, min(1.0, t / max(1.0, dur)))
-            p = 0.3
-            s = p / 4.0
-            ease = 2.0 ** (-10.0 * prog) * math.sin((prog - s) * (2.0 * math.pi) / p) + 1.0 if prog < 1.0 else 1.0
-            dy = -160.0 * (1.0 - ease)
-            return 0.0, dy, min(1.0, 0.4 + prog * 1.5)
-
-        elif atype == "avatar_float":
-            # Flotación armónica sinusoidal continua en X e Y
-            dx = math.sin(t * 2.5 * 0.9) * 14.0
-            dy = (math.sin(t * 2.5 * 1.8) * 18.0) + (math.cos(t * 2.5 * 0.45) * 6.0)
-            return dx, dy, 1.0
-
-        elif atype == "pointer_pulse":
-            # Pulsación horizontal del puntero indicador
-            dx = math.sin(t * 8.0) * 18.0
-            return dx, 0.0, 1.0
-
-        return 0.0, 0.0, 1.0
+        return compute_element_animation(elem, t)
 
     def apply_animation_time(self, t: float, preview_active: bool = True):
         """
@@ -487,10 +449,17 @@ class LayoutCanvasWidget(QWidget):
                 anim_dy=dy,
                 anim_op=op_factor,
             )
-            # Si el juego seleccionado no tiene arte de flyer cargada en disco, dibujar guía sutil en el editor
-            if elem.id == "flyer":
-                f_pix = getattr(self.layout_instance, "_current_flyer_pix", None) or getattr(self.layout_instance, "_pix_flyer", None)
-                if f_pix is None or f_pix.isNull():
+            # Si el juego seleccionado no tiene arte cargada en disco, dibujar guía sutil en el editor
+            if elem.id in ("flyer", "cartart", "boxart"):
+                pix_val = None
+                if elem.id == "flyer":
+                    pix_val = getattr(self.layout_instance, "_current_flyer_pix", None) or getattr(self.layout_instance, "_pix_flyer", None)
+                elif elem.id == "cartart":
+                    pix_val = getattr(self.layout_instance, "_current_cart_pixmap", None) or getattr(self.layout_instance, "_pix_cartart_frame", None)
+                elif elem.id == "boxart":
+                    pix_val = getattr(self.layout_instance, "_current_box_pixmap", None) or getattr(self.layout_instance, "_pix_boxart_frame", None)
+
+                if pix_val is None or pix_val.isNull():
                     painter.save()
                     r = QRectF(elem.x + dx, elem.y + dy, elem.w, elem.h)
                     painter.fillRect(r, QColor(15, 23, 42, 130))
@@ -498,7 +467,7 @@ class LayoutCanvasWidget(QWidget):
                     painter.drawRoundedRect(r, 8, 8)
                     painter.setPen(QColor("#e2e8f0"))
                     painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
-                    painter.drawText(r, Qt.AlignCenter | Qt.TextWordWrap, f"🖼 {elem.name}\n(Sin flyer en este juego)")
+                    painter.drawText(r, Qt.AlignCenter | Qt.TextWordWrap, f"🖼 {elem.name}\n(Sin arte en este juego)")
                     painter.restore()
             return
 
@@ -801,16 +770,26 @@ class LayoutCanvasWidget(QWidget):
                         return
 
         # 3. Verificar si se hizo clic sobre un elemento para seleccionarlo o moverlo
-        # Priorizar elementos específicos antes que el fondo completo (bg_image)
+        # Si ya hay un elemento seleccionado en el panel izquierdo y el usuario hace clic dentro
+        # de su caja delimitadora, priorizarlo para permitir moverlo sin que capas frontales
+        # (sombras, scanlines, ruleta) le roben la selección.
         clicked_elem = None
-        sorted_desc = sorted(self.project.elements, key=lambda e: e.z_index, reverse=True)
-        for elem in sorted_desc:
-            if not elem.visible or elem.locked:
-                continue
-            r = QRectF(elem.x, elem.y, elem.w, elem.h)
-            if r.contains(c_pos):
-                clicked_elem = elem
-                break
+        if self.selected_elem_id:
+            sel_elem = self.project.get_element(self.selected_elem_id)
+            if sel_elem and sel_elem.visible and not sel_elem.locked:
+                r_sel = QRectF(sel_elem.x, sel_elem.y, sel_elem.w, sel_elem.h)
+                if r_sel.contains(c_pos):
+                    clicked_elem = sel_elem
+
+        if not clicked_elem:
+            sorted_desc = sorted(self.project.elements, key=lambda e: e.z_index, reverse=True)
+            for elem in sorted_desc:
+                if not elem.visible or elem.locked:
+                    continue
+                r = QRectF(elem.x, elem.y, elem.w, elem.h)
+                if r.contains(c_pos):
+                    clicked_elem = elem
+                    break
 
         if clicked_elem:
             self.select_element(clicked_elem.id)

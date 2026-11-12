@@ -269,224 +269,36 @@ TEMPLATES_LIBRARY = {
 }
 
 
+from playnexus.ui.layout_studio.canonical_template import (
+    generate_canonical_theme_layout_code,
+    setup_new_layout_files,
+    get_default_media_requirements,
+)
+
+
 def generate_layout_code(project: LayoutProject) -> str:
     """
-    Genera el código fuente en Python de theme_layout.py
-    que compila y ejecuta directamente en PlayNexus conforme a las directivas de GEMINI.md.
+    Genera el código fuente canónico en Python de theme_layout.py
+    que compila y ejecuta directamente en PlayNexus conforme a las directivas estrictas
+    de GEMINI.md (Reglas 4, 5, 6 y 8).
     """
-    elements_code = []
+    name_lower = (project.name or "").lower()
+    desc_lower = (project.description or "").lower()
+    layout_type = "arcade" if ("arcade" in name_lower or "arcade" in desc_lower) else "console"
+    is_cd = ("cd" in name_lower or "disco" in name_lower or "disc" in name_lower)
+
+    elements_dicts = []
     for elem in sorted(project.elements, key=lambda e: e.z_index):
         if not elem.visible:
             continue
-        d = elem.to_dict()
-        elements_code.append(f"        {d!r},")
+        elements_dicts.append(elem.to_dict())
 
-    media_reqs_code = []
-    for m in project.media_requirements:
-        media_reqs_code.append(f"        {m!r},")
+    return generate_canonical_theme_layout_code(
+        name=project.name,
+        description=project.description,
+        layout_type=layout_type,
+        is_cd=is_cd,
+        elements=elements_dicts if elements_dicts else None,
+    )
 
-    code = f'''"""
-=============================================================================
-Layout Autónomo: {project.name}
-Generado automáticamente por PlayNexus Layout Studio
-=============================================================================
-"""
-import os
-import math
-from pathlib import Path
-from PySide6.QtCore import Qt, QRect, QRectF, QPointF, QTimer
-from PySide6.QtGui import (
-    QPainter, QColor, QFont, QPixmap, QImage, QTransform, QPolygonF, QPen, QBrush
-)
-from PySide6.QtWidgets import QWidget
-from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink
-
-from playnexus.ui.layouts.base import BaseLayout
-from playnexus.services.media import resolve_game_media
-from playnexus.services.controls import (
-    matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_PAGE_UP,
-    ACTION_PAGE_DOWN, ACTION_SELECT, ACTION_MUTE, ACTION_NAV_BACK
-)
-
-LAYOUT_DIR = Path(__file__).resolve().parent
-
-
-class ThemeLayout(BaseLayout):
-    LAYOUT_NAME = "{project.name}"
-    LAYOUT_DESCRIPTION = "{project.description}"
-
-    CANONICAL_W = {CANONICAL_W}
-    CANONICAL_H = {CANONICAL_H}
-
-    # Requerimientos de medios explícitos
-    MEDIA_REQUIREMENTS = [
-{chr(10).join(media_reqs_code)}
-    ]
-
-    # Elementos y capas visuales definidas en Layout Studio
-    ELEMENTS = [
-{chr(10).join(elements_code)}
-    ]
-
-    def __init__(self, theme_name: str = "{project.name}", parent=None):
-        super().__init__(parent)
-        self.theme_name = theme_name
-        self.layout_dir = LAYOUT_DIR
-        self.setFocusPolicy(Qt.StrongFocus)
-
-        self._current_index = 0
-        self._wheel_offset = 0.0
-        self._target_offset = 0.0
-        self._nav_key_pressed = False
-
-        # Caché de imágenes y texturas
-        self._pixmap_cache = {{}}
-
-        # Reproductor de video
-        self._player = QMediaPlayer(self)
-        self._audio_out = QAudioOutput(self)
-        self._sink = QVideoSink(self)
-        self._player.setAudioOutput(self._audio_out)
-        self._player.setVideoSink(self._sink)
-        self._sink.videoFrameChanged.connect(self._on_video_frame)
-
-        # Animación de ruleta a 60 FPS
-        self._anim_timer = QTimer(self)
-        self._anim_timer.setInterval(16)
-        self._anim_timer.timeout.connect(self._on_tick)
-
-        # Debounce para commit de medios al soltar teclas
-        self._commit_timer = QTimer(self)
-        self._commit_timer.setSingleShot(True)
-        self._commit_timer.setInterval(180)
-        self._commit_timer.timeout.connect(self._commit_selection)
-
-    def _on_tick(self):
-        diff = self._target_offset - self._wheel_offset
-        if abs(diff) > 0.001:
-            self._wheel_offset += diff * 0.30
-            self.update()
-        else:
-            self._wheel_offset = self._target_offset
-            self._anim_timer.stop()
-            self.update()
-
-    def _on_video_frame(self, frame):
-        self.update()
-
-    def _commit_selection(self):
-        if self._nav_key_pressed:
-            return
-        if not self.games or self._current_index >= len(self.games):
-            return
-        game = self.games[self._current_index]
-        self.game_selected.emit(game)
-        self._load_game_media(game)
-
-    def _load_game_media(self, game: dict):
-        video_path = resolve_game_media(game, "video")
-        if video_path and os.path.isfile(video_path):
-            self._player.setSource(video_path)
-            self._player.play()
-
-    def set_games(self, games: list[dict], initial_game_id: int | None = None):
-        super().set_games(games, initial_game_id)
-        if initial_game_id and games:
-            for i, g in enumerate(games):
-                if g.get("id") == initial_game_id:
-                    self._current_index = i
-                    break
-        self._commit_selection()
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-
-        # Escalar coordenadas canónicas al tamaño del widget
-        scale_x = self.width() / self.CANONICAL_W
-        scale_y = self.height() / self.CANONICAL_H
-        painter.scale(scale_x, scale_y)
-
-        for elem in self.ELEMENTS:
-            if not elem.get("visible", True):
-                continue
-            self._render_element(painter, elem)
-
-    def _render_element(self, painter: QPainter, elem: dict):
-        painter.save()
-        opacity = elem.get("opacity", 1.0)
-        painter.setOpacity(opacity)
-
-        x, y, w, h = elem.get("x", 0), elem.get("y", 0), elem.get("w", 100), elem.get("h", 100)
-        e_type = elem.get("type", "image")
-        pins = elem.get("corner_pins")
-
-        # Deformación de perspectiva si tiene corner pins
-        if pins and len(pins) == 4:
-            src_poly = QPolygonF([QPointF(0, 0), QPointF(w, 0), QPointF(w, h), QPointF(0, h)])
-            dst_poly = QPolygonF([QPointF(p[0], p[1]) for p in pins])
-            trans = QTransform()
-            if QTransform.quadToQuad(src_poly, dst_poly, trans):
-                painter.setTransform(trans * painter.transform())
-                x, y = 0, 0
-
-        if e_type == "video":
-            frame = self._sink.currentVideoFrame()
-            if frame.isValid():
-                img = frame.toImage()
-                painter.drawImage(QRectF(x, y, w, h), img)
-            else:
-                painter.fillRect(QRectF(x, y, w, h), QColor("#090d16"))
-
-        elif e_type == "text":
-            game = self.games[self._current_index] if (self.games and self._current_index < len(self.games)) else {{}}
-            tpl = elem.get("text_template", "{{title}}")
-            txt = tpl.format(
-                title=game.get("title", "Sin Juego"),
-                year=game.get("year", "N/A"),
-                manufacturer=game.get("manufacturer", "N/A"),
-                index=self._current_index + 1 if self.games else 0,
-                total=len(self.games) if self.games else 0,
-            )
-            painter.setFont(QFont("Arial", elem.get("font_size", 24)))
-            painter.setPen(QColor(elem.get("text_color", "#ffffff")))
-            painter.drawText(QRectF(x, y, w, h), Qt.AlignVCenter | Qt.AlignLeft, txt)
-
-        elif e_type == "effect" and elem.get("effect_type") == "scanlines":
-            intensity = elem.get("effect_intensity", 0.3)
-            pen = QPen(QColor(0, 0, 0, int(255 * intensity)), 1)
-            painter.setPen(pen)
-            spacing = int(elem.get("effect_param", 4))
-            for ly in range(int(y), int(y + h), max(spacing, 2)):
-                painter.drawLine(int(x), ly, int(x + w), ly)
-
-        painter.restore()
-
-    def keyPressEvent(self, event):
-        if event.isAutoRepeat():
-            return
-        if matches_action(event, ACTION_NAV_DOWN):
-            self._nav_key_pressed = True
-            if self.games and self._current_index < len(self.games) - 1:
-                self._current_index += 1
-                self._target_offset += 1.0
-                if not self._anim_timer.isActive():
-                    self._anim_timer.start()
-        elif matches_action(event, ACTION_NAV_UP):
-            self._nav_key_pressed = True
-            if self.games and self._current_index > 0:
-                self._current_index -= 1
-                self._target_offset -= 1.0
-                if not self._anim_timer.isActive():
-                    self._anim_timer.start()
-
-    def keyReleaseEvent(self, event):
-        if event.isAutoRepeat():
-            return
-        self._nav_key_pressed = False
-        self._commit_timer.start()
-'''
-    return code
 

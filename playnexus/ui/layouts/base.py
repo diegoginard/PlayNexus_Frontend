@@ -158,7 +158,10 @@ class BaseLayout(QWidget):
                     pass
         for anim_timer_name in (
             "_pointer_anim_timer", "_avatar_bounce_timer", "_wheel_spin_timer",
-            "_cart_anim_timer", "_logo_anim_timer", "_boxart_anim_timer"
+            "_cart_anim_timer", "_logo_anim_timer", "_boxart_anim_timer",
+            "_commit_timer", "_art_debounce_timer", "_anim_timer",
+            "_wheel_fade_timer", "_flyer_delay_timer", "_disc_anim_timer",
+            "_cd_spin_timer", "_studio_anim_timer"
         ):
             if hasattr(self, anim_timer_name):
                 try:
@@ -197,6 +200,44 @@ class BaseLayout(QWidget):
             self.update()
         except Exception:
             pass
+
+    def cleanup(self):
+        """
+        Libera de forma segura y garantizada todos los hilos en segundo plano,
+        temporizadores y reproductores multimedia antes de que el widget sea destruido.
+        """
+        self.stop_media()
+        # 1. Detener hilo de precarga de ruedas
+        if hasattr(self, "_wheel_worker") and self._wheel_worker:
+            try:
+                self._wheel_worker.stop()
+                self._wheel_worker.wait(500)
+            except Exception:
+                pass
+        # 2. Detener cualquier otro QThread hijo
+        from PySide6.QtCore import QThread, QTimer
+        for th in self.findChildren(QThread):
+            try:
+                if th.isRunning():
+                    if hasattr(th, "stop") and callable(th.stop):
+                        th.stop()
+                    else:
+                        th.quit()
+                    th.wait(500)
+            except Exception:
+                pass
+        # 3. Detener todos los temporizadores hijos
+        for timer in self.findChildren(QTimer):
+            try:
+                timer.stop()
+            except Exception:
+                pass
+
+    def closeEvent(self, event=None):
+        """Garantiza la limpieza absoluta de recursos al cerrarse el layout."""
+        self.cleanup()
+        if event is not None:
+            super().closeEvent(event)
 
     def pause_media(self):
         """Pausa la reproducción multimedia y silencia el audio mientras el emulador está activo."""

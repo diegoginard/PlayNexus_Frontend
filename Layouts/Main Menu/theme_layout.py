@@ -1014,3 +1014,9 @@ class ThemeLayout(BaseLayout):
         super().mouseReleaseEvent(event)
         event.accept()
 
+    def closeEvent(self, event=None):
+        """Libera los hilos de precarga, temporizadores y reproductores al cerrar la ventana."""
+        self.cleanup()
+        if event is not None:
+            super().closeEvent(event)
+

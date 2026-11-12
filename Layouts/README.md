@@ -339,6 +339,7 @@ No se necesita registro manual. El nombre de la carpeta es el identificador del 
 | **Sony Playstation** | Disco CD-ROM | `video`, `wheel`, `cartart` | TV CRT, rotación de disco negro PlayStation, avatar Crash Bandicoot |
 | **Nintendo 64** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción frontal, avatar Mario 64 |
 | **Super Nintendo** | Cartucho | `video`, `wheel`, `cartart` | TV CRT, inserción vertical en SNES, avatar Mario animado |
+| **Nintendo Gameboy Advance** | Consola Portátil | `video`, `wheel`, `cartart`, `boxart` | Pantalla LCD integrada en consola GBA, inserción de cartucho, carátula en primer plano, avatar Link animado |
 
 ---
 
