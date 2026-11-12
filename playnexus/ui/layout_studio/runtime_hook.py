@@ -940,6 +940,7 @@ def render_element_in_screen_space(
     anim_dx: float = 0.0,
     anim_dy: float = 0.0,
     anim_op: float = 1.0,
+    anim_rot: float = 0.0,
 ):
     """
     Renderiza una capa directamente en las coordenadas reales de pantalla `sr = QRect(sx, sy, sw, sh)`
@@ -963,7 +964,7 @@ def render_element_in_screen_space(
         painter.save()
         painter.translate(sx, sy)
         painter.scale(scale_x, scale_y)
-        render_element_with_transform(painter, inst, elem, anim_dx=anim_dx, anim_dy=anim_dy, anim_op=anim_op)
+        render_element_with_transform(painter, inst, elem, anim_dx=anim_dx, anim_dy=anim_dy, anim_op=anim_op, anim_rot=anim_rot)
         painter.restore()
         return
 
@@ -983,6 +984,14 @@ def render_element_in_screen_space(
     dst_w = max(1, int(round(tw * scale_x)))
     dst_h = max(1, int(round(th * scale_y)))
     dst_rect = QRect(dst_x, dst_y, dst_w, dst_h)
+
+    tot_rot = (getattr(elem, "rotation", 0.0) or 0.0) + (anim_rot or 0.0)
+    if tot_rot != 0.0:
+        rcx = dst_x + dst_w / 2.0
+        rcy = dst_y + dst_h / 2.0
+        painter.translate(rcx, rcy)
+        painter.rotate(tot_rot)
+        painter.translate(-rcx, -rcy)
 
     # Rectángulo virtual 16:9 que proyecta linealmente orig_rect -> dst_rect para métodos nativos _draw_*
     mw = max(1, int(round(sw * rel_sx)))
@@ -1198,6 +1207,7 @@ def render_element_with_transform(
     anim_dx: float = 0.0,
     anim_dy: float = 0.0,
     anim_op: float = 1.0,
+    anim_rot: float = 0.0,
 ):
     """
     Renderiza un elemento en coordenadas canónicas 1920x1080 (o con 4 pines de perspectiva).
@@ -1212,6 +1222,7 @@ def render_element_with_transform(
             anim_dx=anim_dx,
             anim_dy=anim_dy,
             anim_op=anim_op,
+            anim_rot=anim_rot,
         )
         return
 
@@ -1221,6 +1232,14 @@ def render_element_with_transform(
     ox, oy, ow, oh = elem.orig_rect if (elem.orig_rect and len(elem.orig_rect) == 4) else (elem.x, elem.y, elem.w, elem.h)
     ow = max(1.0, ow)
     oh = max(1.0, oh)
+
+    tot_rot = (getattr(elem, "rotation", 0.0) or 0.0) + (anim_rot or 0.0)
+    if tot_rot != 0.0:
+        rcx = ox + ow / 2.0
+        rcy = oy + oh / 2.0
+        painter.translate(rcx, rcy)
+        painter.rotate(tot_rot)
+        painter.translate(-rcx, -rcy)
 
     src_poly = QPolygonF([
         QPointF(ox, oy),
@@ -1252,13 +1271,13 @@ def update_studio_overrides(layout_widget, elements_list: list[LayoutElement | d
     layout_widget.update()
 
 
-def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, float, float]:
+def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, float, float, float]:
     """
-    Calcula el desplazamiento cinemático (dx, dy) y el factor de opacidad
+    Calcula el desplazamiento cinemático (dx, dy), factor de opacidad y rotación angular
     según el instante de tiempo t (en segundos) para el elemento según su anim_type.
     """
     if not elem.has_animation():
-        return 0.0, 0.0, 1.0
+        return 0.0, 0.0, 1.0, 0.0
 
     atype = elem.anim_type
     dur = max(0.2, elem.anim_duration)
@@ -1267,19 +1286,19 @@ def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, flo
         prog = max(0.0, min(1.0, t / max(0.8, dur)))
         ease = 1.0 - (1.0 - prog) ** 3
         dx = (CANONICAL_W - elem.x) * (1.0 - ease)
-        return dx, 0.0, max(0.75, prog)
+        return dx, 0.0, max(0.75, prog), 0.0
 
     elif atype == "cart_drop":
         prog = max(0.0, min(1.0, t / max(0.7, dur)))
         ease = 1.0 - (1.0 - prog) ** 3
         dy = -(elem.y + elem.h * 0.85) * (1.0 - ease)
-        return 0.0, dy, max(0.80, prog)
+        return 0.0, dy, max(0.80, prog), 0.0
 
     elif atype == "boxart_slide_fade":
         prog = max(0.0, min(1.0, t / max(0.6, dur)))
         ease = 1.0 - (1.0 - prog) ** 3
         dx = -(elem.x + elem.w * 0.85) * (1.0 - ease)
-        return dx, 0.0, max(0.30, prog)
+        return dx, 0.0, max(0.30, prog), 0.0
 
     elif atype == "logo_bounce":
         prog = max(0.0, min(1.0, t / max(1.0, dur)))
@@ -1287,18 +1306,22 @@ def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, flo
         s = p / 4.0
         ease = 2.0 ** (-10.0 * prog) * math.sin((prog - s) * (2.0 * math.pi) / p) + 1.0 if prog < 1.0 else 1.0
         dy = -160.0 * (1.0 - ease)
-        return 0.0, dy, min(1.0, 0.4 + prog * 1.5)
+        return 0.0, dy, min(1.0, 0.4 + prog * 1.5), 0.0
 
     elif atype == "avatar_float":
         dx = math.sin(t * 2.5 * 0.9) * 14.0
         dy = (math.sin(t * 2.5 * 1.8) * 18.0) + (math.cos(t * 2.5 * 0.45) * 6.0)
-        return dx, dy, 1.0
+        return dx, dy, 1.0, 0.0
 
     elif atype == "pointer_pulse":
         dx = math.sin(t * 8.0) * 18.0
-        return dx, 0.0, 1.0
+        return dx, 0.0, 1.0, 0.0
 
-    return 0.0, 0.0, 1.0
+    elif atype == "disc_spin":
+        rot = (t * 72.0) % 360.0
+        return 0.0, 0.0, 1.0, rot
+
+    return 0.0, 0.0, 1.0, 0.0
 
 
 def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | dict[str, Any]]):
@@ -1320,7 +1343,7 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
         elapsed = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
         layout_widget.update()
         elems = getattr(layout_widget, "_studio_elements", [])
-        has_continuous = any(getattr(e, "anim_type", "") in ("pointer_pulse", "avatar_float") for e in elems)
+        has_continuous = any(getattr(e, "anim_type", "") in ("pointer_pulse", "avatar_float", "disc_spin") for e in elems)
         if elapsed >= 1.5 and not has_continuous:
             anim_timer.stop()
 
@@ -1376,8 +1399,8 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
         for elem in elems:
             if not elem.visible:
                 continue
-            adx, ady, aop = compute_element_animation(elem, t)
-            render_element_in_screen_space(painter, layout_widget, elem, sr, anim_dx=adx, anim_dy=ady, anim_op=aop)
+            adx, ady, aop, arot = compute_element_animation(elem, t)
+            render_element_in_screen_space(painter, layout_widget, elem, sr, anim_dx=adx, anim_dy=ady, anim_op=aop, anim_rot=arot)
 
         painter.end()
 

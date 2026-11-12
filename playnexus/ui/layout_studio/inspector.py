@@ -208,6 +208,7 @@ class LayoutInspectorWidget(QWidget):
             ("Caída Superior con Rebote (Logo)", "logo_bounce"),
             ("Flotación Continua (Avatar / Nave)", "avatar_float"),
             ("Pulso Horizontal (Puntero)", "pointer_pulse"),
+            ("Giro Continuo 360° (Disco / CD)", "disc_spin"),
         ]
         for label, key in self._anim_options:
             self.cb_anim_type.addItem(label, key)

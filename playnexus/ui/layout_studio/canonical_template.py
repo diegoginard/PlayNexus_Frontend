@@ -189,6 +189,22 @@ except Exception:
         studio_block = ""
 
     is_cd_str = "True" if is_cd else "False"
+    if is_cd:
+        cart_rect_str = "(0.550, 0.600, 0.190, 0.300)"
+        cart_end_y_str = "0.600"
+        boxart_x_str = "0.400"
+        boxart_y_str = "0.530"
+        boxart_w_str = "0.165"
+        boxart_h_str = "0.410"
+        boxart_anchor_str = '"center"'
+    else:
+        cart_rect_str = "(0.428, 0.540, 0.121, 0.250)"
+        cart_end_y_str = "0.540"
+        boxart_x_str = "0.015"
+        boxart_y_str = "0.548"
+        boxart_w_str = "0.240"
+        boxart_h_str = "0.380"
+        boxart_anchor_str = '"bottom"'
 
     code = f'''"""
 =============================================================================
@@ -280,16 +296,17 @@ class ThemeLayout(BaseLayout):
     TV_RECT = {tv_rect!r}
 
     # Cartucho o Disco
-    CART_RECT = (0.428, 0.540, 0.121, 0.250)
-    CART_END_Y = 0.540
+    DISC_RECT = {cart_rect_str}
+    CART_RECT = DISC_RECT
+    CART_END_Y = {cart_end_y_str}
     IS_CD = {is_cd_str}
 
     # Carátula (Boxart)
-    BOXART_X = 0.015
-    BOXART_Y = 0.548
-    BOXART_W = 0.240
-    BOXART_H = 0.380
-    BOXART_ANCHOR = "bottom"
+    BOXART_X = {boxart_x_str}
+    BOXART_Y = {boxart_y_str}
+    BOXART_W = {boxart_w_str}
+    BOXART_H = {boxart_h_str}
+    BOXART_ANCHOR = {boxart_anchor_str}
 
     # Avatar y Logo
     AVATAR_SCALE = 1.0
@@ -395,6 +412,13 @@ class ThemeLayout(BaseLayout):
         self._pointer_anim_timer.timeout.connect(self._on_pointer_tick)
         if self._pix_pointer:
             self._pointer_anim_timer.start(16)
+
+        # Efecto de rotación continua 360° del CD (layouts de disco)
+        self._cd_rotation_angle = 0.0
+        self._cd_spin_timer = QTimer(self)
+        self._cd_spin_timer.timeout.connect(self._on_cd_spin_tick)
+        if getattr(self, "IS_CD", False):
+            self._cd_spin_timer.start(16)
 
         self._wheel_spin_timer = QTimer(self)
         self._wheel_spin_timer.timeout.connect(self._on_wheel_spin_tick)
@@ -517,6 +541,11 @@ class ThemeLayout(BaseLayout):
         if prog >= 1.0:
             self._cart_current_y = self.CART_END_Y
             self._cart_anim_timer.stop()
+        self.update()
+
+    def _on_cd_spin_tick(self):
+        """Avanza la rotación continua a 360° del disco CD."""
+        self._cd_rotation_angle = (self._cd_rotation_angle + 1.152) % 360.0
         self.update()
 
     def _on_logo_anim_tick(self):
@@ -671,6 +700,7 @@ class ThemeLayout(BaseLayout):
         for timer_name in (
             "_wheel_spin_timer", "_avatar_anim_timer", "_logo_anim_timer",
             "_pointer_anim_timer", "_cart_anim_timer", "_boxart_anim_timer",
+            "_cd_spin_timer",
             "_commit_timer", "_video_debounce_timer", "_video_watchdog_timer",
             "_studio_anim_timer"
         ):
@@ -973,28 +1003,57 @@ class ThemeLayout(BaseLayout):
         painter.end()
 
     def _draw_cart_or_disc(self, painter: QPainter, sr: QRect):
-        cart_pix = self._current_cart_pixmap or self._pix_cartart_frame
-        if not cart_pix:
-            return
-        sx, sy, sw, sh = sr.x(), sr.y(), sr.width(), sr.height()
-        cy = sy + int(self._cart_current_y * sh)
-        cx = sx + int(self.CART_RECT[0] * sw)
-        cw = int(self.CART_RECT[2] * sw)
-        ch = int(self.CART_RECT[3] * sh)
-        painter.drawPixmap(cx, cy, cw, ch, cart_pix)
+        sw, sh = sr.width(), sr.height()
+        sx, sy = sr.x(), sr.y()
+
+        cx, cy_ratio, cw, ch = self.CART_RECT
+        disc_cx_abs = sx + int(sw * cx)
+        disc_cy_abs = sy + int(sh * getattr(self, "_cart_current_y", cy_ratio))
+        disc_w = int(sw * cw)
+        disc_h = int(sh * ch)
+
+        disc_pix = getattr(self, "_current_disc_pixmap", None) or getattr(self, "_current_cart_pixmap", None) or getattr(self, "_pix_discart_frame", None) or getattr(self, "_pix_cartart_frame", None)
+
+        if disc_pix and not disc_pix.isNull():
+            side = min(disc_w, disc_h)
+            center_x = disc_cx_abs + disc_w // 2
+            center_y = disc_cy_abs + disc_h // 2
+
+            painter.save()
+            painter.translate(center_x, center_y)
+            if getattr(self, "IS_CD", False):
+                painter.rotate(getattr(self, "_cd_rotation_angle", 0.0))
+            painter.drawPixmap(QRect(-side // 2, -side // 2, side, side), disc_pix)
+            painter.restore()
 
     def _draw_boxart(self, painter: QPainter, sr: QRect):
-        box_pix = self._current_box_pixmap or self._pix_boxart_frame
-        if not box_pix:
+        box_pix = getattr(self, "_current_box_pixmap", None) or getattr(self, "_pix_boxart_frame", None)
+        if not box_pix or box_pix.isNull():
             return
-        sx, sy, sw, sh = sr.x(), sr.y(), sr.width(), sr.height()
+        sw, sh = sr.width(), sr.height()
+        sx, sy = sr.x(), sr.y()
+
+        box_w = int(sw * self.BOXART_W)
+        box_h = int(sh * self.BOXART_H)
+        box_x = sx + int(sw * self.BOXART_X)
+
+        pw = box_pix.width()
+        ph = box_pix.height()
+        s = min(box_w / pw, box_h / ph) if pw > 0 and ph > 0 else 1.0
+        dw = int(pw * s)
+        dh = int(ph * s)
+
+        box_x_offset = int(sw * getattr(self, "_boxart_slide_offset", 0.0))
+        draw_x = box_x + (box_w - dw) // 2 + box_x_offset
+        if getattr(self, "BOXART_ANCHOR", "bottom") == "center":
+            box_y = sy + int(sh * self.BOXART_Y)
+            draw_y = box_y + (box_h - dh) // 2
+        else:
+            bottom_y = sy + int(sh * getattr(self, "BOXART_BOTTOM_Y", 0.95))
+            draw_y = bottom_y - dh
         painter.save()
-        painter.setOpacity(self._boxart_alpha / 255.0)
-        bx = sx + int((self.BOXART_X + self._boxart_slide_offset) * sw)
-        by = sy + int(self.BOXART_Y * sh)
-        bw = int(self.BOXART_W * sw)
-        bh = int(self.BOXART_H * sh)
-        painter.drawPixmap(bx, by, bw, bh, box_pix)
+        painter.setOpacity(getattr(self, "_boxart_alpha", 255) / 255.0)
+        painter.drawPixmap(QRect(draw_x, draw_y, dw, dh), box_pix)
         painter.restore()
 
     def _draw_avatar(self, painter: QPainter, sr: QRect):

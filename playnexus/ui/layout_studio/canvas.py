@@ -265,13 +265,13 @@ class LayoutCanvasWidget(QWidget):
                 self.element_modified.emit(elem.id)
         self.update()
 
-    def calculate_element_transform(self, elem: LayoutElement, t: float) -> tuple[float, float, float]:
+    def calculate_element_transform(self, elem: LayoutElement, t: float) -> tuple[float, float, float, float]:
         """
-        Calcula el desplazamiento cinemático (dx, dy) y el factor de opacidad
+        Calcula el desplazamiento cinemático (dx, dy), el factor de opacidad y la rotación angular
         según el instante de tiempo t (en segundos) para el elemento seleccionado.
         """
         if not self._is_previewing_anim or not elem.has_animation():
-            return 0.0, 0.0, 1.0
+            return 0.0, 0.0, 1.0, 0.0
         return compute_element_animation(elem, t)
 
     def apply_animation_time(self, t: float, preview_active: bool = True):
@@ -434,9 +434,9 @@ class LayoutCanvasWidget(QWidget):
         Renderiza un elemento ejecutando directamente el método de dibujo real de ThemeLayout
         (theme_layout.py) con su transformación geométrica en tiempo real.
         """
-        dx, dy, op_factor = 0.0, 0.0, 1.0
+        dx, dy, op_factor, rot = 0.0, 0.0, 1.0, 0.0
         if self.selected_elem_id == elem.id and self._is_previewing_anim:
-            dx, dy, op_factor = self.calculate_element_transform(elem, self._anim_time)
+            dx, dy, op_factor, rot = self.calculate_element_transform(elem, self._anim_time)
 
         # 1. Si tenemos la instancia real de ThemeLayout y es una capa del theme_layout.py,
         # ejecutar el código nativo del layout con la matriz QTransform.quadToQuad
@@ -448,6 +448,7 @@ class LayoutCanvasWidget(QWidget):
                 anim_dx=dx,
                 anim_dy=dy,
                 anim_op=op_factor,
+                anim_rot=rot,
             )
             # Si el juego seleccionado no tiene arte cargada en disco, dibujar guía sutil en el editor
             if elem.id in ("flyer", "cartart", "boxart"):
@@ -475,6 +476,14 @@ class LayoutCanvasWidget(QWidget):
         painter.setOpacity(max(0.0, min(1.0, elem.opacity * op_factor)))
 
         x, y, w, h = elem.x + dx, elem.y + dy, elem.w, elem.h
+        tot_rot = (getattr(elem, "rotation", 0.0) or 0.0) + rot
+        if tot_rot != 0.0:
+            cx = x + w / 2.0
+            cy = y + h / 2.0
+            painter.translate(cx, cy)
+            painter.rotate(tot_rot)
+            painter.translate(-cx, -cy)
+
         pins = elem.corner_pins
 
         # Si tiene deformación de 4 esquinas (Corner Pinning / Perspectiva)
@@ -651,10 +660,10 @@ class LayoutCanvasWidget(QWidget):
         """Dibuja los controles interactivos de selección, tamaño o deformación de 4 esquinas."""
         painter.save()
 
-        dx, dy, _ = (
+        dx, dy, _, _ = (
             self.calculate_element_transform(elem, self._anim_time)
             if (self.selected_elem_id == elem.id and self._is_previewing_anim)
-            else (0.0, 0.0, 1.0)
+            else (0.0, 0.0, 1.0, 0.0)
         )
 
         # Si el elemento está en modo Deformación (Corner Pinning / 4 Esquinas)

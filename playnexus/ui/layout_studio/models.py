@@ -58,7 +58,7 @@ class LayoutElement:
     effect_param: float = 4.0  # espaciado de scanlines o radio de viñeta
 
     # Propiedades para animaciones y cinemática interactiva
-    # Tipos: '', 'none', 'flyer_slide_right', 'cart_drop', 'boxart_slide_fade', 'logo_bounce', 'avatar_float', 'pointer_pulse'
+    # Tipos: '', 'none', 'flyer_slide_right', 'cart_drop', 'boxart_slide_fade', 'logo_bounce', 'avatar_float', 'pointer_pulse', 'disc_spin'
     anim_type: str = ""
     anim_delay: float = 0.0     # Retardo en segundos antes de disparar la transición
     anim_duration: float = 0.8  # Duración de la animación en segundos
