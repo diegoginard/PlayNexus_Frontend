@@ -370,11 +370,14 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def _on_pointer_tick(self):
-        """Genera una animación de respiración y amortiguación para el puntero de selección."""
+        """Controla la animación de pulso y retracción del puntero indicador de selección."""
         self._pointer_anim_tick += 1
-        if abs(self._pointer_current_x_ratio - self._pointer_rest_x_ratio) > 0.0005:
-            self._pointer_current_x_ratio += (self._pointer_rest_x_ratio - self._pointer_current_x_ratio) * 0.15
-            self.update()
+        diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
+        if abs(diff) > 0.0005:
+            self._pointer_current_x_ratio += diff * 0.20
+        else:
+            self._pointer_current_x_ratio = self._pointer_rest_x_ratio
+        self.update()
 
     def _navigate_steps(self, delta_steps: int):
         """Avanza o retrocede N posiciones en la lista de juegos y dispara la física de la ruleta."""
@@ -1232,7 +1235,7 @@ class ThemeLayout(BaseLayout):
         base_x = sx + sw - edge_margin - visible_w
 
         pulse_offset = int(sw * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
-        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * 0.08) * 0.002))
+        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * (8.0 / 60.0)) * 0.009375))
         ptr_x = base_x - pulse_offset + idle_oscillation
 
         painter.save()

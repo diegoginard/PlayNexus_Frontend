@@ -166,6 +166,8 @@ class ThemeLayout(BaseLayout):
         self._pointer_anim_tick = 0
         self._pointer_anim_timer = QTimer(self)
         self._pointer_anim_timer.timeout.connect(self._on_pointer_tick)
+        if self._pix_pointer:
+            self._pointer_anim_timer.start(16)
 
         # Temporizador para inicio diferido de video (debounce) y watchdog de bucle
         self._last_video_frame_time = 0.0
@@ -574,15 +576,14 @@ class ThemeLayout(BaseLayout):
         self.update()
 
     def _on_pointer_tick(self):
-        """Retorna suavemente el puntero a su posición de reposo."""
+        """Controla la animación de pulso y retracción del puntero indicador de selección."""
         self._pointer_anim_tick += 1
-        if abs(self._pointer_current_x_ratio - self._pointer_rest_x_ratio) > 0.0005:
-            self._pointer_current_x_ratio += (self._pointer_rest_x_ratio - self._pointer_current_x_ratio) * 0.18
-            self.update()
+        diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
+        if abs(diff) > 0.0005:
+            self._pointer_current_x_ratio += diff * 0.20
         else:
             self._pointer_current_x_ratio = self._pointer_rest_x_ratio
-            self._pointer_anim_timer.stop()
-            self.update()
+        self.update()
 
     # -------------------------------------------------------------------------
     # PRECARGA ASÍNCRONA DE LOGOTIPOS
@@ -828,7 +829,7 @@ class ThemeLayout(BaseLayout):
         sx = sr.x()
         sy = sr.y()
 
-        ptr_size = int(sh * 0.22)
+        ptr_size = int(sh * 0.24)
         ptr_w = ptr_size
         ptr_h = ptr_size
 
@@ -841,7 +842,7 @@ class ThemeLayout(BaseLayout):
         base_x = sx + sw - edge_margin - visible_w
 
         pulse_offset = int(sw * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
-        idle_oscillation = int(sw * (math.sin(time.perf_counter() * 5.0) * 0.002))
+        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * (8.0 / 60.0)) * 0.009375))
         ptr_x = base_x - pulse_offset + idle_oscillation
 
         painter.save()

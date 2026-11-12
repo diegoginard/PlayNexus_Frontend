@@ -252,6 +252,11 @@ class ThemeLayout(BaseLayout):
         self._pointer_current_x_ratio = self._pointer_rest_x_ratio
         self._pointer_anim_tick = 0
 
+        self._pointer_anim_timer = QTimer(self)
+        self._pointer_anim_timer.timeout.connect(self._on_pointer_tick)
+        if self._pix_pointer:
+            self._pointer_anim_timer.start(16)
+
         # Iniciar video de fondo
         self._init_bg_player()
     # -------------------------------------------------------------------------
@@ -1002,15 +1007,6 @@ class ThemeLayout(BaseLayout):
                 self._flyer_slide = 0.0
                 needs_update = True
 
-        # 4. Pulso suave del puntero al cambiar de juego
-        self._pointer_anim_tick += 1
-        p_diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
-        if abs(p_diff) > 0.001:
-            self._pointer_current_x_ratio += p_diff * 0.25
-            needs_update = True
-        else:
-            self._pointer_current_x_ratio = self._pointer_rest_x_ratio
-
         if needs_update:
             self.update()
         else:
@@ -1019,6 +1015,16 @@ class ThemeLayout(BaseLayout):
             if flyer_at_rest and self._wheel_spin_offset == 0.0 and self._wheel_alpha == self._target_wheel_alpha:
                 if hasattr(self, "_anim_timer") and self._anim_timer.isActive():
                     self._anim_timer.stop()
+
+    def _on_pointer_tick(self):
+        """Controla la animación de pulso y retracción del puntero indicador de selección."""
+        self._pointer_anim_tick += 1
+        diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
+        if abs(diff) > 0.0005:
+            self._pointer_current_x_ratio += diff * 0.20
+        else:
+            self._pointer_current_x_ratio = self._pointer_rest_x_ratio
+        self.update()
 
     def _get_cached_art_pixmap(self, path: str | None) -> QPixmap | None:
         """Obtiene una textura de arte desde la caché en memoria o la carga desde disco si no existe."""
@@ -1314,6 +1320,9 @@ class ThemeLayout(BaseLayout):
             self._draw_wheel(painter, w, h)
             painter.setOpacity(1.0)
 
+        # 6b. PUNTERO SELECTOR DE RULETA
+        self._draw_pointer(painter, QRect(0, 0, w, h))
+
         # 7. BARRA INFERIOR / INFORMACIÓN DE JUEGO
         self._draw_footer(painter, w, h)
 
@@ -1352,20 +1361,6 @@ class ThemeLayout(BaseLayout):
         n = len(self.games)
         total_slots = 9
         half_slots = total_slots // 2
-
-        # Puntero central (anclado al borde derecho de la pantalla, apuntando hacia la ruleta)
-        if self._pix_pointer:
-            ptr_size = max(24, int(h * 0.16))
-            ptr_y = (h - ptr_size) // 2
-            visible_w = int(ptr_size * 0.56)
-            edge_margin = max(4, int(w * 0.003))
-            pulse_offset = int(w * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
-            idle_oscillation = int(w * (math.sin(self._pointer_anim_tick * 0.08) * 0.002))
-            ptr_x = w - edge_margin - visible_w - pulse_offset + idle_oscillation
-            if not hasattr(self, "_cached_pointer") or getattr(self, "_cached_pointer_size", 0) != ptr_size:
-                self._cached_pointer = self._pix_pointer.scaled(ptr_size, ptr_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self._cached_pointer_size = ptr_size
-            painter.drawPixmap(ptr_x, ptr_y, self._cached_pointer)
 
         # Dibujar cada slot a lo largo del arco elíptico
         for offset in range(-half_slots, half_slots + 1):
@@ -1445,6 +1440,36 @@ class ThemeLayout(BaseLayout):
             title = game.get("title") or "Arcade Game"
             self._text_wheel_cache[gid] = self._create_text_wheel_pixmap(title)
         return self._text_wheel_cache[gid]
+
+    def _draw_pointer(self, painter: QPainter, sr: QRect):
+        """Dibuja la flecha indicadora o puntero que señala el juego seleccionado en la ruleta."""
+        if not self._pix_pointer or not self.games:
+            return
+
+        sw = sr.width()
+        sh = sr.height()
+        sx = sr.x()
+        sy = sr.y()
+
+        ptr_size = int(sh * 0.24)
+        ptr_w = ptr_size
+        ptr_h = ptr_size
+
+        ptr_cy = sy + (sh // 2)
+        ptr_y = ptr_cy - (ptr_h // 2)
+
+        visible_w = int(ptr_w * 0.56)
+        edge_margin = max(4, int(sw * 0.003))
+        base_x = sx + sw - edge_margin - visible_w
+
+        pulse_offset = int(sw * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
+        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * (8.0 / 60.0)) * 0.009375))
+        ptr_x = base_x - pulse_offset + idle_oscillation
+
+        painter.save()
+        painter.setOpacity(1.0)
+        painter.drawPixmap(ptr_x, ptr_y, ptr_w, ptr_h, self._pix_pointer)
+        painter.restore()
 
     def _draw_footer(self, painter: QPainter, w: int, h: int):
         """Dibuja la barra inferior de información del sistema y navegación."""
@@ -1626,7 +1651,7 @@ STUDIO_ELEMENTS = [
     {'id': 'cabinet', 'name': 'Mueble Arcade (Cabinet)', 'type': 'cabinet', 'x': 0.0, 'y': 0.0, 'w': 1300.0, 'h': 1080.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 30, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [0.0, 0.0, 1300.0, 1080.0], 'media_key': 'cabinet', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'flyer', 'name': 'Flyer Publicitario', 'type': 'image', 'x': 1286.4, 'y': 280.8, 'w': 549.1, 'h': 730.1, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 35, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1286.4, 280.8, 549.1, 730.1], 'media_key': 'flyer', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'flyer_slide_right', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'wheel_list', 'name': 'Ruleta de Ruedas (Wheel)', 'type': 'wheel', 'x': 1140.0, 'y': 88.0, 'w': 524.0, 'h': 904.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 40, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1140.0, 88.0, 524.0, 904.0], 'media_key': 'wheel', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
-    {'id': 'pointer', 'name': 'Puntero de Ruleta', 'type': 'image', 'x': 1759.4, 'y': 403.6, 'w': 144.5, 'h': 253.5, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 45, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1820.0, 452.0, 96.0, 176.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'pointer_pulse', 'anim_delay': 0.0, 'anim_duration': 0.8},
+    {'id': 'pointer', 'name': 'Puntero de Ruleta', 'type': 'image', 'x': 1768.0, 'y': 424.0, 'w': 148.0, 'h': 264.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 45, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1768.0, 424.0, 148.0, 264.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'pointer_pulse', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'footer_frame', 'name': 'Barra Inferior (Footer)', 'type': 'image', 'x': 0.0, 'y': 1035.0, 'w': 1920.0, 'h': 45.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 50, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [0.0, 1035.0, 1920.0, 45.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'title_text', 'name': 'Título del Juego (Footer)', 'type': 'text', 'x': 76.8, 'y': 1035.0, 'w': 1190.4, 'h': 45.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 55, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [76.8, 1035.0, 1190.4, 45.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'counter_text', 'name': 'Contador de Juegos (Footer)', 'type': 'text', 'x': 1344.0, 'y': 1035.0, 'w': 499.2, 'h': 45.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 60, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1344.0, 1035.0, 499.2, 45.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},

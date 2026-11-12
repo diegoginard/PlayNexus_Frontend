@@ -1,4 +1,4 @@
-# PlayNexus v1.1.10 — Frontend de Emulación para Windows
+# PlayNexus v1.1.12 — Frontend de Emulación para Windows
 
 ![PlayNexus Logo](PlayNexus_Logo.png)
 
@@ -245,7 +245,7 @@ PlayNexus_Frontend/
 ├── Layouts/                  # Carpetas de temas y layouts dedicados por consola y arcade
 └── playnexus/
     ├── __init__.py
-    ├── __version__.py        # Versión centralizada del sistema (v1.1.10)
+    ├── __version__.py        # Versión centralizada del sistema (v1.1.12)
     ├── __main__.py           # Enrutador principal (--player o configurador)
     ├── db.py                 # Motor de almacenamiento en memoria y archivos de texto plano (.txt)
     ├── services/

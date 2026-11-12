@@ -1129,7 +1129,7 @@ def render_element_in_screen_space(
             cur_r = getattr(inst, "_pointer_current_x_ratio", rest_r)
             tick = getattr(inst, "_pointer_anim_tick", 0)
             pulse = int(round(mw * (rest_r - cur_r)))
-            osc = int(round(mw * (math.sin(tick * 0.08) * 0.002)))
+            osc = int(round(mw * (math.sin(tick * (8.0 / 60.0)) * 0.009375)))
             if hasattr(inst, "_wheel_alpha"):
                 painter.setOpacity(painter.opacity() * (getattr(inst, "_wheel_alpha", 255.0) / 255.0))
             painter.drawPixmap(dst_x - pulse + osc, dst_y, spix)
@@ -1319,7 +1319,9 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
     def _on_studio_anim_tick():
         elapsed = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
         layout_widget.update()
-        if elapsed >= 1.5:
+        elems = getattr(layout_widget, "_studio_elements", [])
+        has_continuous = any(getattr(e, "anim_type", "") in ("pointer_pulse", "avatar_float") for e in elems)
+        if elapsed >= 1.5 and not has_continuous:
             anim_timer.stop()
 
     anim_timer.timeout.connect(_on_studio_anim_tick)

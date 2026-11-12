@@ -361,11 +361,9 @@ class ThemeLayout(BaseLayout):
         diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
         if abs(diff) > 0.0005:
             self._pointer_current_x_ratio += diff * 0.20
-            self.update()
         else:
             self._pointer_current_x_ratio = self._pointer_rest_x_ratio
-            if self._pointer_anim_tick % 2 == 0:
-                self.update()
+        self.update()
 
     def _on_avatar_bounce_tick(self):
         """Calcula el movimiento sinusoidal suave de flotación y oscilación del avatar o personaje decorativo."""
@@ -1219,7 +1217,7 @@ class ThemeLayout(BaseLayout):
 
         # Pulso elástico al cambiar de juego + micro oscilación en reposo
         pulse_offset = int(sw * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
-        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * 0.08) * 0.002))
+        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * (8.0 / 60.0)) * 0.009375))
         ptr_x = base_x - pulse_offset + idle_oscillation
 
         painter.save()

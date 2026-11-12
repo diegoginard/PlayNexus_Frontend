@@ -259,7 +259,7 @@ class ThemeLayout(BaseLayout):
             self._select_sound_effect.setSource(QUrl.fromLocalFile(str(self.SOUND_SELECT)))
 
         # Precargar imágenes
-        bkg_cand = str(self.BKG_IMAGE) if self.BKG_IMAGE and self.BKG_IMAGE.is_file() else str(self.LAYOUT_DIR / "bg.jpg")
+        bkg_cand = str(self.BKG_IMAGE) if self.BKG_IMAGE and self.BKG_IMAGE.is_file() else str(LAYOUT_DIR / "bg.jpg")
         self._pix_bkg = self._load_pixmap(bkg_cand)
         self._pix_tv = self._load_pixmap(str(self.TV_IMAGE)) if self.TV_IMAGE and self.TV_IMAGE.is_file() else None
         self._pix_console = self._load_pixmap(str(self.CONSOLE_IMAGE)) if self.CONSOLE_IMAGE and self.CONSOLE_IMAGE.is_file() else None
@@ -301,11 +301,14 @@ class ThemeLayout(BaseLayout):
             "pointer": pointer_path,
         }}
 
-        self._pointer_current_x_ratio = 0.905
+        self._pointer_rest_x_ratio = 0.905
+        self._pointer_pulse_x_ratio = 0.880
+        self._pointer_current_x_ratio = self._pointer_rest_x_ratio
         self._pointer_anim_tick = 0
         self._pointer_anim_timer = QTimer(self)
-        self._pointer_anim_timer.timeout.connect(self._on_pointer_anim_tick)
-        self._pointer_anim_timer.start(25)
+        self._pointer_anim_timer.timeout.connect(self._on_pointer_tick)
+        if self._pix_pointer:
+            self._pointer_anim_timer.start(16)
 
         self._wheel_spin_timer = QTimer(self)
         self._wheel_spin_timer.timeout.connect(self._on_wheel_spin_tick)
@@ -394,10 +397,14 @@ class ThemeLayout(BaseLayout):
             self._wheel_pixmaps[game_id] = QPixmap.fromImage(qimage)
             self.update()
 
-    def _on_pointer_anim_tick(self):
+    def _on_pointer_tick(self):
+        """Controla la animación de pulso y retracción del puntero indicador de selección."""
         self._pointer_anim_tick += 1
-        pulse = math.sin(self._pointer_anim_tick * 0.15) * 0.012
-        self._pointer_current_x_ratio = 0.905 + pulse
+        diff = self._pointer_rest_x_ratio - self._pointer_current_x_ratio
+        if abs(diff) > 0.0005:
+            self._pointer_current_x_ratio += diff * 0.20
+        else:
+            self._pointer_current_x_ratio = self._pointer_rest_x_ratio
         self.update()
 
     def _on_wheel_spin_tick(self):
@@ -683,6 +690,7 @@ class ThemeLayout(BaseLayout):
             self._sound_effect.play()
         self._wheel_target_offset = 0.0
         self._wheel_offset = float(-steps)
+        self._pointer_current_x_ratio = self._pointer_pulse_x_ratio
         if not self._wheel_spin_timer.isActive():
             self._wheel_spin_timer.start(16)
         self.update()
@@ -920,14 +928,39 @@ class ThemeLayout(BaseLayout):
         painter.drawPixmap(lx, ly, lw, lh, self._pix_logo)
 
     def _draw_pointer(self, painter: QPainter, sr: QRect):
-        if not self._pix_pointer:
+        """Dibuja la flecha indicadora o puntero que señala el juego seleccionado en la ruleta."""
+        if not self._pix_pointer or not self.games:
             return
-        sx, sy, sw, sh = sr.x(), sr.y(), sr.width(), sr.height()
-        px = sx + int(self._pointer_current_x_ratio * sw)
-        py = sy + int(0.44 * sh)
-        pw = int(0.06 * sw)
-        ph = int(0.12 * sh)
-        painter.drawPixmap(px, py, pw, ph, self._pix_pointer)
+
+        sw = sr.width()
+        sh = sr.height()
+        sx = sr.x()
+        sy = sr.y()
+
+        ptr_size = int(sh * 0.24)
+        ptr_w = ptr_size
+        ptr_h = ptr_size
+
+        # Alineación vertical exacta con el centro del slot seleccionado de la ruleta (índice 7)
+        slot_center_y_ratio = self.CONVEYOR_Y[7] + (self.CONVEYOR_H[7] / 2.0)
+        ptr_cy = sy + int(sh * slot_center_y_ratio)
+        ptr_y = ptr_cy - (ptr_h // 2)
+
+        # Ancho visible del puntero (~56% del ancho de 326)
+        visible_w = int(ptr_w * 0.56)
+        # Casi pegado al borde derecho de la pantalla (margen mínimo de ~4px)
+        edge_margin = max(4, int(sw * 0.003))
+        base_x = sx + sw - edge_margin - visible_w
+
+        # Pulso elástico al cambiar de juego + micro oscilación en reposo sincronizada con Atari Jaguar (8.0 rad/s, 18px)
+        pulse_offset = int(sw * (self._pointer_rest_x_ratio - self._pointer_current_x_ratio))
+        idle_oscillation = int(sw * (math.sin(self._pointer_anim_tick * (8.0 / 60.0)) * 0.009375))
+        ptr_x = base_x - pulse_offset + idle_oscillation
+
+        painter.save()
+        painter.setOpacity(1.0)
+        painter.drawPixmap(ptr_x, ptr_y, ptr_w, ptr_h, self._pix_pointer)
+        painter.restore()
 
     def _draw_wheel_conveyor(self, painter: QPainter, sr: QRect):
         if not self.games:
