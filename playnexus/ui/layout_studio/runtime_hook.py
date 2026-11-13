@@ -843,7 +843,10 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
 
     for tok in ordered_tokens:
         if tok in TOKEN_SPEC:
-            _add_step(*TOKEN_SPEC[tok])
+            eid, ename, etype, emkey, eatype = TOKEN_SPEC[tok]
+            if tok == "_draw_cart_or_disc" and getattr(inst, "IS_CD", False):
+                eatype = "disc_rise,disc_spin"
+            _add_step(eid, ename, etype, emkey, eatype)
         elif tok == "_draw_wheel":
             # En At-The-Arcade Flex, _draw_wheel dibuja la ruleta y el puntero
             _add_step("wheel_list", "Ruleta de Ruedas (Wheel)", "wheel", "wheel", "")
@@ -1271,17 +1274,8 @@ def update_studio_overrides(layout_widget, elements_list: list[LayoutElement | d
     layout_widget.update()
 
 
-def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, float, float, float]:
-    """
-    Calcula el desplazamiento cinemático (dx, dy), factor de opacidad y rotación angular
-    según el instante de tiempo t (en segundos) para el elemento según su anim_type.
-    """
-    if not elem.has_animation():
-        return 0.0, 0.0, 1.0, 0.0
-
-    atype = elem.anim_type
-    dur = max(0.2, elem.anim_duration)
-
+def _compute_single_animation(atype: str, elem: LayoutElement, t: float, dur: float) -> tuple[float, float, float, float]:
+    """Calcula la transformación (dx, dy, op, rot) de un tipo de animación individual."""
     if atype == "flyer_slide_right":
         prog = max(0.0, min(1.0, t / max(0.8, dur)))
         ease = 1.0 - (1.0 - prog) ** 3
@@ -1293,6 +1287,12 @@ def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, flo
         ease = 1.0 - (1.0 - prog) ** 3
         dy = -(elem.y + elem.h * 0.85) * (1.0 - ease)
         return 0.0, dy, max(0.80, prog), 0.0
+
+    elif atype == "disc_rise":
+        prog = max(0.0, min(1.0, t / max(0.6, dur)))
+        ease = 1.0 - (1.0 - prog) ** 3
+        dy = (CANONICAL_H - elem.y + 120.0) * (1.0 - ease)
+        return 0.0, dy, max(0.40, prog), 0.0
 
     elif atype == "boxart_slide_fade":
         prog = max(0.0, min(1.0, t / max(0.6, dur)))
@@ -1324,6 +1324,33 @@ def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, flo
     return 0.0, 0.0, 1.0, 0.0
 
 
+def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, float, float, float]:
+    """
+    Calcula el desplazamiento cinemático (dx, dy), factor de opacidad y rotación angular
+    según el instante de tiempo t (en segundos) para el elemento según su anim_type.
+    Soporta múltiples animaciones combinadas separadas por coma o '+' (ej: 'disc_rise,disc_spin').
+    """
+    if not elem.has_animation():
+        return 0.0, 0.0, 1.0, 0.0
+
+    raw_type = elem.anim_type or ""
+    types = [a.strip() for a in raw_type.replace("+", ",").split(",") if a.strip() and a.strip() != "none"]
+    if not types:
+        return 0.0, 0.0, 1.0, 0.0
+
+    dur = max(0.2, elem.anim_duration)
+    tot_dx, tot_dy, tot_op, tot_rot = 0.0, 0.0, 1.0, 0.0
+
+    for at in types:
+        dx, dy, op, rot = _compute_single_animation(at, elem, t, dur)
+        tot_dx += dx
+        tot_dy += dy
+        tot_op = min(1.0, tot_op * op)
+        tot_rot = (tot_rot + rot) % 360.0
+
+    return tot_dx, tot_dy, tot_op, tot_rot
+
+
 def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | dict[str, Any]]):
     """
     Instala el motor de renderizado de alta velocidad (1:1 pre-escalado) sobre `layout_widget`
@@ -1343,7 +1370,10 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
         elapsed = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
         layout_widget.update()
         elems = getattr(layout_widget, "_studio_elements", [])
-        has_continuous = any(getattr(e, "anim_type", "") in ("pointer_pulse", "avatar_float", "disc_spin") for e in elems)
+        has_continuous = any(
+            any(k in getattr(e, "anim_type", "") for k in ("pointer_pulse", "avatar_float", "disc_spin"))
+            for e in elems
+        )
         if elapsed >= 1.5 and not has_continuous:
             anim_timer.stop()
 

@@ -198,22 +198,36 @@ class LayoutInspectorWidget(QWidget):
         anim_box.setStyleSheet("QGroupBox { font-weight: bold; color: #38bdf8; }")
         an_layout = QVBoxLayout(anim_box)
 
-        an_layout.addWidget(QLabel("Tipo de Animación:"))
-        self.cb_anim_type = QComboBox()
-        self._anim_options = [
-            ("Sin Animación", "none"),
-            ("Deslizar desde Derecha (Flyer)", "flyer_slide_right"),
+        an_layout.addWidget(QLabel("Transición de Entrada:"))
+        self.cb_anim_entry = QComboBox()
+        self._anim_entry_options = [
+            ("Sin Entrada", "none"),
+            ("Subir desde Abajo y Estacionar (CD / Disco)", "disc_rise"),
             ("Caída / Inserción Vertical (Cartucho)", "cart_drop"),
             ("Entrada Lateral con Fundido (Boxart)", "boxart_slide_fade"),
+            ("Deslizar desde Derecha (Flyer)", "flyer_slide_right"),
             ("Caída Superior con Rebote (Logo)", "logo_bounce"),
+        ]
+        for label, key in self._anim_entry_options:
+            self.cb_anim_entry.addItem(label, key)
+        self.cb_anim_entry.currentIndexChanged.connect(self._on_anim_type_changed)
+        an_layout.addWidget(self.cb_anim_entry)
+
+        an_layout.addWidget(QLabel("Efecto Continuo (Bucle):"))
+        self.cb_anim_loop = QComboBox()
+        self._anim_loop_options = [
+            ("Sin Bucle Continuo", "none"),
+            ("Giro Continuo 360° (Disco / CD)", "disc_spin"),
             ("Flotación Continua (Avatar / Nave)", "avatar_float"),
             ("Pulso Horizontal (Puntero)", "pointer_pulse"),
-            ("Giro Continuo 360° (Disco / CD)", "disc_spin"),
         ]
-        for label, key in self._anim_options:
-            self.cb_anim_type.addItem(label, key)
-        self.cb_anim_type.currentIndexChanged.connect(self._on_anim_type_changed)
-        an_layout.addWidget(self.cb_anim_type)
+        for label, key in self._anim_loop_options:
+            self.cb_anim_loop.addItem(label, key)
+        self.cb_anim_loop.currentIndexChanged.connect(self._on_anim_type_changed)
+        an_layout.addWidget(self.cb_anim_loop)
+
+        # Alias de compatibilidad hacia cb_anim_entry
+        self.cb_anim_type = self.cb_anim_entry
 
         lbl_anim_hint = QLabel("Cuando el elemento tiene una animación activa, aparece la Línea de Tiempo debajo del lienzo para adelantar, retroceder o reproducir su movimiento.")
         lbl_anim_hint.setWordWrap(True)
@@ -330,11 +344,27 @@ class LayoutInspectorWidget(QWidget):
         has_skew = (elem.corner_pins is not None and len(elem.corner_pins) == 4)
         self.chk_skew_active.setChecked(has_skew)
 
-        # Sincronizar tipo de animación
+        # Sincronizar tipos de animación (Entrada y Bucle continuo)
         elem.has_animation()
-        anim_key = elem.anim_type if elem.anim_type else "none"
-        idx_anim = self.cb_anim_type.findData(anim_key)
-        self.cb_anim_type.setCurrentIndex(idx_anim if idx_anim >= 0 else 0)
+        raw_anim = elem.anim_type if elem.anim_type else "none"
+        tokens = [a.strip() for a in raw_anim.replace("+", ",").split(",") if a.strip()]
+
+        entry_tokens = {"disc_rise", "cart_drop", "boxart_slide_fade", "flyer_slide_right", "logo_bounce"}
+        loop_tokens = {"disc_spin", "avatar_float", "pointer_pulse"}
+
+        active_entry = "none"
+        active_loop = "none"
+        for tok in tokens:
+            if tok in entry_tokens:
+                active_entry = tok
+            elif tok in loop_tokens:
+                active_loop = tok
+
+        idx_entry = self.cb_anim_entry.findData(active_entry)
+        self.cb_anim_entry.setCurrentIndex(idx_entry if idx_entry >= 0 else 0)
+
+        idx_loop = self.cb_anim_loop.findData(active_loop)
+        self.cb_anim_loop.setCurrentIndex(idx_loop if idx_loop >= 0 else 0)
 
         # Limpiar controles específicos
         while self.spec_layout.count() > 0:
@@ -420,13 +450,15 @@ class LayoutInspectorWidget(QWidget):
             self.skew_mode_toggled.emit(checked)
             self.element_modified.emit(elem.id)
 
-    def _on_anim_type_changed(self, index: int):
+    def _on_anim_type_changed(self, index: int = 0):
         if self._updating_ui or not self.project or not self.current_elem_id:
             return
         elem = self.project.get_element(self.current_elem_id)
         if elem:
-            anim_key = self.cb_anim_type.itemData(index) or "none"
-            elem.anim_type = str(anim_key)
+            entry = self.cb_anim_entry.currentData() or "none"
+            loop = self.cb_anim_loop.currentData() or "none"
+            parts = [p for p in (entry, loop) if p and p != "none"]
+            elem.anim_type = ",".join(parts) if parts else "none"
             self.element_modified.emit(elem.id)
             self.element_selected.emit(elem.id)
 

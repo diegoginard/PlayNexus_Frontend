@@ -65,19 +65,21 @@ class LayoutElement:
 
     def has_animation(self) -> bool:
         """Determina si este elemento posee o admite una animación cinemática interactiva."""
-        if self.anim_type == "none":
-            return False
         if self.anim_type:
-            return True
+            tokens = [a.strip() for a in self.anim_type.replace("+", ",").split(",") if a.strip()]
+            if any(t != "none" for t in tokens):
+                return True
+            if all(t == "none" for t in tokens):
+                return False
 
         # Detección semántica automática por identificador, nombre o medio asociado
         blob = f"{self.id} {self.name} {self.media_key} {self.type} {self.resource_path}".lower()
-        if "flyer" in blob:
-            self.anim_type = "flyer_slide_right"
-            self.anim_delay = 1.0
-            self.anim_duration = 0.6
+        if "disc" in blob or "cd" in blob:
+            self.anim_type = "disc_rise,disc_spin"
+            self.anim_delay = 0.0
+            self.anim_duration = 0.8
             return True
-        if "cart" in blob or "disc" in blob:
+        if "cart" in blob:
             self.anim_type = "cart_drop"
             self.anim_delay = 0.0
             self.anim_duration = 0.7

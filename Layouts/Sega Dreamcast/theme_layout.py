@@ -75,7 +75,7 @@ class ThemeLayout(BaseLayout):
     # 2. FUENTES TIPOGRÁFICAS DEL TEMA (DIRECTIVA 8 DE GEMINI.md)
     # -------------------------------------------------------------------------
     FONT_TITLE_FILE = "BebasNeue Bold.otf"   # Títulos destacados
-    FONT_MAIN_FILE  = "Segan-Light.ttf"     # Textos generales e información técnica
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"     # Textos generales e información técnica
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # -------------------------------------------------------------------------
@@ -92,18 +92,18 @@ class ThemeLayout(BaseLayout):
     SCRATCHES_IMAGE    = COMMON_DIR / "art" / "arcade" / "scratched_cover.png"
 
     # Recursos propios locales del layout
-    BKG_IMAGE = LAYOUT_DIR / "bkg.jpg" if (LAYOUT_DIR / "bkg.jpg").is_file() else None
+    BKG_IMAGE = LAYOUT_DIR / "bg.jpg" if (LAYOUT_DIR / "bg.jpg").is_file() else None
     TV_IMAGE = LAYOUT_DIR / "tv.png" if (LAYOUT_DIR / "tv.png").is_file() else None
     CONSOLE_IMAGE = LAYOUT_DIR / "console.png" if (LAYOUT_DIR / "console.png").is_file() else None
     CONSOLE_COVER_IMAGE = LAYOUT_DIR / "console_cover.png" if (LAYOUT_DIR / "console_cover.png").is_file() else None
     JOYSTICK_IMAGE = LAYOUT_DIR / "" if (LAYOUT_DIR / "").is_file() else None
-    AVATAR_IMAGE = LAYOUT_DIR / "ryu.png" if (LAYOUT_DIR / "ryu.png").is_file() else None
+    AVATAR_IMAGE = LAYOUT_DIR / "avatar.png" if (LAYOUT_DIR / "avatar.png").is_file() else None
     LOGO_IMAGE = LAYOUT_DIR / "logo.png" if (LAYOUT_DIR / "logo.png").is_file() else None
-    DISCART_IMAGE = LAYOUT_DIR / "cartart.png" if (LAYOUT_DIR / "cartart.png").is_file() else (LAYOUT_DIR / "discart.png" if (LAYOUT_DIR / "discart.png").is_file() else None)
+    DISCART_IMAGE = LAYOUT_DIR / "discart.png" if (LAYOUT_DIR / "discart.png").is_file() else (LAYOUT_DIR / "discart.png" if (LAYOUT_DIR / "discart.png").is_file() else None)
     CARTART_IMAGE = DISCART_IMAGE
     BOXART_IMAGE = LAYOUT_DIR / "boxart.png" if (LAYOUT_DIR / "boxart.png").is_file() else None
     WHEEL_IMAGE = LAYOUT_DIR / "wheel.png" if (LAYOUT_DIR / "wheel.png").is_file() else None
-    POINTER_IMAGE = LAYOUT_DIR / "default.png" if (LAYOUT_DIR / "default.png").is_file() else None
+    POINTER_IMAGE = (LAYOUT_DIR / "pointers" / "default.png") if (LAYOUT_DIR / "pointers" / "default.png").is_file() else ((LAYOUT_DIR / "default.png") if (LAYOUT_DIR / "default.png").is_file() else None)
 
     # -------------------------------------------------------------------------
     # 4. CONFIGURACIÓN GEOMÉTRICA Y MÉTRICAS (DIRECTIVA 8 DE GEMINI.md)
@@ -111,14 +111,12 @@ class ThemeLayout(BaseLayout):
     # Pantalla CRT o monitor LCD: (x, y, w, h) en ratios de pantalla canónica (1920x1080)
     TV_RECT = (0.054, 0.196, 0.313, 0.43)
 
-    # Cartucho o Disco (Estandarizado con layouts de CD)
-    DISC_RECT = (0.550, 0.600, 0.190, 0.300)
-    DISC_END_Y = 0.600
-    CART_RECT = DISC_RECT
-    CART_END_Y = DISC_END_Y
+    # Disco CD giratorio al lado de la carátula
+    CART_RECT = (0.550, 0.600, 0.190, 0.300)
+    CART_END_Y = 0.600
     IS_CD = True
 
-    # Carátula (Boxart) al lado del CD
+    # Carátula (Boxart) al lado del CD (10% más chica)
     BOXART_X = 0.400
     BOXART_Y = 0.530
     BOXART_W = 0.165
@@ -202,12 +200,13 @@ class ThemeLayout(BaseLayout):
 
         pointer_path = str(self.POINTER_IMAGE) if self.POINTER_IMAGE and self.POINTER_IMAGE.is_file() else None
         self._pix_pointer = self._load_pixmap(pointer_path)
+        self._pix_wheel = self._load_pixmap(str(self.WHEEL_IMAGE)) if self.WHEEL_IMAGE and self.WHEEL_IMAGE.is_file() else None
 
         # Diccionario theme_info
         self.theme_info = {
             "name": self.theme_name,
             "folder": str(LAYOUT_DIR),
-            "bkg": str(self.BKG_IMAGE),
+            "bg": str(self.BKG_IMAGE),
             "tv": str(self.TV_IMAGE) if self.TV_IMAGE else None,
             "console": str(self.CONSOLE_IMAGE) if self.CONSOLE_IMAGE else None,
             "console_cover": str(self.CONSOLE_COVER_IMAGE) if self.CONSOLE_COVER_IMAGE else None,
@@ -216,7 +215,6 @@ class ThemeLayout(BaseLayout):
             "character": str(self.AVATAR_IMAGE) if self.AVATAR_IMAGE else None,
             "logo": str(self.LOGO_IMAGE) if self.LOGO_IMAGE else None,
             "discart": str(self.DISCART_IMAGE) if self.DISCART_IMAGE else None,
-            "cartart": str(self.CARTART_IMAGE) if self.CARTART_IMAGE else None,
             "boxart": str(self.BOXART_IMAGE) if self.BOXART_IMAGE else None,
             "wheel_shadow": str(self.WHEEL_SHADOW_IMAGE) if self.WHEEL_SHADOW_IMAGE else None,
             "wheel": str(self.WHEEL_IMAGE) if self.WHEEL_IMAGE else None,
@@ -581,14 +579,11 @@ class ThemeLayout(BaseLayout):
         g = self.games[self.selected_index]
         self.current_media = resolve_game_media(g)
         # Cargar arte de cartucho o disco
-        c_path = self.current_media.get("discart") or self.current_media.get("cartart")
+        c_path = self.current_media.get("discart") or self.current_media.get("cartart") or g.get("discart") or g.get("cartart") or g.get("discart_path") or g.get("cartart_path")
         self._current_cart_pixmap = self._load_pixmap(c_path) if c_path else None
-        # Cargar boxart
-        b_path = self.current_media.get("boxart")
-        if b_path:
-            self._current_box_pixmap = load_cover(b_path, 460, 600)
-        else:
-            self._current_box_pixmap = None
+        # Cargar boxart de forma directa y segura con self._load_pixmap
+        b_path = self.current_media.get("boxart") or g.get("boxart") or g.get("cover_path") or g.get("boxart_path")
+        self._current_box_pixmap = self._load_pixmap(b_path) if b_path else None
         # Encolar video
         v_path = self.current_media.get("video")
         if v_path and os.path.isfile(v_path):
@@ -597,11 +592,29 @@ class ThemeLayout(BaseLayout):
             self.stop_media()
         self._preload_wheel_window()
 
+    def _get_game_wheel_pixmap(self, game: dict) -> QPixmap | None:
+        """Obtiene el QPixmap del logotipo de rueda, consultando la caché o encolando en el worker."""
+        gid = game.get("id")
+        if gid in self._wheel_pixmaps:
+            return self._wheel_pixmaps[gid]
+
+        wheel_file = game.get("wheel") or game.get("wheel_path") or (self.current_media.get("wheel") if gid == self.get_selected_game_id() else None)
+        if wheel_file and os.path.isfile(wheel_file):
+            pix = self._load_pixmap(wheel_file)
+            if pix and not pix.isNull():
+                self._wheel_pixmaps[gid] = pix
+                return pix
+
+        if hasattr(self, "_wheel_worker") and self._wheel_worker:
+            self._wheel_worker.queue_game(game, priority=True)
+
+        return None
+
     def _preload_wheel_window(self):
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
             return
         n = len(self.games)
-        window = [self.games[(self.selected_index + off) % n] for off in (-4, -3, -2, -1, 0, 1, 2, 3, 4)]
+        window = [self.games[(self.selected_index + off) % n] for off in range(-7, 8)]
         self._wheel_worker.queue_games(window, priority=True)
 
     def _commit_selection(self):
@@ -783,25 +796,25 @@ class ThemeLayout(BaseLayout):
             else:
                 painter.drawPixmap(sx + int(0.02 * sw), sy + int(0.18 * sh), int(0.38 * sw), int(0.55 * sh), self._pix_tv)
 
-        # Capa 4: Consola
+        # Capa 4: Avatar animado
+        self._draw_avatar(painter, sr)
+
+        # Capa 5: Consola
         if self._pix_console:
             if self._pix_console.width() >= 1200:
                 painter.drawPixmap(sx, sy, sw, sh, self._pix_console)
             else:
                 painter.drawPixmap(sx + int(0.38 * sw), sy + int(0.60 * sh), int(0.32 * sw), int(0.35 * sh), self._pix_console)
 
-        # Capa 5: Cartucho / Disco animado
+        # Capa 6: Cartucho / Disco animado
         self._draw_cart_or_disc(painter, sr)
 
-        # Capa 6: Tapa de consola
+        # Capa 7: Tapa de consola
         if self._pix_console_cover:
             painter.drawPixmap(sx + int(0.40 * sw), sy + int(0.62 * sh), int(0.28 * sw), int(0.20 * sh), self._pix_console_cover)
 
-        # Capa 7: Carátula (Boxart)
+        # Capa 8: Carátula (Boxart)
         self._draw_boxart(painter, sr)
-
-        # Capa 8: Avatar animado
-        self._draw_avatar(painter, sr)
 
         # Capa 9: Logo del sistema
         self._draw_logo(painter, sr)
@@ -824,7 +837,7 @@ class ThemeLayout(BaseLayout):
         sw, sh = sr.width(), sr.height()
         sx, sy = sr.x(), sr.y()
 
-        cx, cy_ratio, cw, ch = self.DISC_RECT
+        cx, cy_ratio, cw, ch = getattr(self, "DISC_RECT", getattr(self, "CART_RECT", (0.550, 0.600, 0.190, 0.300)))
         disc_cx_abs = sx + int(sw * cx)
         disc_cy_abs = sy + int(sh * getattr(self, "_cart_current_y", cy_ratio))
         disc_w = int(sw * cw)
@@ -949,11 +962,6 @@ class ThemeLayout(BaseLayout):
             slot_idx = i - center_node
             game_idx = (self.selected_index + slot_idx) % n
             game = self.games[game_idx]
-            gid = game.get("id")
-
-            pix = self._wheel_pixmaps.get(gid) or self._pix_wheel_art
-            if not pix:
-                continue
 
             alpha = self.CONVEYOR_A[i]
             if alpha <= 0:
@@ -964,15 +972,40 @@ class ThemeLayout(BaseLayout):
             nw = int(self.CONVEYOR_W[i] * sw)
             nh = int(self.CONVEYOR_H[i] * sh)
             rot = self.CONVEYOR_R[i]
+            is_selected = (i == center_node)
+
+            # Prioridad de logo: 1) Wheel propio de la ROM, 2) wheel.png del layout, 3) wheel_art de gtc-common
+            pix = self._get_game_wheel_pixmap(game) or getattr(self, "_pix_wheel", None) or self._pix_wheel_art
 
             painter.save()
             painter.setOpacity(alpha / 255.0)
+            painter.translate(nx + nw / 2, ny + nh / 2)
             if rot != 0.0:
-                painter.translate(nx + nw / 2, ny + nh / 2)
                 painter.rotate(rot)
-                painter.drawPixmap(-nw // 2, -nh // 2, nw, nh, pix)
+
+            if pix and not pix.isNull():
+                pw = pix.width()
+                ph = pix.height()
+                max_w = int((nw - 12) * (1.15 if is_selected else 1.0))
+                max_h = int((nh - 8) * (1.15 if is_selected else 1.0))
+                s = min(max_w / pw, max_h / ph) if pw > 0 and ph > 0 else 1.0
+                dw = int(pw * s)
+                dh = int(ph * s)
+                painter.drawPixmap(QRect(-dw // 2, -dh // 2, dw, dh), pix)
             else:
-                painter.drawPixmap(nx, ny, nw, nh, pix)
+                rect = QRect(-nw // 2, -nh // 2, nw, nh)
+                bg_col = QColor(230, 95, 20, 210) if is_selected else QColor(25, 30, 45, 180)
+                border_col = QColor(255, 255, 255, 220) if is_selected else QColor(70, 80, 110, 120)
+                painter.setPen(QPen(border_col, 2 if is_selected else 1))
+                painter.setBrush(QBrush(bg_col))
+                painter.drawRoundedRect(rect, 8, 8)
+
+                title = game.get("title") or "Juego"
+                painter.setPen(QColor(255, 255, 255))
+                f_size = max(11, int(nh * 0.30))
+                painter.setFont(QFont(self._font_main, f_size, QFont.Bold))
+                painter.drawText(rect.adjusted(8, 4, -8, -4), Qt.AlignCenter | Qt.TextWordWrap, title)
+
             painter.restore()
 
     def _draw_bottom_bar(self, painter: QPainter, sr: QRect):
@@ -1012,9 +1045,9 @@ STUDIO_ELEMENTS = [
     {'id': 'scratches', 'name': 'Reflejo Vidrio CRT (gtc-common)', 'type': 'effect', 'x': 103.0, 'y': 211.0, 'w': 600.0, 'h': 464.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 15, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [103.0, 211.0, 600.0, 464.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'tv_bezel', 'name': 'Televisor CRT (tv.png)', 'type': 'image', 'x': 56.0, 'y': 148.0, 'w': 720.0, 'h': 728.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 20, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [56.0, 148.0, 720.0, 728.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'console', 'name': 'Consola (console.png)', 'type': 'image', 'x': -14.5, 'y': 648.8, 'w': 896.0, 'h': 496.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 25, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [336.0, 584.0, 896.0, 496.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
-    {'id': 'cartart', 'name': 'Cartucho / Disco', 'type': 'image', 'x': 1078.3, 'y': 700.0, 'w': 300.8, 'h': 300.4, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 30, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [821.8, 583.2, 232.3, 270.0], 'media_key': 'cartart', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'flyer_slide_right', 'anim_delay': 0.0, 'anim_duration': 0.8},
-    {'id': 'boxart', 'name': 'Carátula (Box Art)', 'type': 'image', 'x': 694.2, 'y': 642.6, 'w': 379.5, 'h': 364.7, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 35, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [28.8, 591.8, 460.8, 410.4], 'media_key': 'boxart', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'boxart_slide_fade', 'anim_delay': 0.0, 'anim_duration': 0.8},
-    {'id': 'avatar', 'name': 'Avatar / Personaje', 'type': 'image', 'x': 730.4, 'y': -11.6, 'w': 556.0, 'h': 752.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 40, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [832.0, 24.0, 556.0, 752.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'avatar_float', 'anim_delay': 0.0, 'anim_duration': 0.8},
+    {'id': 'cartart', 'name': 'Cartucho / Disco', 'type': 'image', 'x': 1056.0, 'y': 648.0, 'w': 364.8, 'h': 324.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 30, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1056.0, 648.0, 364.8, 324.0], 'media_key': 'cartart', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'disc_rise,disc_spin', 'anim_delay': 0.0, 'anim_duration': 0.8},
+    {'id': 'boxart', 'name': 'Carátula (Box Art)', 'type': 'image', 'x': 768.0, 'y': 572.4, 'w': 316.8, 'h': 442.8, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 35, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [768.0, 572.4, 316.8, 442.8], 'media_key': 'boxart', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'boxart_slide_fade', 'anim_delay': 0.0, 'anim_duration': 0.8},
+    {'id': 'avatar', 'name': 'Avatar / Personaje', 'type': 'image', 'x': 672.0, 'y': 88.0, 'w': 652.0, 'h': 720.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 22, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [672.0, 88.0, 652.0, 720.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'avatar_float', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'logo', 'name': 'Logotipo del Sistema', 'type': 'image', 'x': 72.0, 'y': 12.0, 'w': 656.0, 'h': 120.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 45, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [72.0, 12.0, 656.0, 120.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': 'logo_bounce', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'wheel_shadow', 'name': 'Sombra de Ruleta (gtc-common)', 'type': 'image', 'x': 1336.0, 'y': 0.0, 'w': 584.0, 'h': 1080.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 50, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1336.0, 0.0, 584.0, 1080.0], 'media_key': '', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},
     {'id': 'wheel_list', 'name': 'Ruleta Curva (Wheel Conveyor)', 'type': 'wheel', 'x': 1200.0, 'y': 0.0, 'w': 720.0, 'h': 1080.0, 'rotation': 0.0, 'opacity': 1.0, 'z_index': 55, 'visible': True, 'locked': False, 'corner_pins': None, 'orig_rect': [1200.0, 0.0, 720.0, 1080.0], 'media_key': 'wheel', 'resource_path': '', 'text_template': '{title}', 'font_file': '', 'font_size': 24, 'text_color': '#ffffff', 'text_align': 'left', 'wheel_orientation': 'vertical', 'wheel_visible_items': 9, 'wheel_item_spacing': 85.0, 'wheel_curvature': 0.0, 'effect_type': '', 'effect_intensity': 0.4, 'effect_param': 4.0, 'anim_type': '', 'anim_delay': 0.0, 'anim_duration': 0.8},

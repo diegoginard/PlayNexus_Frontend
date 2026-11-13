@@ -7,7 +7,7 @@ platform = Sega CD
 icon_path = C:/Users/ARcade/Desktop/Repos/PlayNexus_Frontend/icons/Sega CD.png
 default_emulator_id = 10
 default_emulator = Retroarch Picodrive
-layout = Sega CD
+layout = Sega Dreamcast
 allowed_extensions = .cue;.bin;.chd
 roms_path = D:/Roms/Sega CD/Roms
 scan_subfolders = true
@@ -21,6 +21,11 @@ cartart_path = D:/Roms/Sega CD/media/cartart
 cabinet_path = 
 marquee_path = 
 bezel_path = 
+bezel_hud_enabled = true
+bezel_hud_path = 
+loading_path = 
+loading_in_path = 
+loading_out_path = 
 xml_path = 
 created_at = 2026-10-27 03:11:49
 source_list_id = 
@@ -29,80 +34,80 @@ filter_match_mode = all
 menu_items = 
 
 [Games]
-# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile
-2340;A-X-101 (U)(RE);A-X-101 (U)(RE);D:\\Roms\\Sega CD\\Roms\\A-X-101 (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2341;Adventures of Batman and Robin, The (U);Adventures of Batman and Robin, The (U);D:\\Roms\\Sega CD\\Roms\\Adventures of Batman and Robin, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2342;After Burner III (U);After Burner III (U);D:\\Roms\\Sega CD\\Roms\\After Burner III (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2343;Amazing Spider-Man vs. The Kingpin, The (U);Amazing Spider-Man vs. The Kingpin, The (U);D:\\Roms\\Sega CD\\Roms\\Amazing Spider-Man vs. The Kingpin, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2344;Android Assault - The Revenge of Bari-Arm (U);Android Assault - The Revenge of Bari-Arm (U);D:\\Roms\\Sega CD\\Roms\\Android Assault - The Revenge of Bari-Arm (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2345;Annett Futatabi (J);Annett Futatabi (J);D:\\Roms\\Sega CD\\Roms\\Annett Futatabi (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2346;Batman Returns (U);Batman Returns (U);D:\\Roms\\Sega CD\\Roms\\Batman Returns (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2347;Battlecorps (U);Battlecorps (U);D:\\Roms\\Sega CD\\Roms\\Battlecorps (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2348;BattleTech - Gray Death Legion (U);BattleTech - Gray Death Legion (U);D:\\Roms\\Sega CD\\Roms\\BattleTech - Gray Death Legion (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2349;BC Racers (U);BC Racers (U);D:\\Roms\\Sega CD\\Roms\\BC Racers (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2350;Bloodshot - Battle Frenzy (E);Bloodshot - Battle Frenzy (E);D:\\Roms\\Sega CD\\Roms\\Bloodshot - Battle Frenzy (E).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2351;Bouncers (U);Bouncers (U);D:\\Roms\\Sega CD\\Roms\\Bouncers (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2352;Bram Stoker's Dracula (U);Bram Stoker's Dracula (U);D:\\Roms\\Sega CD\\Roms\\Bram Stoker's Dracula (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2353;Brutal - Paws of Fury (U);Brutal - Paws of Fury (U);D:\\Roms\\Sega CD\\Roms\\Brutal - Paws of Fury (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2354;Burning Fists - Force Striker (U);Burning Fists - Force Striker (U);D:\\Roms\\Sega CD\\Roms\\Burning Fists - Force Striker (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2355;Cadillacs and Dinosaurs - The Second Cataclysm (U,Brl)(RE);Cadillacs and Dinosaurs - The Second Cataclysm (U,Brl)(RE);D:\\Roms\\Sega CD\\Roms\\Cadillacs and Dinosaurs - The Second Cataclysm (U,Brl)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2356;Chuck Rock (U);Chuck Rock (U);D:\\Roms\\Sega CD\\Roms\\Chuck Rock (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2357;Chuck Rock II - Son of Chuck (U);Chuck Rock II - Son of Chuck (U);D:\\Roms\\Sega CD\\Roms\\Chuck Rock II - Son of Chuck (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2358;Citizen X (U);Citizen X (U);D:\\Roms\\Sega CD\\Roms\\Citizen X (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2359;Cliffhanger (U);Cliffhanger (U);D:\\Roms\\Sega CD\\Roms\\Cliffhanger (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2360;Cyborg 009 (J);Cyborg 009 (J);D:\\Roms\\Sega CD\\Roms\\Cyborg 009 (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2361;Dark Wizard (U);Dark Wizard (U);D:\\Roms\\Sega CD\\Roms\\Dark Wizard (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2362;Demolition Man (U);Demolition Man (U);D:\\Roms\\Sega CD\\Roms\\Demolition Man (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2363;Devastator (J);Devastator (J);D:\\Roms\\Sega CD\\Roms\\Devastator (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2364;Dungeon Explorer (U);Dungeon Explorer (U);D:\\Roms\\Sega CD\\Roms\\Dungeon Explorer (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2365;Earnest Evans (J);Earnest Evans (J);D:\\Roms\\Sega CD\\Roms\\Earnest Evans (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2366;Earthworm Jim - Special Edition (U)(RE);Earthworm Jim - Special Edition (U)(RE);D:\\Roms\\Sega CD\\Roms\\Earthworm Jim - Special Edition (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2367;Eternal Champions - Challenge from the Dark Side (U)(RE);Eternal Champions - Challenge from the Dark Side (U)(RE);D:\\Roms\\Sega CD\\Roms\\Eternal Champions - Challenge from the Dark Side (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2368;Eye of the Beholder (U);Eye of the Beholder (U);D:\\Roms\\Sega CD\\Roms\\Eye of the Beholder (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2369;F1 Circus CD (J);F1 Circus CD (J);D:\\Roms\\Sega CD\\Roms\\F1 Circus CD (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2370;FIFA International Soccer (U);FIFA International Soccer (U);D:\\Roms\\Sega CD\\Roms\\FIFA International Soccer (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2371;Flashback - The Quest for Identity (U);Flashback - The Quest for Identity (U);D:\\Roms\\Sega CD\\Roms\\Flashback - The Quest for Identity (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2372;Flink (U);Flink (U);D:\\Roms\\Sega CD\\Roms\\Flink (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2373;Formula One World Championship - Beyond the Limit (U);Formula One World Championship - Beyond the Limit (U);D:\\Roms\\Sega CD\\Roms\\Formula One World Championship - Beyond the Limit (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2374;Garou Densetsu Special (J);Garou Densetsu Special (J);D:\\Roms\\Sega CD\\Roms\\Garou Densetsu Special (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2375;Heart of the Alien - Out of This World Parts I and II (U)(RE);Heart of the Alien - Out of This World Parts I and II (U)(RE);D:\\Roms\\Sega CD\\Roms\\Heart of the Alien - Out of This World Parts I and II (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2376;Heavy Nova (J);Heavy Nova (J);D:\\Roms\\Sega CD\\Roms\\Heavy Nova (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2377;Heimdall (U);Heimdall (U);D:\\Roms\\Sega CD\\Roms\\Heimdall (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2378;Hook (U);Hook (U);D:\\Roms\\Sega CD\\Roms\\Hook (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2379;Jaguar XJ220 (U);Jaguar XJ220 (U);D:\\Roms\\Sega CD\\Roms\\Jaguar XJ220 (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2380;Keio Flying Squadron (U);Keio Flying Squadron (U);D:\\Roms\\Sega CD\\Roms\\Keio Flying Squadron (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2381;Lords of Thunder (U);Lords of Thunder (U);D:\\Roms\\Sega CD\\Roms\\Lords of Thunder (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2382;Lunar - Eternal Blue (U);Lunar - Eternal Blue (U);D:\\Roms\\Sega CD\\Roms\\Lunar - Eternal Blue (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2383;Lunar - The Silver Star (U);Lunar - The Silver Star (U);D:\\Roms\\Sega CD\\Roms\\Lunar - The Silver Star (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2384;Mary Shelley's Frankenstein (U);Mary Shelley's Frankenstein (U);D:\\Roms\\Sega CD\\Roms\\Mary Shelley's Frankenstein (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2385;MegaRace (U);MegaRace (U);D:\\Roms\\Sega CD\\Roms\\MegaRace (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2386;Microcosm (U);Microcosm (U);D:\\Roms\\Sega CD\\Roms\\Microcosm (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2387;Mighty Mighty Missile (U);Mighty Mighty Missile (U);D:\\Roms\\Sega CD\\Roms\\Mighty Mighty Missile (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2388;NHL '94 (U);NHL '94 (U);D:\\Roms\\Sega CD\\Roms\\NHL '94 (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2389;Novastorm (U);Novastorm (U);D:\\Roms\\Sega CD\\Roms\\Novastorm (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2390;Pitfall - The Mayan Adventure (U);Pitfall - The Mayan Adventure (U);D:\\Roms\\Sega CD\\Roms\\Pitfall - The Mayan Adventure (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2391;Popful Mail (U);Popful Mail (U);D:\\Roms\\Sega CD\\Roms\\Popful Mail (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2392;Prince of Persia (U);Prince of Persia (U);D:\\Roms\\Sega CD\\Roms\\Prince of Persia (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2393;Puggsy (U);Puggsy (U);D:\\Roms\\Sega CD\\Roms\\Puggsy (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2394;Radical Rex (U);Radical Rex (U);D:\\Roms\\Sega CD\\Roms\\Radical Rex (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2395;Revengers of Vengeance (U);Revengers of Vengeance (U);D:\\Roms\\Sega CD\\Roms\\Revengers of Vengeance (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2396;Road Rash (U);Road Rash (U);D:\\Roms\\Sega CD\\Roms\\Road Rash (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2397;Robo Aleste (U);Robo Aleste (U);D:\\Roms\\Sega CD\\Roms\\Robo Aleste (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2398;Secret of Monkey Island, The (U)(RE);Secret of Monkey Island, The (U)(RE);D:\\Roms\\Sega CD\\Roms\\Secret of Monkey Island, The (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2399;Shadow of the Beast II (U);Shadow of the Beast II (U);D:\\Roms\\Sega CD\\Roms\\Shadow of the Beast II (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2400;Shining Force CD (U)(3R);Shining Force CD (U)(3R);D:\\Roms\\Sega CD\\Roms\\Shining Force CD (U)(3R).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2401;Software Toolworks' Star Wars Chess, The (U);Software Toolworks' Star Wars Chess, The (U);D:\\Roms\\Sega CD\\Roms\\Software Toolworks' Star Wars Chess, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2402;Sol-Feace (U)(RE2);Sol-Feace (U)(RE2);D:\\Roms\\Sega CD\\Roms\\Sol-Feace (U)(RE2).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2403;Sonic CD (U);Sonic CD (U);D:\\Roms\\Sega CD\\Roms\\Sonic CD (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2404;SoulStar (U);SoulStar (U);D:\\Roms\\Sega CD\\Roms\\SoulStar (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2405;Stellar-Fire (U);Stellar-Fire (U);D:\\Roms\\Sega CD\\Roms\\Stellar-Fire (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2406;Syndicate (E);Syndicate (E);D:\\Roms\\Sega CD\\Roms\\Syndicate (E).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2407;Terminator, The (U);Terminator, The (U);D:\\Roms\\Sega CD\\Roms\\Terminator, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2408;Thunderhawk (E)(RE);Thunderhawk (E)(RE);D:\\Roms\\Sega CD\\Roms\\Thunderhawk (E)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2409;Ultraverse Prime (U);Ultraverse Prime (U);D:\\Roms\\Sega CD\\Roms\\Ultraverse Prime (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2410;Vay (U);Vay (U);D:\\Roms\\Sega CD\\Roms\\Vay (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2411;Wild Woody (U);Wild Woody (U);D:\\Roms\\Sega CD\\Roms\\Wild Woody (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2412;Wing Commander (U);Wing Commander (U);D:\\Roms\\Sega CD\\Roms\\Wing Commander (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;
-2413;Wolfchild (U);Wolfchild (U);D:\\Roms\\Sega CD\\Roms\\Wolfchild (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:51;
-2414;Wonder Dog (U)(RE);Wonder Dog (U)(RE);D:\\Roms\\Sega CD\\Roms\\Wonder Dog (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:51;
-2415;WWF - Rage in the Cage (U);WWF - Rage in the Cage (U);D:\\Roms\\Sega CD\\Roms\\WWF - Rage in the Cage (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:51;
+# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode
+2340;A-X-101 (U)(RE);A-X-101 (U)(RE);D:\\Roms\\Sega CD\\Roms\\A-X-101 (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2341;Adventures of Batman and Robin, The (U);Adventures of Batman and Robin, The (U);D:\\Roms\\Sega CD\\Roms\\Adventures of Batman and Robin, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2342;After Burner III (U);After Burner III (U);D:\\Roms\\Sega CD\\Roms\\After Burner III (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2343;Amazing Spider-Man vs. The Kingpin, The (U);Amazing Spider-Man vs. The Kingpin, The (U);D:\\Roms\\Sega CD\\Roms\\Amazing Spider-Man vs. The Kingpin, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2344;Android Assault - The Revenge of Bari-Arm (U);Android Assault - The Revenge of Bari-Arm (U);D:\\Roms\\Sega CD\\Roms\\Android Assault - The Revenge of Bari-Arm (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2345;Annett Futatabi (J);Annett Futatabi (J);D:\\Roms\\Sega CD\\Roms\\Annett Futatabi (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2346;Batman Returns (U);Batman Returns (U);D:\\Roms\\Sega CD\\Roms\\Batman Returns (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2347;Battlecorps (U);Battlecorps (U);D:\\Roms\\Sega CD\\Roms\\Battlecorps (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2348;BattleTech - Gray Death Legion (U);BattleTech - Gray Death Legion (U);D:\\Roms\\Sega CD\\Roms\\BattleTech - Gray Death Legion (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2349;BC Racers (U);BC Racers (U);D:\\Roms\\Sega CD\\Roms\\BC Racers (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2350;Bloodshot - Battle Frenzy (E);Bloodshot - Battle Frenzy (E);D:\\Roms\\Sega CD\\Roms\\Bloodshot - Battle Frenzy (E).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2351;Bouncers (U);Bouncers (U);D:\\Roms\\Sega CD\\Roms\\Bouncers (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2352;Bram Stoker's Dracula (U);Bram Stoker's Dracula (U);D:\\Roms\\Sega CD\\Roms\\Bram Stoker's Dracula (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2353;Brutal - Paws of Fury (U);Brutal - Paws of Fury (U);D:\\Roms\\Sega CD\\Roms\\Brutal - Paws of Fury (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2354;Burning Fists - Force Striker (U);Burning Fists - Force Striker (U);D:\\Roms\\Sega CD\\Roms\\Burning Fists - Force Striker (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2355;Cadillacs and Dinosaurs - The Second Cataclysm (U,Brl)(RE);Cadillacs and Dinosaurs - The Second Cataclysm (U,Brl)(RE);D:\\Roms\\Sega CD\\Roms\\Cadillacs and Dinosaurs - The Second Cataclysm (U,Brl)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2356;Chuck Rock (U);Chuck Rock (U);D:\\Roms\\Sega CD\\Roms\\Chuck Rock (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2357;Chuck Rock II - Son of Chuck (U);Chuck Rock II - Son of Chuck (U);D:\\Roms\\Sega CD\\Roms\\Chuck Rock II - Son of Chuck (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2358;Citizen X (U);Citizen X (U);D:\\Roms\\Sega CD\\Roms\\Citizen X (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2359;Cliffhanger (U);Cliffhanger (U);D:\\Roms\\Sega CD\\Roms\\Cliffhanger (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2360;Cyborg 009 (J);Cyborg 009 (J);D:\\Roms\\Sega CD\\Roms\\Cyborg 009 (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2361;Dark Wizard (U);Dark Wizard (U);D:\\Roms\\Sega CD\\Roms\\Dark Wizard (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2362;Demolition Man (U);Demolition Man (U);D:\\Roms\\Sega CD\\Roms\\Demolition Man (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2363;Devastator (J);Devastator (J);D:\\Roms\\Sega CD\\Roms\\Devastator (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2364;Dungeon Explorer (U);Dungeon Explorer (U);D:\\Roms\\Sega CD\\Roms\\Dungeon Explorer (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2365;Earnest Evans (J);Earnest Evans (J);D:\\Roms\\Sega CD\\Roms\\Earnest Evans (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2366;Earthworm Jim - Special Edition (U)(RE);Earthworm Jim - Special Edition (U)(RE);D:\\Roms\\Sega CD\\Roms\\Earthworm Jim - Special Edition (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2367;Eternal Champions - Challenge from the Dark Side (U)(RE);Eternal Champions - Challenge from the Dark Side (U)(RE);D:\\Roms\\Sega CD\\Roms\\Eternal Champions - Challenge from the Dark Side (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2368;Eye of the Beholder (U);Eye of the Beholder (U);D:\\Roms\\Sega CD\\Roms\\Eye of the Beholder (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2369;F1 Circus CD (J);F1 Circus CD (J);D:\\Roms\\Sega CD\\Roms\\F1 Circus CD (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2370;FIFA International Soccer (U);FIFA International Soccer (U);D:\\Roms\\Sega CD\\Roms\\FIFA International Soccer (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2371;Flashback - The Quest for Identity (U);Flashback - The Quest for Identity (U);D:\\Roms\\Sega CD\\Roms\\Flashback - The Quest for Identity (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2372;Flink (U);Flink (U);D:\\Roms\\Sega CD\\Roms\\Flink (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2373;Formula One World Championship - Beyond the Limit (U);Formula One World Championship - Beyond the Limit (U);D:\\Roms\\Sega CD\\Roms\\Formula One World Championship - Beyond the Limit (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2374;Garou Densetsu Special (J);Garou Densetsu Special (J);D:\\Roms\\Sega CD\\Roms\\Garou Densetsu Special (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2375;Heart of the Alien - Out of This World Parts I and II (U)(RE);Heart of the Alien - Out of This World Parts I and II (U)(RE);D:\\Roms\\Sega CD\\Roms\\Heart of the Alien - Out of This World Parts I and II (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2376;Heavy Nova (J);Heavy Nova (J);D:\\Roms\\Sega CD\\Roms\\Heavy Nova (J).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2377;Heimdall (U);Heimdall (U);D:\\Roms\\Sega CD\\Roms\\Heimdall (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2378;Hook (U);Hook (U);D:\\Roms\\Sega CD\\Roms\\Hook (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2379;Jaguar XJ220 (U);Jaguar XJ220 (U);D:\\Roms\\Sega CD\\Roms\\Jaguar XJ220 (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2380;Keio Flying Squadron (U);Keio Flying Squadron (U);D:\\Roms\\Sega CD\\Roms\\Keio Flying Squadron (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2381;Lords of Thunder (U);Lords of Thunder (U);D:\\Roms\\Sega CD\\Roms\\Lords of Thunder (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2382;Lunar - Eternal Blue (U);Lunar - Eternal Blue (U);D:\\Roms\\Sega CD\\Roms\\Lunar - Eternal Blue (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2383;Lunar - The Silver Star (U);Lunar - The Silver Star (U);D:\\Roms\\Sega CD\\Roms\\Lunar - The Silver Star (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2384;Mary Shelley's Frankenstein (U);Mary Shelley's Frankenstein (U);D:\\Roms\\Sega CD\\Roms\\Mary Shelley's Frankenstein (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2385;MegaRace (U);MegaRace (U);D:\\Roms\\Sega CD\\Roms\\MegaRace (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2386;Microcosm (U);Microcosm (U);D:\\Roms\\Sega CD\\Roms\\Microcosm (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2387;Mighty Mighty Missile (U);Mighty Mighty Missile (U);D:\\Roms\\Sega CD\\Roms\\Mighty Mighty Missile (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2388;NHL '94 (U);NHL '94 (U);D:\\Roms\\Sega CD\\Roms\\NHL '94 (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2389;Novastorm (U);Novastorm (U);D:\\Roms\\Sega CD\\Roms\\Novastorm (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2390;Pitfall - The Mayan Adventure (U);Pitfall - The Mayan Adventure (U);D:\\Roms\\Sega CD\\Roms\\Pitfall - The Mayan Adventure (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2391;Popful Mail (U);Popful Mail (U);D:\\Roms\\Sega CD\\Roms\\Popful Mail (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2392;Prince of Persia (U);Prince of Persia (U);D:\\Roms\\Sega CD\\Roms\\Prince of Persia (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2393;Puggsy (U);Puggsy (U);D:\\Roms\\Sega CD\\Roms\\Puggsy (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2394;Radical Rex (U);Radical Rex (U);D:\\Roms\\Sega CD\\Roms\\Radical Rex (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2395;Revengers of Vengeance (U);Revengers of Vengeance (U);D:\\Roms\\Sega CD\\Roms\\Revengers of Vengeance (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2396;Road Rash (U);Road Rash (U);D:\\Roms\\Sega CD\\Roms\\Road Rash (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2397;Robo Aleste (U);Robo Aleste (U);D:\\Roms\\Sega CD\\Roms\\Robo Aleste (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2398;Secret of Monkey Island, The (U)(RE);Secret of Monkey Island, The (U)(RE);D:\\Roms\\Sega CD\\Roms\\Secret of Monkey Island, The (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2399;Shadow of the Beast II (U);Shadow of the Beast II (U);D:\\Roms\\Sega CD\\Roms\\Shadow of the Beast II (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2400;Shining Force CD (U)(3R);Shining Force CD (U)(3R);D:\\Roms\\Sega CD\\Roms\\Shining Force CD (U)(3R).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2401;Software Toolworks' Star Wars Chess, The (U);Software Toolworks' Star Wars Chess, The (U);D:\\Roms\\Sega CD\\Roms\\Software Toolworks' Star Wars Chess, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2402;Sol-Feace (U)(RE2);Sol-Feace (U)(RE2);D:\\Roms\\Sega CD\\Roms\\Sol-Feace (U)(RE2).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2403;Sonic CD (U);Sonic CD (U);D:\\Roms\\Sega CD\\Roms\\Sonic CD (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2404;SoulStar (U);SoulStar (U);D:\\Roms\\Sega CD\\Roms\\SoulStar (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2405;Stellar-Fire (U);Stellar-Fire (U);D:\\Roms\\Sega CD\\Roms\\Stellar-Fire (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2406;Syndicate (E);Syndicate (E);D:\\Roms\\Sega CD\\Roms\\Syndicate (E).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2407;Terminator, The (U);Terminator, The (U);D:\\Roms\\Sega CD\\Roms\\Terminator, The (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2408;Thunderhawk (E)(RE);Thunderhawk (E)(RE);D:\\Roms\\Sega CD\\Roms\\Thunderhawk (E)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2409;Ultraverse Prime (U);Ultraverse Prime (U);D:\\Roms\\Sega CD\\Roms\\Ultraverse Prime (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2410;Vay (U);Vay (U);D:\\Roms\\Sega CD\\Roms\\Vay (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2411;Wild Woody (U);Wild Woody (U);D:\\Roms\\Sega CD\\Roms\\Wild Woody (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2412;Wing Commander (U);Wing Commander (U);D:\\Roms\\Sega CD\\Roms\\Wing Commander (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:50;;
+2413;Wolfchild (U);Wolfchild (U);D:\\Roms\\Sega CD\\Roms\\Wolfchild (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:51;;
+2414;Wonder Dog (U)(RE);Wonder Dog (U)(RE);D:\\Roms\\Sega CD\\Roms\\Wonder Dog (U)(RE).chd;;;;;;;;;;;;{};2026-10-27 03:11:51;;
+2415;WWF - Rage in the Cage (U);WWF - Rage in the Cage (U);D:\\Roms\\Sega CD\\Roms\\WWF - Rage in the Cage (U).chd;;;;;;;;;;;;{};2026-10-27 03:11:51;;

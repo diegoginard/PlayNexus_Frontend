@@ -384,6 +384,7 @@ class ThemeLayout(BaseLayout):
 
         pointer_path = str(self.POINTER_IMAGE) if self.POINTER_IMAGE and self.POINTER_IMAGE.is_file() else None
         self._pix_pointer = self._load_pixmap(pointer_path)
+        self._pix_wheel = self._load_pixmap(str(self.WHEEL_IMAGE)) if self.WHEEL_IMAGE and self.WHEEL_IMAGE.is_file() else None
 
         # Diccionario theme_info
         self.theme_info = {{
@@ -763,14 +764,11 @@ class ThemeLayout(BaseLayout):
         g = self.games[self.selected_index]
         self.current_media = resolve_game_media(g)
         # Cargar arte de cartucho
-        c_path = self.current_media.get("cartart") or self.current_media.get("discart")
+        c_path = self.current_media.get("cartart") or self.current_media.get("discart") or g.get("cartart") or g.get("discart") or g.get("cartart_path") or g.get("discart_path")
         self._current_cart_pixmap = self._load_pixmap(c_path) if c_path else None
-        # Cargar boxart
-        b_path = self.current_media.get("boxart")
-        if b_path:
-            self._current_box_pixmap = load_cover(b_path, 460, 600)
-        else:
-            self._current_box_pixmap = None
+        # Cargar boxart de forma directa y segura con self._load_pixmap
+        b_path = self.current_media.get("boxart") or g.get("boxart") or g.get("cover_path") or g.get("boxart_path")
+        self._current_box_pixmap = self._load_pixmap(b_path) if b_path else None
         # Encolar video
         v_path = self.current_media.get("video")
         if v_path and os.path.isfile(v_path):
@@ -779,11 +777,29 @@ class ThemeLayout(BaseLayout):
             self.stop_media()
         self._preload_wheel_window()
 
+    def _get_game_wheel_pixmap(self, game: dict) -> QPixmap | None:
+        """Obtiene el QPixmap del logotipo de rueda, consultando la caché o encolando en el worker."""
+        gid = game.get("id")
+        if gid in self._wheel_pixmaps:
+            return self._wheel_pixmaps[gid]
+
+        wheel_file = game.get("wheel") or game.get("wheel_path") or (self.current_media.get("wheel") if gid == self.get_selected_game_id() else None)
+        if wheel_file and os.path.isfile(wheel_file):
+            pix = self._load_pixmap(wheel_file)
+            if pix and not pix.isNull():
+                self._wheel_pixmaps[gid] = pix
+                return pix
+
+        if hasattr(self, "_wheel_worker") and self._wheel_worker:
+            self._wheel_worker.queue_game(game, priority=True)
+
+        return None
+
     def _preload_wheel_window(self):
         if not self.games or not hasattr(self, "_wheel_worker") or not self._wheel_worker:
             return
         n = len(self.games)
-        window = [self.games[(self.selected_index + off) % n] for off in (-4, -3, -2, -1, 0, 1, 2, 3, 4)]
+        window = [self.games[(self.selected_index + off) % n] for off in range(-7, 8)]
         self._wheel_worker.queue_games(window, priority=True)
 
     def _commit_selection(self):
@@ -1132,11 +1148,6 @@ class ThemeLayout(BaseLayout):
             slot_idx = i - center_node
             game_idx = (self.selected_index + slot_idx) % n
             game = self.games[game_idx]
-            gid = game.get("id")
-
-            pix = self._wheel_pixmaps.get(gid) or self._pix_wheel_art
-            if not pix:
-                continue
 
             alpha = self.CONVEYOR_A[i]
             if alpha <= 0:
@@ -1147,15 +1158,40 @@ class ThemeLayout(BaseLayout):
             nw = int(self.CONVEYOR_W[i] * sw)
             nh = int(self.CONVEYOR_H[i] * sh)
             rot = self.CONVEYOR_R[i]
+            is_selected = (i == center_node)
+
+            # Prioridad de logo: 1) Wheel propio de la ROM, 2) wheel.png del layout, 3) wheel_art de gtc-common
+            pix = self._get_game_wheel_pixmap(game) or getattr(self, "_pix_wheel", None) or self._pix_wheel_art
 
             painter.save()
             painter.setOpacity(alpha / 255.0)
+            painter.translate(nx + nw / 2, ny + nh / 2)
             if rot != 0.0:
-                painter.translate(nx + nw / 2, ny + nh / 2)
                 painter.rotate(rot)
-                painter.drawPixmap(-nw // 2, -nh // 2, nw, nh, pix)
+
+            if pix and not pix.isNull():
+                pw = pix.width()
+                ph = pix.height()
+                max_w = int((nw - 12) * (1.15 if is_selected else 1.0))
+                max_h = int((nh - 8) * (1.15 if is_selected else 1.0))
+                s = min(max_w / pw, max_h / ph) if pw > 0 and ph > 0 else 1.0
+                dw = int(pw * s)
+                dh = int(ph * s)
+                painter.drawPixmap(QRect(-dw // 2, -dh // 2, dw, dh), pix)
             else:
-                painter.drawPixmap(nx, ny, nw, nh, pix)
+                rect = QRect(-nw // 2, -nh // 2, nw, nh)
+                bg_col = QColor(230, 95, 20, 210) if is_selected else QColor(25, 30, 45, 180)
+                border_col = QColor(255, 255, 255, 220) if is_selected else QColor(70, 80, 110, 120)
+                painter.setPen(QPen(border_col, 2 if is_selected else 1))
+                painter.setBrush(QBrush(bg_col))
+                painter.drawRoundedRect(rect, 8, 8)
+
+                title = game.get("title") or "Juego"
+                painter.setPen(QColor(255, 255, 255))
+                f_size = max(11, int(nh * 0.30))
+                painter.setFont(QFont(self._font_main, f_size, QFont.Bold))
+                painter.drawText(rect.adjusted(8, 4, -8, -4), Qt.AlignCenter | Qt.TextWordWrap, title)
+
             painter.restore()
 
     def _draw_bottom_bar(self, painter: QPainter, sr: QRect):
