@@ -75,7 +75,7 @@ class ThemeLayout(BaseLayout):
     # 2. FUENTES TIPOGRÁFICAS DEL TEMA (DIRECTIVA 8 DE GEMINI.md)
     # -------------------------------------------------------------------------
     FONT_TITLE_FILE = "BebasNeue Bold.otf"   # Títulos destacados
-    FONT_MAIN_FILE  = "PhatBoy Slim.otf"     # Textos generales e información técnica
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"     # Textos generales e información técnica
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # -------------------------------------------------------------------------

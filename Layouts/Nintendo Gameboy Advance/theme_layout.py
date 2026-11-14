@@ -74,8 +74,8 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # 2. FUENTES TIPOGRÁFICAS DEL TEMA
     # -------------------------------------------------------------------------
-    FONT_TITLE_FILE = "FuturaBoldItalic.ttf"   # Fuente destacada para títulos
-    FONT_MAIN_FILE  = "BebasNeue Bold.otf"     # Fuente para contadores, año e info técnica
+    FONT_TITLE_FILE = "BebasNeue Bold.otf"   # Títulos destacados
+    FONT_MAIN_FILE  = "Handel Gothic BT.ttf"     # Textos generales e información técnica
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # -------------------------------------------------------------------------
