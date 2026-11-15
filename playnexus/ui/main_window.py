@@ -404,6 +404,14 @@ class MainWindow(QMainWindow):
         self.main_tabs.setDocumentMode(True)
         self.main_tabs.addTab(root, "🎮  Biblioteca de Juegos")
 
+        # Carga perezosa de Rom Manager: no instanciar reproductor hasta abrir la pestaña
+        self.rom_manager_tab = None
+        self._rom_manager_container = QWidget()
+        rm_container_layout = QVBoxLayout(self._rom_manager_container)
+        rm_container_layout.setContentsMargins(0, 0, 0, 0)
+        rm_container_layout.setSpacing(0)
+        self._rom_manager_tab_index = self.main_tabs.addTab(self._rom_manager_container, "🧰  Rom Manager")
+
         self.emulator_tab = EmulatorManagerWidget(self.db, self)
         self.emulator_tab.emulators_changed.connect(self._on_emulators_changed)
         self.main_tabs.addTab(self.emulator_tab, "🕹  Administrar Emuladores")
@@ -670,14 +678,23 @@ class MainWindow(QMainWindow):
         if not self.current_list_id:
             QMessageBox.information(self, "Seleccionar", "Seleccioná una lista para editar.")
             return
+        self._edit_list_by_id(self.current_list_id, from_rom_manager=False)
 
-        row = self.db.get_list(self.current_list_id)
+    def _finish_edit_list_refresh(self, edited_list_id: int, from_rom_manager: bool):
+        self.refresh_lists(select_id=self.current_list_id)
+        if from_rom_manager and self.main_tabs.currentIndex() != 0:
+            self._stop_library_layouts_media()
+            if getattr(self, "rom_manager_tab", None):
+                self.rom_manager_tab.refresh_sources(select_list_id=edited_list_id, auto_scan=True)
+
+    def _edit_list_by_id(self, list_id: int, from_rom_manager: bool = False):
+        row = self.db.get_list(list_id)
         if not row:
             return
 
         emulators = self.db.get_emulators()
         all_lists = self.db.get_lists(with_counts=False)
-        initial_menu_items = self.db.get_menu_items(self.current_list_id)
+        initial_menu_items = self.db.get_menu_items(list_id)
         dialog = ListDialog(emulators, self, existing=row, all_lists=all_lists, initial_menu_items=initial_menu_items, db=self.db)
         if dialog.exec():
             vals = dialog.values()
@@ -716,7 +733,7 @@ class MainWindow(QMainWindow):
             xml_changed = xml_path != old_xml_path
             try:
                 self.db.update_list(
-                    self.current_list_id,
+                    list_id,
                     name=name,
                     platform=platform,
                     default_emulator_id=emu_id,
@@ -746,13 +763,13 @@ class MainWindow(QMainWindow):
                 )
                 clear_media_cache()
                 if list_type == "menu":
-                    self.db.set_menu_items(self.current_list_id, selected_list_ids)
-                    self.refresh_lists(select_id=self.current_list_id)
+                    self.db.set_menu_items(list_id, selected_list_ids)
+                    self._finish_edit_list_refresh(list_id, from_rom_manager)
                     self.statusBar().showMessage(f"Menú '{name}' actualizado.", 4000)
                     return
                 elif list_type == "filtered":
-                    synced = sync_filtered_list_games(self.db, self.current_list_id)
-                    self.refresh_lists(select_id=self.current_list_id)
+                    synced = sync_filtered_list_games(self.db, list_id)
+                    self._finish_edit_list_refresh(list_id, from_rom_manager)
                     self.statusBar().showMessage(f"Lista filtrada '{name}' sincronizada con {synced} juego(s) coincidentes.", 5000)
                     return
 
@@ -761,7 +778,7 @@ class MainWindow(QMainWindow):
                     progress_dlg = ScanProgressDialog(
                         parent=self,
                         db=self.db,
-                        list_id=self.current_list_id,
+                        list_id=list_id,
                         list_name=name,
                         rom_folders=rom_folders,
                         exts=exts,
@@ -773,31 +790,31 @@ class MainWindow(QMainWindow):
                         filter_match_mode=filter_match_mode,
                     )
                     progress_dlg.exec()
-                    self.refresh_lists(select_id=self.current_list_id)
+                    self._finish_edit_list_refresh(list_id, from_rom_manager)
                     if progress_dlg.stats:
                         self.statusBar().showMessage(f"Lista '{name}' actualizada con {progress_dlg.stats['added']} juego(s).", 5000)
                     elif progress_dlg.error_msg:
                         QMessageBox.warning(self, "Aviso de escaneo", f"Se actualizó la lista pero ocurrió un error al escanear las carpetas:\n{progress_dlg.error_msg}")
                 elif list_type == "games" and not rom_folders and (auto_scan or folders_changed):
-                    self.db.clear_list_games(self.current_list_id)
-                    self.refresh_lists(select_id=self.current_list_id)
+                    self.db.clear_list_games(list_id)
+                    self._finish_edit_list_refresh(list_id, from_rom_manager)
                     self.statusBar().showMessage(f"Lista '{name}' actualizada (sin carpetas de ROMs).", 4000)
                 elif list_type == "games" and xml_path and Path(xml_path).is_file() and xml_changed:
                     try:
                         QApplication.setOverrideCursor(Qt.WaitCursor)
-                        xml_res = apply_xml_to_list(self.db, self.current_list_id, xml_path=xml_path)
+                        xml_res = apply_xml_to_list(self.db, list_id, xml_path=xml_path)
                         QApplication.restoreOverrideCursor()
-                        self.refresh_lists(select_id=self.current_list_id)
+                        self._finish_edit_list_refresh(list_id, from_rom_manager)
                         self.statusBar().showMessage(
                             f"Lista '{name}' actualizada. XML aplicado a {xml_res['matched']} juego(s).",
                             5000
                         )
                     except Exception as xml_err:
                         QApplication.restoreOverrideCursor()
-                        self.refresh_lists(select_id=self.current_list_id)
+                        self._finish_edit_list_refresh(list_id, from_rom_manager)
                         QMessageBox.warning(self, "Aviso de XML", f"Se actualizó la lista pero ocurrió un error al aplicar el XML:\n{xml_err}")
                 else:
-                    self.refresh_lists(select_id=self.current_list_id)
+                    self._finish_edit_list_refresh(list_id, from_rom_manager)
                     self.statusBar().showMessage(f"Lista '{name}' actualizada.", 4000)
             except Exception as e:
                 QMessageBox.critical(self, "No se pudo actualizar la lista", f"Error al actualizar:\n{e}")
@@ -912,6 +929,7 @@ class MainWindow(QMainWindow):
             xml_act = menu.addAction("📄 Asociar / Sincronizar XML…")
 
         menu.addSeparator()
+        rom_mgr_act = menu.addAction("🧰 Auditar media en Rom Manager…")
         edit_act = menu.addAction("✎ Editar lista…")
         del_act = menu.addAction("🗑 Eliminar lista")
 
@@ -924,6 +942,8 @@ class MainWindow(QMainWindow):
             self.add_files()
         elif action == xml_act:
             self.sync_xml_for_current_list()
+        elif action == rom_mgr_act:
+            self.open_rom_manager_for_list(lid)
         elif action == edit_act:
             self.edit_current_list()
         elif action == del_act:
@@ -1635,10 +1655,56 @@ class MainWindow(QMainWindow):
         """Abre directamente la pestaña de Modo Frontend."""
         self.main_tabs.setCurrentWidget(self.frontend_tab)
 
+    def _ensure_rom_manager_tab(self):
+        if self.rom_manager_tab is None:
+            from playnexus.ui.rom_manager_tab import RomManagerWidget
+            self.rom_manager_tab = RomManagerWidget(self.db, self._rom_manager_container)
+            self.rom_manager_tab.list_updated.connect(self._on_rom_manager_list_updated)
+            self.rom_manager_tab.edit_list_requested.connect(self._on_rom_manager_edit_list)
+            self._rom_manager_container.layout().addWidget(self.rom_manager_tab)
+        return self.rom_manager_tab
+
+    def open_rom_manager_for_list(self, list_id: int | None = None):
+        """Abre la pestaña Rom Manager enfocando una lista específica y lanzando su auditoría."""
+        self.main_tabs.setCurrentWidget(self._rom_manager_container)
+        rm = self._ensure_rom_manager_tab()
+        if list_id is not None:
+            rm.focus_list(int(list_id), auto_scan=True)
+
+    def _on_rom_manager_list_updated(self, list_id: int):
+        """Sincroniza Biblioteca y Modo Frontend cuando se modifican carpetas/layouts desde Rom Manager."""
+        if hasattr(self, "frontend_tab"):
+            self.frontend_tab.refresh_data()
+        if self.current_list_id == list_id:
+            row = self.db.get_list(list_id)
+            if row and row.get("layout"):
+                target_lay = row["layout"]
+                if self.layout_combo.currentText() != target_lay:
+                    self.layout_combo.blockSignals(True)
+                    self.layout_combo.setCurrentText(target_lay)
+                    self.layout_combo.blockSignals(False)
+                    self._pending_layout_reload = True
+
+    def _on_rom_manager_edit_list(self, list_id: int):
+        self._edit_list_by_id(list_id, from_rom_manager=True)
+
     def _on_tab_changed(self, index: int):
         """Mantiene sincronizados los datos al alternar entre pestañas y suspende la multimedia inactiva."""
         current_widget = self.main_tabs.widget(index)
+        if current_widget != getattr(self, "_rom_manager_container", None):
+            if getattr(self, "rom_manager_tab", None):
+                self.rom_manager_tab.stop_media()
+
         if current_widget == self.main_tabs.widget(0):
+            # Asegurar sincronización del layout de la lista actual por si se cambió desde Rom Manager
+            if self.current_list_id:
+                row = self.db.get_list(self.current_list_id)
+                if row and row.get("layout") and self.layout_combo.currentText() != row["layout"]:
+                    self.layout_combo.blockSignals(True)
+                    self.layout_combo.setCurrentText(row["layout"])
+                    self.layout_combo.blockSignals(False)
+                    self._apply_layout_view(row["layout"], render=False)
+
             # Recargar layout si su archivo theme_layout.py fue modificado o guardado mientras estábamos en otra pestaña
             cur_layout_name = self.layout_combo.currentText().strip()
             needs_reload = getattr(self, "_pending_layout_reload", False)
@@ -1672,8 +1738,18 @@ class MainWindow(QMainWindow):
             if self.current_game_id:
                 self._select_game_by_id(self.current_game_id)
         else:
-            self.stop_all_active_media()
-            if current_widget == self.emulator_tab:
+            self._stop_library_layouts_media()
+            if current_widget == getattr(self, "_rom_manager_container", None):
+                first_init = (self.rom_manager_tab is None)
+                rm = self._ensure_rom_manager_tab()
+                if first_init:
+                    if self.current_list_id:
+                        rm.focus_list(self.current_list_id, auto_scan=True)
+                    elif rm.list_combo.currentData():
+                        rm.start_scan()
+                else:
+                    rm.refresh_sources(auto_scan=False)
+            elif current_widget == self.emulator_tab:
                 self.emulator_tab.refresh()
             elif current_widget == self.frontend_tab:
                 self.frontend_tab.refresh_data()
@@ -1780,8 +1856,8 @@ class MainWindow(QMainWindow):
         self.player_window.destroyed.connect(_on_player_closed)
         QTimer.singleShot(0, self.player_window._apply_show)
 
-    def stop_all_active_media(self):
-        """Detiene cualquier reproducción activa en los layouts para evitar audio residual."""
+    def _stop_library_layouts_media(self):
+        """Detiene la reproducción activa únicamente de los layouts de la pestaña Biblioteca."""
         for inst in list(getattr(self, "active_layouts", {}).values()):
             if hasattr(inst, "stop_media") and callable(inst.stop_media):
                 try:
@@ -1806,6 +1882,15 @@ class MainWindow(QMainWindow):
                             p.setSource(QUrl())
                         except Exception:
                             pass
+
+    def stop_all_active_media(self):
+        """Detiene cualquier reproducción activa en los layouts y Rom Manager para evitar audio residual."""
+        self._stop_library_layouts_media()
+        if getattr(self, "rom_manager_tab", None):
+            try:
+                self.rom_manager_tab.stop_media()
+            except Exception:
+                pass
 
     def _on_emulators_changed(self):
         """Callback cuando se modifica algún emulador en la pestaña de emuladores."""
@@ -1874,6 +1959,11 @@ class MainWindow(QMainWindow):
                     inst.cleanup()
                 elif hasattr(inst, "close"):
                     inst.close()
+            except Exception:
+                pass
+        if hasattr(self, "rom_manager_tab") and self.rom_manager_tab:
+            try:
+                self.rom_manager_tab.cleanup()
             except Exception:
                 pass
         if hasattr(self, "layout_studio_tab") and self.layout_studio_tab:
