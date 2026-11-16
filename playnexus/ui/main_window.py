@@ -12,11 +12,12 @@ from PySide6.QtWidgets import (
     QGroupBox, QFormLayout, QAbstractItemView, QMenu, QToolBar, QStackedWidget,
     QFrame, QTabWidget, QCheckBox
 )
-from playnexus.db import Database
+from playnexus.db import Database, format_play_time
 from playnexus.services.library import (
     scan_rom_folder, import_scanned_games, add_game, parse_extensions_list,
     parse_rom_xml, apply_xml_to_list, enrich_game_dict,
-    parse_rom_folders, format_rom_folders, sync_filtered_list_games
+    parse_rom_folders, format_rom_folders, sync_filtered_list_games,
+    sync_filtered_lists_for_source,
 )
 from playnexus.services.media import clear_media_cache, is_game_vertical
 from playnexus.services.launcher import launch_game, resolve_emulator
@@ -185,6 +186,12 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self.refresh_lists()
         self.refresh_emulators()
+
+        try:
+            from playnexus.services.emulator_manager import EMULATOR_MANAGER
+            EMULATOR_MANAGER.telemetry_updated.connect(self._on_telemetry_updated)
+        except Exception:
+            pass
 
     def _build_ui(self):
         # Estructura principal de la biblioteca
@@ -361,16 +368,59 @@ class MainWindow(QMainWindow):
         self.game_bezel_combo.addItem("Desactivar Bezel HUD", "disabled")
         self.game_bezel_combo.currentIndexChanged.connect(self.save_game_bezel_hud)
 
+        self.game_tags_label = QLabel("—")
+        self.game_tags_label.setWordWrap(True)
+        self.game_tags_label.setStyleSheet("color: #93c5fd; font-size: 9pt;")
+
+        self.game_stats_label = QLabel("—")
+        self.game_stats_label.setWordWrap(True)
+        self.game_stats_label.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
+
         form.addRow("Título:", self.game_name)
         form.addRow("ROM / Código:", self.game_rom_code)
         form.addRow("Propiedades:", self.game_meta_info)
+        form.addRow("Etiquetas:", self.game_tags_label)
+        form.addRow("Actividad:", self.game_stats_label)
         form.addRow("Archivo:", self.game_path)
         form.addRow("Tamaño:", self.game_size)
         form.addRow("Emulador activo:", self.effective_emu)
         form.addRow("Emulador individual:", self.override_combo)
         form.addRow("Bezel HUD:", self.game_bezel_combo)
 
+        ra_row_w = QWidget()
+        ra_row_lay = QHBoxLayout(ra_row_w)
+        ra_row_lay.setContentsMargins(0, 0, 0, 0)
+        ra_row_lay.setSpacing(6)
+        self.game_ra_label = QLabel("—")
+        self.game_ra_label.setStyleSheet("color: #fde047; font-weight: 600;")
+        self.ra_detail_btn = QPushButton("🏆 Logros")
+        self.ra_detail_btn.setEnabled(False)
+        self.ra_detail_btn.setToolTip("Ver o actualizar logros de RetroAchievements")
+        self.ra_detail_btn.clicked.connect(self._open_selected_game_ra)
+        ra_row_lay.addWidget(self.game_ra_label, 1)
+        ra_row_lay.addWidget(self.ra_detail_btn)
+        form.addRow("RetroAchievements:", ra_row_w)
+
+        manual_row_w = QWidget()
+        manual_row_lay = QHBoxLayout(manual_row_w)
+        manual_row_lay.setContentsMargins(0, 0, 0, 0)
+        manual_row_lay.setSpacing(6)
+        self.game_manual_label = QLabel("—")
+        self.manual_view_btn = QPushButton("📖 Ver Manual")
+        self.manual_view_btn.setEnabled(False)
+        self.manual_view_btn.setToolTip("Abrir el manual PDF del juego")
+        self.manual_view_btn.clicked.connect(self._open_selected_game_manual)
+        manual_row_lay.addWidget(self.game_manual_label, 1)
+        manual_row_lay.addWidget(self.manual_view_btn)
+        form.addRow("Manual PDF:", manual_row_w)
+
         right_layout.addWidget(details_group)
+
+        self.fav_toggle_btn = QPushButton("☆  Agregar a Favoritos")
+        self.fav_toggle_btn.setMinimumHeight(34)
+        self.fav_toggle_btn.setEnabled(False)
+        self.fav_toggle_btn.clicked.connect(self.toggle_selected_favorite)
+        right_layout.addWidget(self.fav_toggle_btn)
 
         self.launch_btn = QPushButton("▶  EJECUTAR JUEGO")
         self.launch_btn.setObjectName("primary")
@@ -540,6 +590,10 @@ class MainWindow(QMainWindow):
                 f"🧭 <b>Menú de Sistemas</b> · {len(menu_items)} sistema(s) vinculado(s) · Diseño: <b>{row['layout']}</b>"
             )
         elif is_filtered:
+            try:
+                sync_filtered_list_games(self.db, self.current_list_id)
+            except Exception:
+                pass
             src_id = row.get("source_list_id")
             src_name = "Desconocida"
             if src_id:
@@ -548,6 +602,7 @@ class MainWindow(QMainWindow):
                     src_name = src_row.get("name", "Desconocida")
             self.list_title.setText(f"⚡ {row['name']}")
             g_count = self.db.count_games(self.current_list_id)
+            current.setText(f"⚡ {row['name']} ({g_count})")
             plat_text = f" · Plataforma: {row['platform']}" if row['platform'] else ""
             self.list_meta_label.setText(
                 f"⚡ <b>Lista Filtrada</b> · Origen: <b>{src_name}</b> · {g_count} juego(s) coincidentes{plat_text} · Diseño: <b>{row['layout']}</b>"
@@ -603,6 +658,7 @@ class MainWindow(QMainWindow):
             bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
             bezel_hud_path = vals[26] if len(vals) > 26 else ""
             loading_path = vals[27] if len(vals) > 27 else ""
+            manual_path = vals[29] if len(vals) > 29 else ""
             try:
                 list_id = self.db.add_list(
                     name=name,
@@ -622,11 +678,13 @@ class MainWindow(QMainWindow):
                     cabinet_path=cabinet_path,
                     marquee_path=marquee_path,
                     bezel_path=bezel_path,
+                    manual_path=manual_path,
                     list_type=list_type,
                     xml_path=xml_path,
                     source_list_id=source_list_id,
                     filter_rules=filter_rules,
                     filter_match_mode=filter_match_mode,
+                    sort_mode=dialog.selected_sort_mode(),
                     icon_path=icon_path,
                     bezel_hud_enabled=str(bezel_hud_enabled).lower(),
                     bezel_hud_path=bezel_hud_path,
@@ -713,6 +771,7 @@ class MainWindow(QMainWindow):
             bezel_hud_enabled = vals[25] if len(vals) > 25 else "true"
             bezel_hud_path = vals[26] if len(vals) > 26 else ""
             loading_path = vals[27] if len(vals) > 27 else ""
+            manual_path = vals[29] if len(vals) > 29 else ""
             old_roms_path = format_rom_folders(row["roms_path"] if "roms_path" in row.keys() else "")
             old_exts = (row["allowed_extensions"] if "allowed_extensions" in row.keys() else "") or ""
             old_scan_sub = str(row.get("scan_subfolders", "true")).strip().lower() in ("true", "1")
@@ -751,11 +810,13 @@ class MainWindow(QMainWindow):
                     cabinet_path=cabinet_path,
                     marquee_path=marquee_path,
                     bezel_path=bezel_path,
+                    manual_path=manual_path,
                     list_type=list_type,
                     xml_path=xml_path,
                     source_list_id=source_list_id,
                     filter_rules=filter_rules,
                     filter_match_mode=filter_match_mode,
+                    sort_mode=dialog.selected_sort_mode(),
                     icon_path=icon_path,
                     bezel_hud_enabled=str(bezel_hud_enabled).lower(),
                     bezel_hud_path=bezel_hud_path,
@@ -1197,9 +1258,18 @@ class MainWindow(QMainWindow):
                         break
             return
 
+        game_row_ctx = self.db.get_game(game_id) or selected_item
+        is_fav = bool(int((game_row_ctx or {}).get("is_favorite") or 0))
+        list_row_ctx = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        from playnexus.services.media import resolve_game_manual_pdf
+        manual_ctx = resolve_game_manual_pdf(game_row_ctx, list_row=list_row_ctx) if game_row_ctx else ""
+
         menu = QMenu(self)
         play_act = menu.addAction("▶ Ejecutar juego")
+        fav_act = menu.addAction("☆ Quitar de Favoritos" if is_fav else "⭐ Agregar a Favoritos")
         edit_act = menu.addAction("✎ Editar juego…")
+        ra_act = menu.addAction("🏆 RetroAchievements…")
+        manual_act = menu.addAction("📖 Ver Manual PDF…") if manual_ctx else None
         loc_act = menu.addAction("📂 Abrir ubicación del archivo")
         menu.addSeparator()
         del_act = menu.addAction("🗑 Quitar de la biblioteca")
@@ -1207,8 +1277,14 @@ class MainWindow(QMainWindow):
         action = menu.exec(global_pos)
         if action == play_act:
             self.launch_selected()
+        elif action == fav_act:
+            self.toggle_selected_favorite()
         elif action == edit_act:
             self.edit_selected_game()
+        elif action == ra_act:
+            self._open_selected_game_ra()
+        elif manual_act and action == manual_act:
+            self._open_selected_game_manual()
         elif action == loc_act:
             self.open_rom_location()
         elif action == del_act:
@@ -1230,11 +1306,17 @@ class MainWindow(QMainWindow):
             self.game_rom_code.setText("—")
             self.game_meta_info.setText("—")
             self.game_meta_info.setToolTip("")
+            self.game_tags_label.setText("—")
+            self.game_stats_label.setText("—")
+            self.fav_toggle_btn.setEnabled(False)
+            self.fav_toggle_btn.setText("☆  Favorito (no aplica a menú)")
+            self.fav_toggle_btn.setStyleSheet("")
             self.game_path.setText(f"Plataforma: {selected_item['platform']}")
             self.game_size.setText(f"Sistema vinculado ({selected_item.get('effective_name', '')})")
             self.override_combo.blockSignals(True)
             self.override_combo.setCurrentIndex(0)
             self.override_combo.blockSignals(False)
+            self._refresh_selected_game_extras(None)
             return
 
         game_row = self.db.get_game(game_id)
@@ -1243,8 +1325,16 @@ class MainWindow(QMainWindow):
             return
 
         game = enrich_game_dict(game_row)
-        self.game_name.setText(game["title"])
+        is_fav = bool(int(game.get("is_favorite") or 0))
+        self.game_name.setText(f"⭐ {game['title']}" if is_fav else game["title"])
         self.game_path.setText(game["rom_path"])
+        tags_txt = str(game.get("tags") or "").strip()
+        self.game_tags_label.setText(tags_txt or "—")
+        plays_n = int(game.get("play_count") or 0)
+        time_txt = format_play_time(game.get("play_time_seconds") or 0)
+        last_txt = str(game.get("last_played") or "").strip() or "Nunca"
+        self.game_stats_label.setText(f"{plays_n} partidas · {time_txt} · Última: {last_txt}")
+        self._apply_fav_button_style(is_fav)
 
         rom_p = Path(game["rom_path"])
         rom_code = game.get("rom_name") or rom_p.stem
@@ -1314,6 +1404,112 @@ class MainWindow(QMainWindow):
         else:
             self.effective_emu.setText("Sin emulador asignado")
             self.effective_emu.setStyleSheet("font-weight: 600; color: #f87171;")
+        self._refresh_selected_game_extras(game_id)
+
+    def _apply_fav_button_style(self, is_fav: bool):
+        self.fav_toggle_btn.setEnabled(True)
+        if is_fav:
+            self.fav_toggle_btn.setText("⭐  En Favoritos (clic para quitar)")
+            self.fav_toggle_btn.setStyleSheet(
+                "QPushButton { background-color: #3f2f12; color: #fbbf24; border: 1px solid #d97706; font-weight: 600; }"
+                "QPushButton:hover { background-color: #523d17; }"
+            )
+        else:
+            self.fav_toggle_btn.setText("☆  Agregar a Favoritos")
+            self.fav_toggle_btn.setStyleSheet("")
+
+    def _refresh_selected_game_extras(self, game_id: int | None):
+        selected_item = next((g for g in self.games_cache if g.get("id") == game_id), None) if game_id else None
+        if not game_id or (selected_item and selected_item.get("is_menu_target")):
+            self.game_ra_label.setText("—")
+            self.ra_detail_btn.setEnabled(False)
+            self.game_manual_label.setText("—")
+            self.manual_view_btn.setEnabled(False)
+            return
+
+        game = self.db.get_game(game_id) or selected_item
+        list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
+
+        from playnexus.services.media import resolve_game_manual_pdf
+        from playnexus.services.retroachievements import format_ra_badge_text, get_cached_ra_progress_summary
+
+        ra_sum = get_cached_ra_progress_summary(self.db, game) if game else None
+        self.game_ra_label.setText(format_ra_badge_text(ra_sum) if ra_sum else "Sin sincronizar")
+        self.ra_detail_btn.setEnabled(bool(game))
+
+        manual_pdf = resolve_game_manual_pdf(game, list_row=list_row) if game else ""
+        if manual_pdf:
+            self.game_manual_label.setText(Path(manual_pdf).name)
+            self.game_manual_label.setToolTip(manual_pdf)
+            self.manual_view_btn.setEnabled(True)
+        else:
+            self.game_manual_label.setText("Sin manual PDF")
+            self.game_manual_label.setToolTip("")
+            self.manual_view_btn.setEnabled(False)
+
+    def _open_selected_game_ra(self):
+        if not self.current_game_id:
+            return
+        selected_item = next((g for g in self.games_cache if g.get("id") == self.current_game_id), None)
+        if selected_item and selected_item.get("is_menu_target"):
+            return
+        game = self.db.get_game(self.current_game_id) or selected_item
+        if not game:
+            return
+        from playnexus.ui.ra_dialogs import RAGameDetailDialog
+
+        list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        dlg = RAGameDetailDialog(self.db, game, list_row=list_row, parent=self)
+        dlg.progress_updated.connect(lambda _d: self._refresh_selected_game_extras(self.current_game_id))
+        dlg.progress_updated.connect(lambda _d: self.refresh_games())
+        dlg.exec()
+
+    def _open_selected_game_manual(self):
+        if not self.current_game_id:
+            return
+        selected_item = next((g for g in self.games_cache if g.get("id") == self.current_game_id), None)
+        if selected_item and selected_item.get("is_menu_target"):
+            return
+        game = self.db.get_game(self.current_game_id) or selected_item
+        if not game:
+            return
+        from playnexus.services.media import resolve_game_manual_pdf
+        from playnexus.ui.manual_viewer import ManualViewerDialog
+
+        list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        pdf = resolve_game_manual_pdf(game, list_row=list_row)
+        if not pdf:
+            QMessageBox.information(self, "Sin manual", "Este juego no tiene un manual PDF asignado.")
+            return
+        ManualViewerDialog(pdf, game_title=game.get("title", ""), db=self.db, parent=self).exec()
+
+    def toggle_selected_favorite(self):
+        if not self.current_game_id:
+            return
+        selected_item = next((g for g in self.games_cache if g.get("id") == self.current_game_id), None)
+        if selected_item and selected_item.get("is_menu_target"):
+            return
+        new_state = self.db.toggle_game_favorite(self.current_game_id)
+        if new_state is None:
+            return
+        try:
+            sync_filtered_lists_for_source(self.db)
+        except Exception:
+            pass
+        cur_list = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        if cur_list and cur_list.get("list_type") == "filtered":
+            self.refresh_lists(select_id=self.current_list_id)
+        else:
+            self._select_game_by_id(self.current_game_id)
+        msg = "⭐ Juego agregado a Favoritos." if new_state else "☆ Juego quitado de Favoritos."
+        self.statusBar().showMessage(msg, 3000)
+
+    def _on_telemetry_updated(self, game_id: int):
+        """Actualiza detalles visibles tras registrar lanzamiento o cierre de sesión."""
+        if not self.db:
+            return
+        if self.current_game_id == game_id:
+            self._select_game_by_id(game_id)
 
     def on_game_unselected(self):
         self.current_game_id = None
@@ -1321,6 +1517,11 @@ class MainWindow(QMainWindow):
         self.game_rom_code.setText("—")
         self.game_meta_info.setText("—")
         self.game_meta_info.setToolTip("")
+        self.game_tags_label.setText("—")
+        self.game_stats_label.setText("—")
+        self.fav_toggle_btn.setEnabled(False)
+        self.fav_toggle_btn.setText("☆  Agregar a Favoritos")
+        self.fav_toggle_btn.setStyleSheet("")
         self.game_path.setText("—")
         self.game_size.setText("—")
         self.effective_emu.setText("—")
@@ -1330,6 +1531,11 @@ class MainWindow(QMainWindow):
         self.game_bezel_combo.blockSignals(True)
         self.game_bezel_combo.setCurrentIndex(0)
         self.game_bezel_combo.blockSignals(False)
+        self.game_ra_label.setText("—")
+        self.ra_detail_btn.setEnabled(False)
+        self.game_manual_label.setText("—")
+        self.game_manual_label.setToolTip("")
+        self.manual_view_btn.setEnabled(False)
 
     def save_override(self, index):
         if not self.current_game_id:
@@ -1532,7 +1738,12 @@ class MainWindow(QMainWindow):
             return
         dialog = GameEditDialog(self.db, game, self)
         if dialog.exec():
-            self.refresh_games()
+            try:
+                sync_filtered_lists_for_source(self.db)
+            except Exception:
+                pass
+            self.refresh_lists(select_id=self.current_list_id)
+            self._select_game_by_id(game["id"])
             self.statusBar().showMessage("Juego actualizado.", 3000)
 
     def remove_game(self):
@@ -1581,9 +1792,16 @@ class MainWindow(QMainWindow):
     def _show_game_context_menu(self, pos):
         if not self.current_game_id:
             return
+        game_row_ctx = self.db.get_game(self.current_game_id)
+        list_row_ctx = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        from playnexus.services.media import resolve_game_manual_pdf
+        manual_ctx = resolve_game_manual_pdf(game_row_ctx, list_row=list_row_ctx) if game_row_ctx else ""
+
         menu = QMenu(self)
         play_act = menu.addAction("▶ Ejecutar juego")
         edit_act = menu.addAction("✎ Editar juego…")
+        ra_act = menu.addAction("🏆 RetroAchievements…")
+        manual_act = menu.addAction("📖 Ver Manual PDF…") if manual_ctx else None
         loc_act = menu.addAction("📂 Abrir ubicación del archivo")
         menu.addSeparator()
         del_act = menu.addAction("🗑 Quitar de la biblioteca")
@@ -1594,6 +1812,10 @@ class MainWindow(QMainWindow):
             self.launch_selected()
         elif action == edit_act:
             self.edit_selected_game()
+        elif action == ra_act:
+            self._open_selected_game_ra()
+        elif manual_act and action == manual_act:
+            self._open_selected_game_manual()
         elif action == loc_act:
             self.open_rom_location()
         elif action == del_act:
@@ -1661,6 +1883,7 @@ class MainWindow(QMainWindow):
             self.rom_manager_tab = RomManagerWidget(self.db, self._rom_manager_container)
             self.rom_manager_tab.list_updated.connect(self._on_rom_manager_list_updated)
             self.rom_manager_tab.edit_list_requested.connect(self._on_rom_manager_edit_list)
+            self.rom_manager_tab.games_metadata_updated.connect(self._on_rom_manager_games_updated)
             self._rom_manager_container.layout().addWidget(self.rom_manager_tab)
         return self.rom_manager_tab
 
@@ -1687,6 +1910,13 @@ class MainWindow(QMainWindow):
 
     def _on_rom_manager_edit_list(self, list_id: int):
         self._edit_list_by_id(list_id, from_rom_manager=True)
+
+    def _on_rom_manager_games_updated(self, list_id: int):
+        """Refresca datos de biblioteca cuando el scraper del Rom Manager completa metadatos."""
+        if hasattr(self, "frontend_tab"):
+            self.frontend_tab.refresh_data()
+        if self.current_list_id == list_id and self.main_tabs.currentIndex() == 0:
+            self.refresh_games()
 
     def _on_tab_changed(self, index: int):
         """Mantiene sincronizados los datos al alternar entre pestañas y suspende la multimedia inactiva."""
@@ -1852,6 +2082,10 @@ class MainWindow(QMainWindow):
             self.activateWindow()
             if hasattr(self, "gamepad") and self.gamepad:
                 self.gamepad.set_enabled(True)
+            try:
+                self.refresh_lists(select_id=self.current_list_id)
+            except Exception:
+                pass
 
         self.player_window.destroyed.connect(_on_player_closed)
         QTimer.singleShot(0, self.player_window._apply_show)

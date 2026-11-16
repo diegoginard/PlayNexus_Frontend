@@ -16,11 +16,13 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Callable
 
-from playnexus.services.media import IMAGE_EXTS, VIDEO_EXTS, clear_media_cache
+from playnexus.services.media import IMAGE_EXTS, PDF_EXTS, VIDEO_EXTS, clear_media_cache
 
 
 _VIDEO_KEYS = {"video", "snap"}
 _VIDEO_EXT_SET = {e.lower() for e in VIDEO_EXTS}
+_PDF_KEYS = {"manual"}
+_PDF_EXT_SET = {e.lower() for e in PDF_EXTS}
 _PAREN_TAG_RE = re.compile(r"\s*[\(\[].*?[\)\]]")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 
@@ -37,6 +39,7 @@ class MediaRequirementSpec:
     folder_path: str
     folder_exists: bool
     db_field: str
+    default_folder_name: str = ""
 
 
 @dataclass
@@ -136,19 +139,27 @@ def get_list_folder_for_media_key(list_row: dict[str, Any] | None, key: str) -> 
 
 
 def infer_media_kind(key: str, extensions: tuple[str, ...]) -> str:
-    """Determina si un slot corresponde a imagen o video según clave y extensiones."""
+    """Determina si un slot corresponde a imagen, video o manual PDF según clave y extensiones."""
     k = (key or "").strip().lower()
     if k in _VIDEO_KEYS:
         return "video"
+    if k in _PDF_KEYS:
+        return "pdf"
     if extensions and all(ext.lower() in _VIDEO_EXT_SET for ext in extensions):
         return "video"
+    if extensions and all(ext.lower() in _PDF_EXT_SET for ext in extensions):
+        return "pdf"
     return "image"
 
 
 def normalize_extensions_tuple(raw_exts: list[str] | tuple[str, ...] | None, media_kind: str) -> tuple[str, ...]:
     """Normaliza las extensiones declaradas en MEDIA_REQUIREMENTS."""
+    default_exts = (
+        VIDEO_EXTS if media_kind == "video"
+        else (PDF_EXTS if media_kind == "pdf" else IMAGE_EXTS)
+    )
     if not raw_exts:
-        return VIDEO_EXTS if media_kind == "video" else IMAGE_EXTS
+        return default_exts
     out: list[str] = []
     for ext in raw_exts:
         s = str(ext).strip().lower()
@@ -158,7 +169,7 @@ def normalize_extensions_tuple(raw_exts: list[str] | tuple[str, ...] | None, med
             s = f".{s}"
         if s not in out:
             out.append(s)
-    return tuple(out) if out else (VIDEO_EXTS if media_kind == "video" else IMAGE_EXTS)
+    return tuple(out) if out else default_exts
 
 
 def build_requirement_specs(
@@ -194,6 +205,7 @@ def build_requirement_specs(
                 folder_path=folder_path,
                 folder_exists=folder_exists,
                 db_field=get_db_field_for_media_key(key),
+                default_folder_name=str(item.get("folder") or key).strip(),
             )
         )
     return specs
@@ -288,7 +300,10 @@ def _match_slot_from_index(
             matched_stem_keys,
         )
 
-    fallback_exts = VIDEO_EXTS if spec.media_kind == "video" else IMAGE_EXTS
+    fallback_exts = (
+        VIDEO_EXTS if spec.media_kind == "video"
+        else (PDF_EXTS if spec.media_kind == "pdf" else IMAGE_EXTS)
+    )
 
     # 1. Búsqueda estricta por orden de extensiones definidas en MEDIA_REQUIREMENTS
     for cand in candidate_stems:
@@ -516,6 +531,7 @@ def audit_list_media(
     # Identificar archivos huérfanos en las carpetas para sugerencias de renombrado
     valid_exts_by_kind = {
         "video": set(VIDEO_EXTS),
+        "pdf": set(PDF_EXTS),
         "image": set(IMAGE_EXTS),
     }
     for spec in specs:
@@ -749,3 +765,67 @@ def format_file_size(size_bytes: int) -> str:
     if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.1f} KB"
     return f"{size_bytes / (1024 * 1024):.2f} MB"
+
+
+def suggest_media_root_for_list(list_row: dict[str, Any] | None) -> str:
+    """Sugiere una carpeta raíz razonable para crear subcarpetas de media faltantes."""
+    if not list_row:
+        return ""
+    media_root = str(list_row.get("media_path") or "").strip()
+    if media_root:
+        return media_root.replace("\\", "/")
+    for key in ("boxart_path", "wheel_path", "video_path", "cartart_path", "flyer_path", "marquee_path", "bezel_path", "manual_path"):
+        existing = str(list_row.get(key) or "").strip()
+        if existing:
+            parent = str(Path(existing).parent)
+            if parent and parent != existing:
+                return parent.replace("\\", "/")
+    roms_raw = str(list_row.get("roms_path") or "").strip()
+    if roms_raw:
+        first_rom_dir = roms_raw.split(";")[0].strip()
+        if first_rom_dir:
+            p = Path(first_rom_dir)
+            base_parent = p.parent if p.parent != p else p
+            return str(base_parent / "media").replace("\\", "/")
+    return ""
+
+
+def ensure_media_folders_for_list(
+    db: Any,
+    list_row: dict[str, Any],
+    specs: list[MediaRequirementSpec],
+    target_keys: list[str] | tuple[str, ...],
+    base_media_root: str,
+) -> list[str]:
+    """
+    Crea en disco las carpetas faltantes para `target_keys` bajo `base_media_root/<default_folder_name>`
+    y guarda las rutas en `db.update_list(...)`. Retorna los nombres de campos actualizados.
+    """
+    if not list_row or not base_media_root:
+        return []
+    root = Path(base_media_root)
+    root.mkdir(parents=True, exist_ok=True)
+    updates: dict[str, str] = {}
+    norm_root = str(root).replace("\\", "/")
+    if not str(list_row.get("media_path") or "").strip():
+        updates["media_path"] = norm_root
+
+    target_set = set(target_keys)
+    for spec in specs:
+        if spec.key not in target_set:
+            continue
+        if spec.folder_path and os.path.isdir(spec.folder_path):
+            continue
+        dest = Path(spec.folder_path) if spec.folder_path else (root / (spec.default_folder_name or spec.key))
+        dest.mkdir(parents=True, exist_ok=True)
+        norm_dest = str(dest).replace("\\", "/")
+        spec.folder_path = norm_dest
+        spec.folder_exists = True
+        updates[spec.db_field] = norm_dest
+        if spec.key == "discart":
+            updates.setdefault("cartart_path", norm_dest)
+
+    if updates and db is not None:
+        db.update_list(int(list_row["id"]), **updates)
+        clear_media_cache()
+    return sorted(updates.keys())

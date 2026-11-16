@@ -1,4 +1,4 @@
-# PlayNexus v1.2.0 — Frontend de Emulación para Windows
+# PlayNexus v1.3.0 — Frontend de Emulación para Windows
 
 ![PlayNexus Logo](PlayNexus_Logo.png)
 

@@ -43,6 +43,7 @@ class EmulatorManager(QObject):
     """
     emulator_started = Signal(str)      # Emite el nombre o título del emulador/juego
     emulator_finished = Signal(int)     # Emite el código de retorno al salir
+    telemetry_updated = Signal(int)     # Emite game_id tras registrar lanzamiento o tiempo de juego
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -64,6 +65,7 @@ class EmulatorManager(QObject):
         self._prev_toggle_bezel_down: bool = False
         self._current_emulator = None
         self._current_game = None
+        self._session_start_mono: float | None = None
         self._tick_counter = 0
         self._target_emu_hwnd: int | None = None
         self._exit_locked = False
@@ -119,8 +121,17 @@ class EmulatorManager(QObject):
         self.db = db
         self._current_emulator = emulator
         self._current_game = game
+        self._session_start_mono = time.monotonic()
         self._exit_locked = True
         self._target_emu_hwnd = None
+
+        if db and game and game.get("id") and not game.get("is_menu_target"):
+            try:
+                gid = int(game["id"])
+                db.record_game_launch(gid)
+                self.telemetry_updated.emit(gid)
+            except Exception:
+                pass
 
         # Detener temporizadores previos si existieran
         if self._bezel_delay_timer and self._bezel_delay_timer.isActive():
@@ -640,6 +651,19 @@ class EmulatorManager(QObject):
         self._timer.stop()
         self.active_proc = None
         self.clear_launching()
+
+        elapsed_sec = 0
+        if self._session_start_mono is not None:
+            elapsed_sec = int(max(0.0, time.monotonic() - self._session_start_mono))
+            self._session_start_mono = None
+        if elapsed_sec >= 2 and self.db and self._current_game and self._current_game.get("id") and not self._current_game.get("is_menu_target"):
+            try:
+                gid = int(self._current_game["id"])
+                rom_p = str(self._current_game.get("rom_path") or "")
+                updated = self.db.record_game_play_time(gid, elapsed_sec, rom_path=rom_p)
+                self.telemetry_updated.emit(int(updated["id"]) if updated else gid)
+            except Exception:
+                pass
 
         if self._bezel_delay_timer and self._bezel_delay_timer.isActive():
             self._bezel_delay_timer.stop()

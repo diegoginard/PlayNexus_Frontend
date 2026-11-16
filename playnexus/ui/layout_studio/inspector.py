@@ -10,6 +10,13 @@ from PySide6.QtWidgets import (
 )
 
 from playnexus.ui.layout_studio.models import LayoutElement, LayoutProject, CANONICAL_W, CANONICAL_H
+from playnexus.ui.shaders import (
+    SHADER_PRESETS,
+    SHADER_TARGETS,
+    normalize_shader_preset,
+    normalize_shader_target,
+)
+from playnexus.ui.particles import PARTICLE_PRESETS, normalize_particle_preset
 
 
 class LayoutInspectorWidget(QWidget):
@@ -24,6 +31,7 @@ class LayoutInspectorWidget(QWidget):
     layer_order_changed = Signal()
     layer_visibility_changed = Signal(str, bool)  # elem_id, is_visible
     skew_mode_toggled = Signal(bool)
+    project_effects_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -242,6 +250,34 @@ class LayoutInspectorWidget(QWidget):
         self.spec_layout = QVBoxLayout(self.spec_box)
         self.prop_layout.addWidget(self.spec_box)
 
+        # --- D. Efectos Globales del Layout (Shaders GPU y Partículas) ---
+        self.fx_box = QGroupBox("✨  Shaders GPU y Partículas del Layout")
+        self.fx_box.setStyleSheet("QGroupBox { font-weight: bold; color: #c4b5fd; }")
+        fx_layout = QVBoxLayout(self.fx_box)
+
+        fx_layout.addWidget(QLabel("Shader Retro (GPU GLSL / Fallback):"))
+        self.cb_project_shader = QComboBox()
+        for key, label in SHADER_PRESETS:
+            self.cb_project_shader.addItem(label, key)
+        self.cb_project_shader.currentIndexChanged.connect(self._on_project_effects_changed)
+        fx_layout.addWidget(self.cb_project_shader)
+
+        fx_layout.addWidget(QLabel("Objetivo del Shader:"))
+        self.cb_project_shader_target = QComboBox()
+        for key, label in SHADER_TARGETS:
+            self.cb_project_shader_target.addItem(label, key)
+        self.cb_project_shader_target.currentIndexChanged.connect(self._on_project_effects_changed)
+        fx_layout.addWidget(self.cb_project_shader_target)
+
+        fx_layout.addWidget(QLabel("Partículas Ambientales:"))
+        self.cb_project_particle = QComboBox()
+        for key, label in PARTICLE_PRESETS:
+            self.cb_project_particle.addItem(label, key)
+        self.cb_project_particle.currentIndexChanged.connect(self._on_project_effects_changed)
+        fx_layout.addWidget(self.cb_project_particle)
+
+        self.prop_layout.addWidget(self.fx_box)
+
         self.prop_layout.addStretch()
         scroll.setWidget(prop_container)
         main_layout.addWidget(scroll)
@@ -249,7 +285,38 @@ class LayoutInspectorWidget(QWidget):
     def set_project(self, project: LayoutProject | None):
         """Asigna el proyecto y regenera la lista de capas."""
         self.project = project
+        self._sync_project_effects_ui()
         self.refresh_layers()
+
+    def _sync_project_effects_ui(self):
+        self._updating_ui = True
+        try:
+            sh = normalize_shader_preset(getattr(self.project, "shader_preset", "none"))
+            tg = normalize_shader_target(getattr(self.project, "shader_target", "tv_rect"))
+            pt = normalize_particle_preset(getattr(self.project, "particle_preset", "none"))
+            for cb, val in (
+                (self.cb_project_shader, sh),
+                (self.cb_project_shader_target, tg),
+                (self.cb_project_particle, pt),
+            ):
+                idx = cb.findData(val)
+                if idx >= 0:
+                    cb.setCurrentIndex(idx)
+            self.cb_project_shader_target.setEnabled(sh != "none")
+        finally:
+            self._updating_ui = False
+
+    def _on_project_effects_changed(self):
+        if self._updating_ui or not self.project:
+            return
+        sh = str(self.cb_project_shader.currentData() or "none")
+        tg = str(self.cb_project_shader_target.currentData() or "tv_rect")
+        pt = str(self.cb_project_particle.currentData() or "none")
+        self.project.shader_preset = sh
+        self.project.shader_target = tg
+        self.project.particle_preset = pt
+        self.cb_project_shader_target.setEnabled(sh != "none")
+        self.project_effects_changed.emit()
 
     def refresh_layers(self):
         """Actualiza la lista visual de capas en orden de Z-Index descendente (estilo Photoshop)."""
@@ -403,7 +470,14 @@ class LayoutInspectorWidget(QWidget):
         elif elem.type == "effect":
             self.spec_layout.addWidget(QLabel("Tipo de Efecto:"))
             cb_eff = QComboBox()
-            cb_eff.addItems(["scanlines", "vignette"])
+            cb_eff.addItems([
+                "scanlines",
+                "vignette",
+                "crt_aperture",
+                "crt_bloom",
+                "lcd_handheld",
+                "vhs_arcade",
+            ])
             cb_eff.setCurrentText(elem.effect_type)
             cb_eff.currentTextChanged.connect(lambda t: self._update_elem_attr("effect_type", t))
             self.spec_layout.addWidget(cb_eff)

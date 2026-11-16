@@ -88,6 +88,9 @@ def generate_canonical_theme_layout_code(
     pointer_file: str | None = None,
     font_title: str | None = None,
     font_main: str | None = None,
+    shader_preset: str | None = None,
+    shader_target: str = "tv_rect",
+    particle_preset: str | None = None,
 ) -> str:
     """
     Genera el código fuente completo de un archivo 'theme_layout.py' autónomo y listo
@@ -146,6 +149,12 @@ def generate_canonical_theme_layout_code(
     font_title = font_title or "BebasNeue Bold.otf"
     font_main = font_main or "BebasNeue Bold.otf"
     tv_rect = tv_rect or (0.054, 0.196, 0.313, 0.430)
+
+    _raw_sp = str(shader_preset or "").strip().lower()
+    norm_shader = None if not _raw_sp or _raw_sp in ("none", "off", "nil") else _raw_sp
+    norm_target = "global" if str(shader_target or "").strip().lower() == "global" else "tv_rect"
+    _raw_pp = str(particle_preset or "").strip().lower()
+    norm_particle = None if not _raw_pp or _raw_pp in ("none", "off", "nil") else _raw_pp
 
     reqs = get_default_media_requirements(layout_type, is_cd)
     media_reqs_lines = []
@@ -294,6 +303,9 @@ class ThemeLayout(BaseLayout):
     # -------------------------------------------------------------------------
     # Pantalla CRT o monitor LCD: (x, y, w, h) en ratios de pantalla canónica (1920x1080)
     TV_RECT = {tv_rect!r}
+    SHADER_PRESET = {norm_shader!r}
+    SHADER_TARGET = {norm_target!r}
+    PARTICLE_PRESET = {norm_particle!r}
 
     # Cartucho o Disco
     DISC_RECT = {cart_rect_str}

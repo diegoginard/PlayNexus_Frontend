@@ -11,6 +11,8 @@ else:
 
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 VIDEO_EXTS = (".mp4", ".mkv", ".avi", ".webm", ".m4v")
+PDF_EXTS = (".pdf",)
+MANUAL_EXTS = PDF_EXTS
 
 # Caché en memoria de los contenidos de cada carpeta de medios:
 # norm_folder_path -> (mtime, {nombre_archivo_minusculas: ruta_completa})
@@ -72,6 +74,7 @@ def detect_media_folders(base_path: str | Path | None, media_root: str | Path | 
         "cabinet_path": "",
         "marquee_path": "",
         "bezel_path": "",
+        "manual_path": "",
     }
 
     target_dir = None
@@ -176,6 +179,7 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
         "cabinet": None,
         "marquee": None,
         "bezel": None,
+        "manual": None,
     }
 
     rom_path = ""
@@ -261,6 +265,10 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
                         break
             media["bezel"] = b_found
 
+        manual_folder = row_dict.get("manual_path")
+        if manual_folder:
+            media["manual"] = find_media_file(manual_folder, stem, PDF_EXTS)
+
     # Resolución de medios para Menú de Sistemas (cuando el item representa una lista/consola)
     if (not stem or row_dict.get("is_menu_target")) and row_dict:
         sys_name = (row_dict.get("title") or "").strip()
@@ -323,6 +331,12 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
         if c_path and os.path.isfile(c_path):
             media["boxart"] = c_path
 
+    # Manual PDF asignado individualmente al juego (games.manual_file_path)
+    if row_dict and not media["manual"] and not row_dict.get("is_menu_target"):
+        m_path = row_dict.get("manual_file_path")
+        if m_path and os.path.isfile(m_path):
+            media["manual"] = str(m_path).replace("\\", "/")
+
     if not media["discart"] and media["cartart"]:
         media["discart"] = media["cartart"]
     elif not media["cartart"] and media["discart"]:
@@ -330,6 +344,29 @@ def resolve_game_media(*args, **kwargs) -> dict[str, str | None]:
 
     media["snap"] = media["video"]
     return media
+
+
+def resolve_game_manual_pdf(game_row: dict | None, list_row: dict | None = None) -> str | None:
+    """
+    Resuelve explícitamente la ruta a un manual PDF para un juego:
+      1. Ruta individual asignada al juego (`manual_file_path`).
+      2. Carpeta de manuales de la lista (`manual_path` declarada o configurada) + `<stem>.pdf`.
+    """
+    if not game_row or game_row.get("is_menu_target"):
+        return None
+    direct = str(game_row.get("manual_file_path") or "").strip()
+    if direct and os.path.isfile(direct):
+        return direct.replace("\\", "/")
+    rom_path = str(game_row.get("rom_path") or "").strip()
+    stem = Path(rom_path).stem if rom_path else str(game_row.get("rom_name") or "").strip()
+    manual_folder = str(
+        (list_row or {}).get("manual_path")
+        or game_row.get("manual_path")
+        or ""
+    ).strip()
+    if manual_folder and stem:
+        return find_media_file(manual_folder, stem, PDF_EXTS)
+    return None
 
 
 def is_game_vertical(game: dict | None) -> bool:

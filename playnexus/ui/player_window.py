@@ -1,15 +1,16 @@
 import sys
 import os
 import time
+import random
 from collections import deque
 import subprocess
 from pathlib import Path
 import playnexus
-from PySide6.QtCore import Qt, QPoint, QSize, QTimer, QEvent
+from PySide6.QtCore import Qt, QPoint, QSize, QTimer, QEvent, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QKeySequence, QShortcut, QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel,
-    QMessageBox, QStackedWidget
+    QMessageBox, QStackedWidget, QGraphicsOpacityEffect
 )
 from playnexus.db import Database
 from playnexus.services.library import enrich_game_dict
@@ -20,11 +21,28 @@ from playnexus.services.controls import (
     ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
     ACTION_NAV_BACK, ACTION_SELECT, ACTION_PAGE_UP, ACTION_PAGE_DOWN,
     ACTION_CLOSE_FRONTEND, ACTION_CLOSE_EMULATOR,
-    ACTION_MUTE, ACTION_TOGGLE_FPS, matches_action,
-    get_binding
+    ACTION_MUTE, ACTION_TOGGLE_FPS, ACTION_TOGGLE_FAVORITE, ACTION_FRONTEND_MENU,
+    matches_action, get_binding
 )
 from playnexus.services.gamepad import get_gamepad_manager
+from playnexus.ui.frontend_quick_menu import (
+    FrontendQuickMenuOverlay, QuickSearchOverlay,
+    filter_and_sort_runtime_games, execute_system_power_action,
+)
 from playnexus.ui.layouts import LAYOUT_REGISTRY, get_available_layouts, create_layout, resolve_theme_name
+from playnexus.ui.shaders import (
+    install_layout_runtime_fx_hook,
+    resolve_widget_effect_settings,
+    SHADER_LABELS,
+    normalize_shader_preset,
+    normalize_shader_target,
+    normalize_effects_perf,
+)
+from playnexus.ui.particles import (
+    RetroEffectOverlayWidget,
+    PARTICLE_LABELS,
+    normalize_particle_preset,
+)
 
 PLAYER_STYLESHEET = """
 QMainWindow, QWidget {
@@ -53,6 +71,23 @@ class PlayerWindow(QMainWindow):
         self.current_list_id = None
         self.current_game_id = None
         self.games_cache = []
+        self._all_list_games = []
+        self._last_loaded_list_id = None
+        self._runtime_filter_mode = "all"
+        self._runtime_sort_mode = "title"
+        self._quick_menu_overlay = None
+        self._quick_search_overlay = None
+        self._manual_viewer_overlay = None
+        self._transition_overlay = None
+        self._transition_anim = None
+        self._roulette_timer = QTimer(self)
+        self._roulette_timer.setSingleShot(True)
+        self._roulette_timer.timeout.connect(self._on_roulette_tick)
+        self._roulette_steps = []
+        self._roulette_winner_id = None
+        self._roulette_winner_idx = 0
+        self._roulette_active = False
+        self.requested_return_to_configurator = False
         self.active_layouts = {}
         self.navigation_history = []
 
@@ -74,6 +109,7 @@ class PlayerWindow(QMainWindow):
         # Gestor de mandos y joysticks en tiempo real
         self.gamepad_manager = get_gamepad_manager(self.db)
         self.gamepad_manager.action_triggered.connect(self._on_gamepad_action)
+        self.gamepad_manager.trigger_pressed.connect(self._on_gamepad_trigger)
 
         self._build_ui()
         self._setup_shortcuts()
@@ -83,6 +119,10 @@ class PlayerWindow(QMainWindow):
         self.layout_stack = QStackedWidget()
         self.layout_stack.setContentsMargins(0, 0, 0, 0)
         self.setCentralWidget(self.layout_stack)
+
+        # Capa transparente de partículas ambientales y shaders post-proceso globales
+        self._retro_overlay = RetroEffectOverlayWidget(self)
+        self._retro_overlay.hide()
 
         # Contador de FPS en tiempo real (Overlay flotante con estilo Arcade)
         self._frame_times = deque()
@@ -129,11 +169,42 @@ class PlayerWindow(QMainWindow):
         if fps_key_str.strip().upper() != "F3":
             self._fps_shortcut_alt = QShortcut(QKeySequence(Qt.Key_F3), self, self.toggle_fps_counter)
 
+        # Notificación flotante (toast) discreta para acciones rápidas como Favoritos
+        self.toast_label = QLabel(self)
+        self.toast_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.toast_label.setAlignment(Qt.AlignCenter)
+        self.toast_label.hide()
+        self._toast_timer = QTimer(self)
+        self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(self.toast_label.hide)
+
+        try:
+            from playnexus.services.emulator_manager import EMULATOR_MANAGER
+            EMULATOR_MANAGER.telemetry_updated.connect(self._on_telemetry_updated)
+        except Exception:
+            pass
+
+    def focusNextPrevChild(self, next: bool) -> bool:
+        """Evita que la tecla Tab robe el foco del Frontend al asignarse al Menú Rápido."""
+        return False
+
     def eventFilter(self, watched, event):
         # Reiniciar contador de inactividad ante cualquier interacción de usuario
         if event.type() in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
             if not self._is_screensaver_active():
                 self._restart_screensaver_timer()
+
+        if event.type() == QEvent.KeyPress and not self._is_screensaver_active():
+            from playnexus.services.emulator_manager import EMULATOR_MANAGER
+            if not EMULATOR_MANAGER.is_launching_or_running():
+                overlay = self._active_overlay()
+                if overlay is not None and watched is not overlay and not overlay.isAncestorOf(watched):
+                    overlay.keyPressEvent(event)
+                    return True
+                if overlay is None and matches_action(event, ACTION_FRONTEND_MENU, self.db):
+                    self.open_quick_menu()
+                    event.accept()
+                    return True
 
         if event.type() == QEvent.Paint:
             now = time.perf_counter()
@@ -144,9 +215,27 @@ class PlayerWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, "_retro_overlay") and self._retro_overlay:
+            self._retro_overlay.setGeometry(self.rect())
         self._reposition_fps_label()
+        if hasattr(self, "toast_label") and self.toast_label and self.toast_label.isVisible():
+            x = max(20, (self.width() - self.toast_label.width()) // 2)
+            self.toast_label.move(x, 24)
+            self.toast_label.raise_()
         if hasattr(self, "_screensaver_widget") and self._screensaver_widget:
             self._screensaver_widget.setGeometry(self.rect())
+            self._screensaver_widget.raise_()
+        if hasattr(self, "_quick_menu_overlay") and self._quick_menu_overlay and self._quick_menu_overlay.isVisible():
+            self._quick_menu_overlay.setGeometry(self.rect())
+            self._quick_menu_overlay.raise_()
+        if hasattr(self, "_quick_search_overlay") and self._quick_search_overlay and self._quick_search_overlay.isVisible():
+            self._quick_search_overlay.setGeometry(self.rect())
+            self._quick_search_overlay.raise_()
+        if hasattr(self, "_manual_viewer_overlay") and self._manual_viewer_overlay and self._manual_viewer_overlay.isVisible():
+            self._manual_viewer_overlay.setGeometry(self.rect())
+            self._manual_viewer_overlay.raise_()
+        if hasattr(self, "_transition_overlay") and self._transition_overlay and self._transition_overlay.isVisible():
+            self._transition_overlay.setGeometry(self.layout_stack.geometry())
 
     def _reposition_fps_label(self):
         if hasattr(self, "fps_label") and self.fps_label:
@@ -198,6 +287,424 @@ class PlayerWindow(QMainWindow):
         self.fps_label.adjustSize()
         self._reposition_fps_label()
 
+    def _active_overlay(self):
+        """Retorna el overlay arcade actualmente visible (ManualViewer, QuickSearch o QuickMenu)."""
+        if self._manual_viewer_overlay and self._manual_viewer_overlay.isVisible():
+            return self._manual_viewer_overlay
+        if self._quick_search_overlay and self._quick_search_overlay.isVisible():
+            return self._quick_search_overlay
+        if self._quick_menu_overlay and self._quick_menu_overlay.isVisible():
+            return self._quick_menu_overlay
+        return None
+
+    def open_quick_menu(self):
+        """Abre el Menú Rápido Arcade superpuesto sin pausar el video actual."""
+        if self._is_screensaver_active():
+            return
+        if self._quick_search_overlay and self._quick_search_overlay.isVisible():
+            self.close_quick_search()
+        if self._quick_menu_overlay is None:
+            self._quick_menu_overlay = FrontendQuickMenuOverlay(self.db, self)
+            self._quick_menu_overlay.close_requested.connect(self.close_quick_menu)
+            self._quick_menu_overlay.toggle_favorite_requested.connect(self.toggle_current_favorite)
+            self._quick_menu_overlay.random_game_requested.connect(self.start_random_roulette)
+            self._quick_menu_overlay.search_requested.connect(self.open_quick_search)
+            self._quick_menu_overlay.open_manual_requested.connect(self.open_manual_viewer)
+            self._quick_menu_overlay.filter_sort_changed.connect(self._on_runtime_filter_sort_changed)
+            self._quick_menu_overlay.layout_selected.connect(self._on_quick_layout_selected)
+            self._quick_menu_overlay.shader_preset_changed.connect(self._on_quick_shader_changed)
+            self._quick_menu_overlay.particle_preset_changed.connect(self._on_quick_particle_changed)
+            self._quick_menu_overlay.system_action_requested.connect(self._on_system_action_requested)
+
+        list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        list_name = (list_row.get("name") if list_row else "") or "Frontend"
+        cur_game = next((g for g in self.games_cache if g.get("id") == self.current_game_id), None)
+        full_game = (self.db.get_game(self.current_game_id) if self.current_game_id else None) or cur_game
+        from playnexus.services.media import resolve_game_manual_pdf
+        is_menu = self._is_menu_list(self.current_list_id)
+        manual_pdf = resolve_game_manual_pdf(full_game, list_row=list_row) if (full_game and not is_menu) else ""
+        active_layout_name = (list_row.get("layout") if list_row else "") or "Wheel"
+        avail_layouts = get_available_layouts(for_frontend=True)
+        sh_cfg = normalize_shader_preset(self.db.get_setting("frontend_shader_preset", "layout"), allow_layout=True)
+        pt_cfg = normalize_particle_preset(self.db.get_setting("frontend_particle_preset", "layout"), allow_layout=True)
+
+        self._quick_menu_overlay.open_with_context(
+            list_name=list_name,
+            is_menu_list=is_menu,
+            current_game=full_game,
+            filter_mode=self._runtime_filter_mode,
+            sort_mode=self._runtime_sort_mode,
+            active_layout_name=active_layout_name,
+            available_layouts=avail_layouts,
+            shader_preset=sh_cfg,
+            particle_preset=pt_cfg,
+            manual_path=manual_pdf,
+        )
+        self._quick_menu_overlay.setGeometry(self.rect())
+        self._quick_menu_overlay.show()
+        self._quick_menu_overlay.raise_()
+        self._quick_menu_overlay.setFocus()
+
+    def close_quick_menu(self):
+        if self._quick_menu_overlay:
+            self._quick_menu_overlay.hide()
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.setFocus()
+
+    def open_manual_viewer(self):
+        """Abre el visor de manuales PDF superpuesto sin pausar el video de fondo."""
+        if self._is_screensaver_active() or self._is_menu_list(self.current_list_id):
+            return
+        if not self.current_game_id:
+            return
+        list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
+        cur_game = next((g for g in self.games_cache if g.get("id") == self.current_game_id), None)
+        full_game = self.db.get_game(self.current_game_id) or cur_game
+        if not full_game:
+            return
+
+        from playnexus.services.media import resolve_game_manual_pdf
+        pdf = resolve_game_manual_pdf(full_game, list_row=list_row)
+        if not pdf:
+            self._show_toast("Este juego no tiene un manual PDF asignado.")
+            return
+
+        if self._quick_menu_overlay and self._quick_menu_overlay.isVisible():
+            self._quick_menu_overlay.hide()
+        if self._quick_search_overlay and self._quick_search_overlay.isVisible():
+            self._quick_search_overlay.hide()
+
+        if self._manual_viewer_overlay is None:
+            from playnexus.ui.manual_viewer import ManualViewerOverlay
+            self._manual_viewer_overlay = ManualViewerOverlay(self.db, self)
+            self._manual_viewer_overlay.close_requested.connect(self.close_manual_viewer)
+
+        self._manual_viewer_overlay.open_manual(pdf, game_title=full_game.get("title", ""))
+
+    def close_manual_viewer(self):
+        if self._manual_viewer_overlay:
+            self._manual_viewer_overlay.hide()
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.setFocus()
+
+    def open_quick_search(self):
+        """Abre el buscador rápido con teclado en pantalla sobre la lista activa."""
+        if self._is_screensaver_active():
+            return
+        if self._quick_menu_overlay and self._quick_menu_overlay.isVisible():
+            self._quick_menu_overlay.hide()
+        if self._quick_search_overlay is None:
+            self._quick_search_overlay = QuickSearchOverlay(self.db, self)
+            self._quick_search_overlay.close_requested.connect(self.close_quick_search)
+            self._quick_search_overlay.game_selected_requested.connect(self._on_quick_search_selected)
+
+        pool = self._all_list_games or self.games_cache
+        self._quick_search_overlay.open_with_games(pool)
+        self._quick_search_overlay.setGeometry(self.rect())
+        self._quick_search_overlay.show()
+        self._quick_search_overlay.raise_()
+        self._quick_search_overlay.setFocus()
+
+    def close_quick_search(self):
+        if self._quick_search_overlay:
+            self._quick_search_overlay.hide()
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.setFocus()
+
+    def _on_quick_search_selected(self, game_id: int):
+        """Salta al juego encontrado en Búsqueda Rápida y confirma sus medios."""
+        if not any(g.get("id") == game_id for g in self.games_cache) and self._runtime_filter_mode != "all":
+            self._runtime_filter_mode = "all"
+            self._apply_runtime_filter_and_sort(restore_game_id=game_id)
+            return
+        cur = self.layout_stack.currentWidget()
+        if cur:
+            cur.select_game_by_id(game_id)
+            if hasattr(cur, "_commit_selection"):
+                cur._commit_selection()
+        self._on_game_selected(game_id)
+        item = next((g for g in self.games_cache if g.get("id") == game_id), None)
+        if item:
+            self._show_toast(f"🔍 {item.get('title', '')}", "#a5b4fc")
+
+    def _on_runtime_filter_sort_changed(self, filter_mode: str, sort_mode: str):
+        self._runtime_filter_mode = filter_mode
+        self._runtime_sort_mode = sort_mode
+        self._apply_runtime_filter_and_sort()
+
+    def _on_quick_layout_selected(self, layout_name: str):
+        if not self.current_list_id or not layout_name:
+            return
+        self.db.update_list(self.current_list_id, layout=layout_name)
+        keep_gid = self.current_game_id
+        self.select_list(self.current_list_id, push_history=False, restore_game_id=keep_gid)
+        self._show_toast(f"🎨 Layout: {layout_name}", "#a78bfa")
+
+    def _on_quick_shader_changed(self, shader_preset: str):
+        norm = normalize_shader_preset(shader_preset, allow_layout=True)
+        self.db.set_setting("frontend_shader_preset", norm)
+        self._sync_visual_effects()
+        lbl = "Del Layout" if norm == "layout" else SHADER_LABELS.get(norm, norm)
+        self._show_toast(f"📺 Shader: {lbl}", "#38bdf8")
+
+    def _on_quick_particle_changed(self, particle_preset: str):
+        norm = normalize_particle_preset(particle_preset, allow_layout=True)
+        self.db.set_setting("frontend_particle_preset", norm)
+        self._sync_visual_effects()
+        lbl = "Del Layout" if norm == "layout" else PARTICLE_LABELS.get(norm, norm)
+        self._show_toast(f"✨ Partículas: {lbl}", "#c084fc")
+
+    def _sync_visual_effects(self):
+        """Sincroniza shader GPU/software y partículas activas en el layout y overlay."""
+        user_sh = normalize_shader_preset(self.db.get_setting("frontend_shader_preset", "layout"), allow_layout=True)
+        raw_tg = self.db.get_setting("frontend_shader_target", "layout").strip().lower()
+        user_tg = "layout" if raw_tg in ("", "layout", "auto") else normalize_shader_target(raw_tg)
+        user_pt = normalize_particle_preset(self.db.get_setting("frontend_particle_preset", "layout"), allow_layout=True)
+        user_perf = normalize_effects_perf(self.db.get_setting("frontend_effects_perf", "high"))
+
+        cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
+        if cur is not None:
+            cur._pn_external_overlay = True
+            cur._pn_shader_override = user_sh
+            cur._pn_shader_target_override = user_tg
+            cur._pn_particle_override = user_pt
+            cur._pn_effects_perf = user_perf
+            sh_eff, tg_eff, pt_eff, perf_eff = resolve_widget_effect_settings(cur)
+            cur.update()
+        else:
+            sh_eff = "none" if user_sh == "layout" else user_sh
+            tg_eff = "tv_rect" if user_tg == "layout" else user_tg
+            pt_eff = "none" if user_pt == "layout" else user_pt
+            perf_eff = user_perf
+
+        if hasattr(self, "_retro_overlay") and self._retro_overlay is not None:
+            self._retro_overlay.configure(
+                shader_preset=sh_eff,
+                shader_target=tg_eff,
+                particle_preset=pt_eff,
+                perf_profile=perf_eff,
+            )
+            if hasattr(self, "fps_label") and self.fps_label and self.fps_label.isVisible():
+                self.fps_label.raise_()
+            if hasattr(self, "toast_label") and self.toast_label and self.toast_label.isVisible():
+                self.toast_label.raise_()
+            active_ov = self._active_overlay() if hasattr(self, "_active_overlay") else None
+            if active_ov is not None:
+                active_ov.raise_()
+
+    def _on_system_action_requested(self, action: str):
+        if action == "return_configurator":
+            self.requested_return_to_configurator = True
+            self._confirmed_exit = True
+            self.close()
+        elif action == "exit_frontend":
+            self._confirmed_exit = True
+            self.close()
+        elif action in ("restart_pc", "shutdown_pc"):
+            try:
+                execute_system_power_action(action)
+            except Exception as e:
+                QMessageBox.critical(self, "Error de energía", f"No se pudo ejecutar la acción del sistema:\n{e}")
+
+    def start_random_roulette(self):
+        """
+        Ruleta aleatoria animada con desaceleración visual respetando Commit-on-Release:
+        avanza pasos de rueda sin cargar artes ni pausar el video previo hasta detenerse en el ganador.
+        """
+        pool = self.games_cache
+        n = len(pool)
+        if n <= 0:
+            return
+        if n == 1:
+            gid = pool[0].get("id")
+            if gid:
+                self._show_toast(f"🎲 {pool[0].get('title', 'Juego')}", "#fbbf24")
+            return
+
+        cur_idx = 0
+        for idx, g in enumerate(pool):
+            if g.get("id") == self.current_game_id:
+                cur_idx = idx
+                break
+
+        cand_indices = [i for i in range(n) if i != cur_idx]
+        winner_idx = random.choice(cand_indices)
+        winner = pool[winner_idx]
+        self._roulette_winner_id = winner.get("id")
+        self._roulette_winner_idx = winner_idx
+
+        total_dist = (winner_idx - cur_idx) % n
+        while total_dist < 14:
+            total_dist += n
+
+        delays = [36, 38, 42, 46, 52, 60, 70, 84, 100, 118, 140, 168, 200, 240]
+        num_ticks = len(delays)
+        steps_list: list[tuple[int, int]] = []
+        tail_ticks = min(6, total_dist)
+        head_ticks = num_ticks - tail_ticks
+        remaining = total_dist - tail_ticks
+
+        for t_idx in range(num_ticks):
+            if t_idx < head_ticks and head_ticks > 0:
+                left = head_ticks - t_idx
+                step = remaining // left
+                remaining -= step
+            else:
+                step = 1
+            if step > 0 or t_idx == num_ticks - 1:
+                steps_list.append((step, delays[t_idx]))
+
+        self._roulette_steps = steps_list
+        self._roulette_active = True
+        self._show_toast("🎲 Girando ruleta aleatoria…", "#fbbf24", duration_ms=2600)
+        self._on_roulette_tick()
+
+    def _stop_random_roulette(self, commit: bool = False):
+        self._roulette_active = False
+        if self._roulette_timer.isActive():
+            self._roulette_timer.stop()
+        self._roulette_steps = []
+        if commit and self._roulette_winner_id is not None:
+            cur = self.layout_stack.currentWidget()
+            winner_gid = self._roulette_winner_id
+            if cur:
+                if hasattr(cur, "_commit_timer"):
+                    try:
+                        cur._commit_timer.stop()
+                    except Exception:
+                        pass
+                cur.select_game_by_id(winner_gid)
+                if hasattr(cur, "_commit_selection"):
+                    cur._commit_selection()
+            self._on_game_selected(winner_gid)
+
+    def _on_roulette_tick(self):
+        if not self._roulette_active or not self._roulette_steps:
+            self._roulette_active = False
+            return
+
+        step, delay_ms = self._roulette_steps.pop(0)
+        cur = self.layout_stack.currentWidget()
+        is_last = (len(self._roulette_steps) == 0)
+
+        if cur and step > 0:
+            if hasattr(cur, "_navigate_steps"):
+                # ThemeLayout: avanza visualmente la ruleta sin pausar video ni disparar carga de artes
+                cur._navigate_steps(step)
+            elif hasattr(cur, "wheel_list") and hasattr(cur.wheel_list, "setCurrentRow"):
+                total = cur.wheel_list.count()
+                if total > 0:
+                    nxt = (cur.wheel_list.currentRow() + step) % total
+                    if is_last:
+                        cur.wheel_list.setCurrentRow(nxt)
+                    else:
+                        cur.wheel_list.blockSignals(True)
+                        cur.wheel_list.setCurrentRow(nxt)
+                        cur.wheel_list.blockSignals(False)
+            elif hasattr(cur, "table") and hasattr(cur.table, "selectRow"):
+                total = cur.table.rowCount()
+                if total > 0:
+                    nxt = (cur.table.currentRow() + step) % total
+                    if is_last:
+                        cur.table.selectRow(nxt)
+                    else:
+                        cur.table.blockSignals(True)
+                        cur.table.selectRow(nxt)
+                        cur.table.blockSignals(False)
+            elif hasattr(cur, "selected_index") and hasattr(cur, "games") and cur.games:
+                cur.selected_index = (cur.selected_index + step) % len(cur.games)
+                cur.update()
+
+        if is_last:
+            self._roulette_active = False
+            winner_gid = self._roulette_winner_id
+            winner = next((g for g in self.games_cache if g.get("id") == winner_gid), None)
+            if cur and winner_gid is not None:
+                if hasattr(cur, "_commit_timer"):
+                    try:
+                        cur._commit_timer.stop()
+                    except Exception:
+                        pass
+                if hasattr(cur, "_commit_selection"):
+                    cur._commit_selection()
+                else:
+                    cur.select_game_by_id(winner_gid)
+            if winner_gid is not None:
+                self._on_game_selected(winner_gid)
+            if winner:
+                self._show_toast(f"🎲 ¡Salió: {winner.get('title', 'Juego')}!", "#4ade80", duration_ms=2600)
+        else:
+            self._roulette_timer.start(delay_ms)
+
+    def _show_toast(self, message: str, accent: str = "#fbbf24", duration_ms: int = 2100):
+        """Muestra una insignia flotante discreta sin interrumpir video ni ruleta."""
+        if not hasattr(self, "toast_label") or not self.toast_label:
+            return
+        self.toast_label.setStyleSheet(f"""
+            background-color: rgba(12, 14, 22, 0.90);
+            color: {accent};
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 9px 18px;
+            border-radius: 10px;
+            border: 1px solid {accent};
+        """)
+        self.toast_label.setText(message)
+        self.toast_label.adjustSize()
+        x = max(20, (self.width() - self.toast_label.width()) // 2)
+        y = 24
+        self.toast_label.move(x, y)
+        self.toast_label.show()
+        self.toast_label.raise_()
+        if hasattr(self, "_toast_timer"):
+            self._toast_timer.start(duration_ms)
+
+    def _on_telemetry_updated(self, game_id: int):
+        """Refresca en RAM la telemetría de un juego tras iniciar o cerrar sesión."""
+        if not self.db or not self.games_cache:
+            return
+        row = self.db.get_game(game_id)
+        if not row:
+            return
+        for item in self.games_cache:
+            if item.get("id") == game_id:
+                item["play_count"] = row.get("play_count", 0)
+                item["play_time_seconds"] = row.get("play_time_seconds", 0)
+                item["last_played"] = row.get("last_played", "")
+                item["is_favorite"] = row.get("is_favorite", 0)
+                break
+
+    def toggle_current_favorite(self):
+        """Alterna favorito del juego seleccionado sin pausar videos ni reiniciar la ruleta."""
+        cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
+        gid = self.current_game_id
+        if not gid and cur and hasattr(cur, "get_selected_game_id"):
+            gid = cur.get_selected_game_id()
+        if not gid:
+            return
+
+        selected_item = next((g for g in self.games_cache if g.get("id") == gid), None)
+        if selected_item and selected_item.get("is_menu_target"):
+            self._show_toast("★ Favoritos disponible dentro de una lista de juegos", "#94a3b8")
+            return
+
+        new_state = self.db.toggle_game_favorite(gid)
+        if new_state is None:
+            return
+
+        title = (selected_item.get("title") if selected_item else None) or "Juego"
+        if selected_item is not None:
+            selected_item["is_favorite"] = 1 if new_state else 0
+
+        if new_state:
+            self._show_toast(f"⭐ Agregado a Favoritos: {title}", "#fbbf24")
+        else:
+            self._show_toast(f"☆ Quitado de Favoritos: {title}", "#cbd5e1")
+
     def toggle_fps_counter(self):
         """Muestra u oculta el contador de FPS en pantalla y persiste la preferencia."""
         if hasattr(self, "fps_label") and self.fps_label:
@@ -214,6 +721,8 @@ class PlayerWindow(QMainWindow):
         """Pausa la reproducción en el layout activo al iniciar un emulador (sin destruir el video)."""
         if hasattr(self, "_screensaver_timer"):
             self._screensaver_timer.stop()
+        if hasattr(self, "_retro_overlay") and self._retro_overlay is not None:
+            self._retro_overlay.stop()
         active_layout = self.layout_stack.currentWidget()
         if active_layout:
             if hasattr(active_layout, "pause_media") and callable(active_layout.pause_media):
@@ -230,6 +739,7 @@ class PlayerWindow(QMainWindow):
     def resume_active_media(self):
         """Reanuda la reproducción en el layout activo al cerrar el emulador."""
         self._restart_screensaver_timer()
+        self._sync_visual_effects()
         active_layout = self.layout_stack.currentWidget()
         if active_layout:
             if hasattr(active_layout, "resume_media") and callable(active_layout.resume_media):
@@ -245,6 +755,11 @@ class PlayerWindow(QMainWindow):
 
     def stop_all_active_media(self):
         """Detiene completamente cualquier reproducción activa en TODOS los layouts para evitar audio residual."""
+        self._stop_random_roulette(commit=False)
+        if hasattr(self, "_retro_overlay") and self._retro_overlay is not None:
+            self._retro_overlay.stop()
+        if getattr(self, "_transition_anim", None) and self._transition_anim.state():
+            self._transition_anim.stop()
         for inst in list(self.active_layouts.values()):
             if hasattr(inst, "stop_media") and callable(inst.stop_media):
                 try:
@@ -316,6 +831,25 @@ class PlayerWindow(QMainWindow):
             return
 
         self._restart_screensaver_timer()
+
+        overlay = self._active_overlay()
+        if overlay is not None:
+            overlay.keyPressEvent(event)
+            event.accept()
+            return
+
+        if self._roulette_active and not event.isAutoRepeat():
+            self._stop_random_roulette(commit=False)
+
+        if matches_action(event, ACTION_FRONTEND_MENU, self.db):
+            self.open_quick_menu()
+            event.accept()
+            return
+
+        if matches_action(event, ACTION_TOGGLE_FAVORITE, self.db):
+            self.toggle_current_favorite()
+            event.accept()
+            return
 
         if matches_action(event, ACTION_TOGGLE_FPS, self.db):
             self.toggle_fps_counter()
@@ -429,6 +963,13 @@ class PlayerWindow(QMainWindow):
                         cur._update_current_selection()
         super().changeEvent(event)
 
+    def _on_gamepad_trigger(self, trigger_name: str):
+        """Despacha gatillos/bumpers (LT/RT/LB/RB) hacia el visor de manuales si está visible."""
+        overlay = self._active_overlay()
+        if overlay is not None and hasattr(overlay, "handle_trigger"):
+            if self.isVisible() and not self.isMinimized():
+                overlay.handle_trigger(trigger_name)
+
     def _on_gamepad_action(self, action_id: str):
         """Procesa acciones provenientes de cualquier mando/joystick conectado."""
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
@@ -453,6 +994,22 @@ class PlayerWindow(QMainWindow):
                 self.raise_()
             else:
                 return
+
+        overlay = self._active_overlay()
+        if overlay is not None:
+            overlay.handle_action(action_id)
+            return
+
+        if self._roulette_active:
+            self._stop_random_roulette(commit=False)
+
+        if action_id == ACTION_FRONTEND_MENU:
+            self.open_quick_menu()
+            return
+
+        if action_id == ACTION_TOGGLE_FAVORITE:
+            self.toggle_current_favorite()
+            return
 
         if action_id == ACTION_TOGGLE_FPS:
             self.toggle_fps_counter()
@@ -738,6 +1295,8 @@ class PlayerWindow(QMainWindow):
 
         inst = create_layout(layout_name)
         inst.db = self.db
+        inst._pn_external_overlay = True
+        install_layout_runtime_fx_hook(inst)
         inst.game_selected.connect(self._on_game_selected)
         inst.game_activated.connect(self._on_game_activated)
         if hasattr(inst, "nav_back_requested"):
@@ -752,6 +1311,7 @@ class PlayerWindow(QMainWindow):
         Selecciona una lista o menú y carga su layout específico asignado.
         Si proviene de un menú (lista de listas), este método carga el layout propio de la sub-lista.
         """
+        prev_list_id = self.current_list_id
         if push_history and self.current_list_id and self.current_list_id != list_id:
             self.navigation_history.append((self.current_list_id, self.current_game_id))
 
@@ -760,6 +1320,13 @@ class PlayerWindow(QMainWindow):
         row = self.db.get_list(list_id)
         if not row:
             return
+
+        if row.get("list_type") == "filtered":
+            try:
+                from playnexus.services.library import sync_filtered_list_games
+                sync_filtered_list_games(self.db, list_id)
+            except Exception:
+                pass
 
         # Aplicar el layout asignado a esta lista o buscar si coincide con un tema
         chosen_layout = row["layout"] or ""
@@ -784,6 +1351,17 @@ class PlayerWindow(QMainWindow):
             target_layout = "Wheel"
 
         # Detener multimedia de todos los layouts antes de cambiar para evitar audio residual
+        self._stop_random_roulette(commit=False)
+        prev_widget = self.layout_stack.currentWidget()
+        prev_pixmap = None
+        if prev_widget is not None and prev_widget.isVisible() and self.isVisible():
+            trans_mode = self.db.get_setting("frontend_view_transition", "fade").strip().lower()
+            if trans_mode != "instant":
+                try:
+                    prev_pixmap = prev_widget.grab()
+                except Exception:
+                    prev_pixmap = None
+
         self.stop_all_active_media()
 
         inst = self._get_or_create_layout(target_layout)
@@ -792,15 +1370,61 @@ class PlayerWindow(QMainWindow):
 
         self.current_game_id = None
         self.load_games(restore_game_id=restore_game_id)
+        self._sync_visual_effects()
+
+        if prev_pixmap is not None and not prev_pixmap.isNull() and (prev_widget is not inst or prev_list_id != list_id):
+            self._start_view_transition(prev_pixmap)
+
+    def _start_view_transition(self, snapshot_pixmap):
+        """Aplica un crossfade suave de 220 ms usando la captura de la vista previa."""
+        try:
+            if self._transition_anim and self._transition_anim.state():
+                self._transition_anim.stop()
+            if self._transition_overlay is None:
+                self._transition_overlay = QLabel(self)
+                self._transition_overlay.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+                self._transition_overlay.setScaledContents(True)
+            self._transition_overlay.setPixmap(snapshot_pixmap)
+            self._transition_overlay.setGeometry(self.layout_stack.geometry())
+
+            eff = QGraphicsOpacityEffect(self._transition_overlay)
+            eff.setOpacity(1.0)
+            self._transition_overlay.setGraphicsEffect(eff)
+            self._transition_overlay.show()
+            self._transition_overlay.raise_()
+
+            anim = QPropertyAnimation(eff, b"opacity", self)
+            anim.setDuration(220)
+            anim.setStartValue(1.0)
+            anim.setEndValue(0.0)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+
+            def _cleanup_trans():
+                if self._transition_overlay:
+                    self._transition_overlay.hide()
+                    self._transition_overlay.setGraphicsEffect(None)
+
+            anim.finished.connect(_cleanup_trans)
+            self._transition_anim = anim
+            anim.start()
+        except Exception:
+            if self._transition_overlay:
+                self._transition_overlay.hide()
 
     def load_games(self, restore_game_id: int | None = None):
         if not self.current_list_id:
+            self._all_list_games = []
             self.games_cache = []
             return
 
         row = self.db.get_list(self.current_list_id)
         if not row:
             return
+
+        if self._last_loaded_list_id != self.current_list_id:
+            self._last_loaded_list_id = self.current_list_id
+            self._runtime_filter_mode = "all"
+            self._runtime_sort_mode = str(row.get("sort_mode") or "title")
 
         if "list_type" in row.keys() and row["list_type"] == "menu":
             menu_media_path = row["media_path"] if "media_path" in row.keys() else ""
@@ -846,6 +1470,7 @@ class PlayerWindow(QMainWindow):
                     "source": "menu",
                     "icon_path": t_dict.get("icon_path", ""),
                 })
+            self._all_list_games = items
             self.games_cache = items
             current_layout = self.layout_stack.currentWidget()
             if current_layout:
@@ -863,14 +1488,29 @@ class PlayerWindow(QMainWindow):
             return
 
         rows = self.db.get_games(self.current_list_id, search_term="", enriched=True)
-        self.games_cache = [enrich_game_dict(r) for r in rows]
+        self._all_list_games = [enrich_game_dict(r) for r in rows]
+        self._apply_runtime_filter_and_sort(restore_game_id=restore_game_id)
 
+    def _apply_runtime_filter_and_sort(self, restore_game_id: int | None = None):
+        """Aplica el filtro y orden en caliente sobre `_all_list_games` y actualiza la vista."""
+        filtered = filter_and_sort_runtime_games(
+            self._all_list_games, self._runtime_filter_mode, self._runtime_sort_mode
+        )
+        if not filtered and self._all_list_games and self._runtime_filter_mode != "all":
+            self._show_toast("⚠ Ningún juego coincide con el filtro; mostrando todos", "#f59e0b")
+            self._runtime_filter_mode = "all"
+            filtered = filter_and_sort_runtime_games(
+                self._all_list_games, self._runtime_filter_mode, self._runtime_sort_mode
+            )
+
+        self.games_cache = filtered
         current_layout = self.layout_stack.currentWidget()
         if current_layout:
             current_layout.set_games(self.games_cache)
             target_select_id = None
-            if restore_game_id and any(item["id"] == restore_game_id for item in self.games_cache):
-                target_select_id = restore_game_id
+            keep_id = restore_game_id or self.current_game_id
+            if keep_id and any(item["id"] == keep_id for item in self.games_cache):
+                target_select_id = keep_id
             elif self.games_cache:
                 target_select_id = self.games_cache[0]["id"]
 
@@ -1065,4 +1705,18 @@ def run_player():
     window.apply_video_settings()
     QTimer.singleShot(0, window._apply_show)
     code = app.exec()
+    if getattr(window, "requested_return_to_configurator", False):
+        try:
+            import subprocess
+            from pathlib import Path
+            if getattr(sys, "frozen", False):
+                cfg_exe = Path(sys.executable).resolve().parent / "PlayNexus_Config.exe"
+                if cfg_exe.exists():
+                    subprocess.Popen([str(cfg_exe)], cwd=str(cfg_exe.parent))
+            else:
+                entry_cfg = Path(__file__).resolve().parents[2] / "entry_config.py"
+                if entry_cfg.exists():
+                    subprocess.Popen([sys.executable, str(entry_cfg)], cwd=str(entry_cfg.parent))
+        except Exception:
+            pass
     os._exit(code)

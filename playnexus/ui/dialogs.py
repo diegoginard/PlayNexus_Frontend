@@ -1,3 +1,4 @@
+from playnexus.db import APP_DIR
 from pathlib import Path
 import json
 import shutil
@@ -13,7 +14,8 @@ from PySide6.QtWidgets import (
 from playnexus.services.library import (
     normalize_extensions, parse_extensions_list,
     parse_rom_folders, format_rom_folders,
-    FILTERABLE_FIELDS, FILTER_OPERATORS, game_matches_filter,
+    FILTERABLE_FIELDS, FILTER_OPERATORS, SORT_MODES, SMART_COLLECTION_PRESETS,
+    game_matches_filter,
     scan_rom_folder, import_scanned_games
 )
 from playnexus.services.themes import get_layout_media_spec
@@ -322,6 +324,20 @@ class ListDialog(QDialog):
         self.filter_match_mode_combo.currentIndexChanged.connect(self._update_filter_preview)
         filt_form.addRow("Criterio de evaluación", self.filter_match_mode_combo)
 
+        self.smart_preset_label = QLabel("Colección inteligente")
+        self.smart_preset_combo = QComboBox()
+        self.smart_preset_combo.addItem("— Reglas personalizadas —", "")
+        for p in SMART_COLLECTION_PRESETS:
+            self.smart_preset_combo.addItem(p["label"], p["id"])
+        self.smart_preset_combo.activated.connect(self._on_smart_preset_activated)
+        filt_form.addRow(self.smart_preset_label, self.smart_preset_combo)
+
+        self.sort_mode_label = QLabel("Orden de juegos")
+        self.sort_mode_combo = QComboBox()
+        for s_key, s_label in SORT_MODES:
+            self.sort_mode_combo.addItem(s_label, s_key)
+        filt_form.addRow(self.sort_mode_label, self.sort_mode_combo)
+
         filt_vbox.addLayout(filt_form)
 
         # Encabezado de reglas de filtrado
@@ -488,7 +504,7 @@ class ListDialog(QDialog):
                 self.loading_path_edit.setText(self._normalize_path(existing["loading_path"]))
             elif existing.get("loading_in_path"):
                 self.loading_path_edit.setText(self._normalize_path(existing["loading_in_path"]))
-            for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel"):
+            for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel", "manual"):
                 field_name = f"{k}_path"
                 if field_name in existing.keys() and existing[field_name]:
                     self._media_values[k] = self._normalize_path(existing[field_name])
@@ -500,6 +516,11 @@ class ListDialog(QDialog):
                 idx_m = self.filter_match_mode_combo.findData(mode)
                 if idx_m >= 0:
                     self.filter_match_mode_combo.setCurrentIndex(idx_m)
+
+                sort_val = existing.get("sort_mode") or "title"
+                idx_sm = self.sort_mode_combo.findData(sort_val)
+                if idx_sm >= 0:
+                    self.sort_mode_combo.setCurrentIndex(idx_sm)
 
                 raw_rules = existing.get("filter_rules", "[]")
                 try:
@@ -607,6 +628,12 @@ class ListDialog(QDialog):
             self.filter_emulator_combo.setVisible(is_filtered)
         if hasattr(self, "filter_preview_widget"):
             self.filter_preview_widget.setVisible(is_filtered)
+        if hasattr(self, "smart_preset_label"):
+            self.smart_preset_label.setVisible(is_filtered)
+            self.smart_preset_combo.setVisible(is_filtered)
+        if hasattr(self, "sort_mode_label"):
+            self.sort_mode_label.setVisible(is_filtered or is_games)
+            self.sort_mode_combo.setVisible(is_filtered or is_games)
 
         if is_menu:
             if not self.platform_edit.text().strip():
@@ -631,6 +658,46 @@ class ListDialog(QDialog):
             if not self.filter_rule_rows:
                 self._add_filter_rule_row()
             self._on_filter_source_changed()
+
+    def _on_smart_preset_activated(self):
+        """Aplica reglas, criterio y orden de una colección inteligente predefinida."""
+        preset_id = self.smart_preset_combo.currentData()
+        if not preset_id:
+            return
+        preset = next((p for p in SMART_COLLECTION_PRESETS if p["id"] == preset_id), None)
+        if not preset:
+            return
+
+        for r_data in list(self.filter_rule_rows):
+            self._remove_filter_rule_row(r_data)
+
+        for r in preset.get("rules", []):
+            self._add_filter_rule_row(
+                field=r.get("field", "is_favorite"),
+                op=r.get("operator", "equals"),
+                val=r.get("value", "1"),
+            )
+
+        idx_m = self.filter_match_mode_combo.findData(preset.get("match_mode", "all"))
+        if idx_m >= 0:
+            self.filter_match_mode_combo.setCurrentIndex(idx_m)
+
+        idx_s = self.sort_mode_combo.findData(preset.get("sort_mode", "title"))
+        if idx_s >= 0:
+            self.sort_mode_combo.setCurrentIndex(idx_s)
+
+        curr_name = self.name_edit.text().strip()
+        preset_names = {p["default_name"] for p in SMART_COLLECTION_PRESETS}
+        if not curr_name or curr_name in preset_names:
+            self.name_edit.setText(preset["default_name"])
+
+        self._update_filter_preview()
+
+    def selected_sort_mode(self) -> str:
+        """Retorna el modo de ordenación elegido para la lista."""
+        if hasattr(self, "sort_mode_combo"):
+            return str(self.sort_mode_combo.currentData() or "title")
+        return "title"
 
     def _add_filter_rule_row(self, field="sourcefile", op="contains", val=""):
         row_widget = QWidget()
@@ -725,7 +792,7 @@ class ListDialog(QDialog):
                 if not self.platform_edit.text().strip():
                     self.platform_edit.setText(src_list.get("platform", ""))
                 pass  # media_path ya no se usa como campo global
-                for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel"):
+                for k in ("boxart", "flyer", "wheel", "video", "cartart", "cabinet", "marquee", "bezel", "manual"):
                     src_k = f"{k}_path"
                     if src_k in src_list and src_list[src_k] and k not in self._media_values:
                         val = self._normalize_path(src_list[src_k])
@@ -925,7 +992,7 @@ class ListDialog(QDialog):
         """Abre un selector para elegir la carpeta de pantallas de carga (Loading HUD)."""
         current = self.loading_path_edit.text().strip() if hasattr(self, "loading_path_edit") else ""
         initial_dir = current if (current and Path(current).is_dir()) else str(APP_DIR)
-        path = QFileDialog.getExistingDirectory(
+        path = QFileDialog.getExistingDirectory(  
             self, "Seleccionar carpeta de Loading Screens",
             initial_dir
         )
@@ -1098,6 +1165,7 @@ class ListDialog(QDialog):
         cabinet_path = self._media_values.get("cabinet", "") if "cabinet" in active_keys else ""
         marquee_path = self._media_values.get("marquee", "") if "marquee" in active_keys else ""
         bezel_path = self._media_values.get("bezel", "") if "bezel" in active_keys else ""
+        manual_path = self._media_values.get("manual", "") if "manual" in active_keys else ""
         xml_path = self._normalize_path(self.xml_edit.text().strip()) if (list_type == "games" and hasattr(self, "xml_edit")) else ""
         roms_path_val = format_rom_folders(self.get_rom_folders()) if list_type == "games" else ""
         icon_path = self._normalize_path(self.icon_path_edit.text().strip()) if hasattr(self, "icon_path_edit") else ""
@@ -1159,6 +1227,7 @@ class ListDialog(QDialog):
             self._normalize_path(self.bezel_hud_path_edit.text().strip()),
             self._normalize_path(self.loading_path_edit.text().strip()),
             self._normalize_path(self.loading_path_edit.text().strip()),
+            manual_path,
         )
 
 
@@ -2268,13 +2337,67 @@ class GameEditDialog(QDialog):
         self.notes_edit.setMaximumHeight(70)
         form.addRow("Notas / Sinopsis", self.notes_edit)
 
+        self.favorite_cb = QCheckBox("⭐ Marcar como juego favorito")
+        self.favorite_cb.setChecked(bool(int(game.get("is_favorite") or 0)))
+        form.addRow("Favorito", self.favorite_cb)
+
+        self.tags_edit = QLineEdit(game.get("tags") or "")
+        self.tags_edit.setPlaceholderText("Etiquetas separadas por coma (ej: arcade, coop, local)")
+        form.addRow("Etiquetas", self.tags_edit)
+
+        manual_row = QHBoxLayout()
+        self.manual_file_edit = QLineEdit(game.get("manual_file_path") or "")
+        self.manual_file_edit.setPlaceholderText("Ruta explícita de manual PDF individual (opcional)")
+        btn_pick_manual = QPushButton("📄 PDF…")
+        btn_pick_manual.clicked.connect(self._pick_manual_pdf)
+        btn_view_manual = QPushButton("📖 Ver")
+        btn_view_manual.setToolTip("Abrir el manual PDF en el visor integrado")
+        btn_view_manual.clicked.connect(self._open_manual_preview)
+        manual_row.addWidget(self.manual_file_edit, 1)
+        manual_row.addWidget(btn_pick_manual)
+        manual_row.addWidget(btn_view_manual)
+        form.addRow("Manual PDF (individual)", manual_row)
+
         layout.addLayout(form)
         layout.addWidget(meta_group)
+
+        from playnexus.db import format_play_time
+        stats_group = QGroupBox("Actividad y Telemetría")
+        stats_layout = QHBoxLayout(stats_group)
+        play_count = int(game.get("play_count") or 0)
+        play_time_txt = format_play_time(game.get("play_time_seconds") or 0)
+        last_played_txt = str(game.get("last_played") or "").strip() or "Nunca"
+        self.stats_summary_label = QLabel(
+            f"<b>Partidas:</b> {play_count}   ·   <b>Tiempo:</b> {play_time_txt}   ·   <b>Última sesión:</b> {last_played_txt}"
+        )
+        self.stats_summary_label.setStyleSheet("color: #cbd5e1;")
+        stats_layout.addWidget(self.stats_summary_label, 1)
+        reset_stats_btn = QPushButton("↺ Reiniciar stats")
+        reset_stats_btn.setToolTip("Poner en cero las partidas y el tiempo jugado de este juego")
+        reset_stats_btn.clicked.connect(self._reset_telemetry)
+        stats_layout.addWidget(reset_stats_btn)
+        layout.addWidget(stats_group)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _reset_telemetry(self):
+        answer = QMessageBox.question(
+            self,
+            "Reiniciar estadísticas",
+            f"¿Querés reiniciar a 0 las partidas y el tiempo jugado de '{self.game['title']}'?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if answer == QMessageBox.Yes and self.db and self.game.get("id"):
+            if self.db.reset_game_telemetry(self.game["id"]):
+                self.game["play_count"] = 0
+                self.game["play_time_seconds"] = 0
+                self.game["last_played"] = ""
+                self.stats_summary_label.setText(
+                    "<b>Partidas:</b> 0   ·   <b>Tiempo:</b> 0 min   ·   <b>Última sesión:</b> Nunca"
+                )
 
     def pick_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo de juego", "", "Todos los archivos (*.*)")
@@ -2355,10 +2478,49 @@ class GameEditDialog(QDialog):
                 bezel_hud_mode=bezel_hud_mode,
                 launch_arguments=args,
                 notes=notes,
+                is_favorite=1 if self.favorite_cb.isChecked() else 0,
+                tags=self.tags_edit.text().strip(),
+                manual_file_path=self.manual_file_edit.text().strip(),
             )
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Error al guardar", f"No se pudo guardar la información del juego:\n{e}")
+
+    def _pick_manual_pdf(self):
+        cur = self.manual_file_edit.text().strip()
+        start_dir = str(Path(cur).parent) if cur and Path(cur).parent.is_dir() else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar Manual PDF individual",
+            start_dir,
+            "Manuales PDF (*.pdf);;Todos los archivos (*.*)",
+        )
+        if path:
+            self.manual_file_edit.setText(path)
+
+    def _open_manual_preview(self):
+        from playnexus.services.media import resolve_game_manual_pdf
+        from playnexus.ui.manual_viewer import ManualViewerDialog
+
+        explicit = self.manual_file_edit.text().strip()
+        cand_row = dict(self.game)
+        cand_row["manual_file_path"] = explicit
+        list_row = self.db.get_list(cand_row.get("list_id")) if cand_row.get("list_id") else None
+        pdf = resolve_game_manual_pdf(cand_row, list_row=list_row)
+        if not pdf:
+            QMessageBox.information(
+                self,
+                "Sin manual PDF",
+                "Todavía no hay ningún archivo .pdf asignado para este juego.",
+            )
+            return
+        dlg = ManualViewerDialog(
+            pdf,
+            game_title=self.title_edit.text().strip() or cand_row.get("title", ""),
+            db=self.db,
+            parent=self,
+        )
+        dlg.exec()
 
 
 RESOLUTIONS_LIST = [

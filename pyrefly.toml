@@ -1,0 +1,20 @@
+preset = "basic"
+
+project-includes = [
+    "playnexus/**/*.py",
+    "entry_config.py",
+    "entry_launcher.py",
+]
+
+project-excludes = [
+    ".venv/**",
+    "build/**",
+    "dist/**",
+    "**/__pycache__/**",
+    "Layouts/**/backups/**",
+    "scratch/**",
+]
+
+search-path = ["."]
+python-interpreter-path = ".venv/Scripts/python.exe"
+python-platform = "windows"

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import math
+import time
 from pathlib import Path
 from typing import Any
-from PySide6.QtCore import Qt, QRectF, QPointF, QPoint, Signal, QSize, QRect, QUrl
+from PySide6.QtCore import Qt, QRectF, QPointF, QPoint, Signal, QSize, QRect, QUrl, QTimer
 from PySide6.QtGui import (
     QPainter, QColor, QFont, QPen, QBrush, QPainterPath, QTransform,
     QPolygonF, QImage, QPixmap, QCursor
@@ -21,6 +22,13 @@ from playnexus.ui.layout_studio.runtime_hook import (
     compute_element_animation,
 )
 from playnexus.services.media import resolve_game_media
+from playnexus.ui.shaders import (
+    apply_shader_to_image,
+    normalize_shader_preset,
+    normalize_shader_target,
+    render_shader_overlay_painter,
+)
+from playnexus.ui.particles import ParticleSystem, normalize_particle_preset
 
 HANDLE_SIZE = 10
 PIN_HANDLE_SIZE = 12
@@ -74,6 +82,14 @@ class LayoutCanvasWidget(QWidget):
         # Extractor ligero de 1 fotograma para mostrar vista pausada real de videos .mp4 (0% CPU en reposo)
         self._grab_player: QMediaPlayer | None = None
         self._grab_sink: QVideoSink | None = None
+
+        # Motor liviano de previsualización de shaders/partículas del proyecto
+        self._fx_particles = ParticleSystem("none", "balanced")
+        self._fx_start_ts: float = time.monotonic()
+        self._fx_last_ts: float = self._fx_start_ts
+        self._fx_timer = QTimer(self)
+        self._fx_timer.setInterval(33)
+        self._fx_timer.timeout.connect(self._on_fx_tick)
 
         self._sample_game: dict[str, Any] = {
             "title": "Street Fighter II: The World Warrior",
@@ -163,10 +179,45 @@ class LayoutCanvasWidget(QWidget):
         self._interaction_mode = MODE_NONE
         self._is_previewing_anim = False
         self._pixmap_cache.clear()
+        self.refresh_project_effects()
+        self.update()
+
+    def refresh_project_effects(self):
+        """Sincroniza shader y partículas del proyecto sobre el lienzo WYSIWYG."""
+        if not self.project:
+            self._fx_particles.set_preset("none")
+            self._fx_timer.stop()
+            return
+        sh = normalize_shader_preset(getattr(self.project, "shader_preset", "none"))
+        tg = normalize_shader_target(getattr(self.project, "shader_target", "tv_rect"))
+        pt = normalize_particle_preset(getattr(self.project, "particle_preset", "none"))
+        self._fx_particles.set_preset(pt)
+
+        if self.layout_instance is not None:
+            self.layout_instance._studio_shader_preset = sh
+            self.layout_instance._studio_shader_target = tg
+            self.layout_instance._studio_particle_preset = pt
+
+        if pt != "none" or sh == "vhs_arcade":
+            if not self._fx_timer.isActive():
+                self._fx_last_ts = time.monotonic()
+                self._fx_timer.start()
+        else:
+            self._fx_timer.stop()
+        self.update()
+
+    def _on_fx_tick(self):
+        now = time.monotonic()
+        dt = max(0.004, min(0.08, now - self._fx_last_ts))
+        self._fx_last_ts = now
+        if self._fx_particles.preset != "none":
+            self._fx_particles.step(dt)
         self.update()
 
     def cleanup(self):
         """Libera de forma segura cualquier recurso multimedia activo."""
+        if hasattr(self, "_fx_timer") and self._fx_timer.isActive():
+            self._fx_timer.stop()
         if self._grab_player:
             try:
                 self._grab_player.stop()
@@ -342,9 +393,23 @@ class LayoutCanvasWidget(QWidget):
         painter.scale(scale, scale)
 
         sorted_elements = sorted(self.project.elements, key=lambda e: e.z_index)
+        sh_preset = normalize_shader_preset(getattr(self.project, "shader_preset", "none"))
+        sh_target = normalize_shader_target(getattr(self.project, "shader_target", "tv_rect"))
+        pt_preset = normalize_particle_preset(getattr(self.project, "particle_preset", "none"))
+        if self.layout_instance is not None:
+            self.layout_instance._studio_shader_preset = sh_preset
+            self.layout_instance._studio_shader_target = sh_target
+            self.layout_instance._studio_particle_preset = pt_preset
+
         for elem in sorted_elements:
             if elem.visible:
                 self._draw_element(painter, elem)
+
+        elapsed_fx = time.monotonic() - self._fx_start_ts
+        if pt_preset != "none":
+            self._fx_particles.paint(painter, QRectF(0, 0, CANONICAL_W, CANONICAL_H), scale=1.0)
+        if sh_preset != "none" and sh_target == "global":
+            render_shader_overlay_painter(painter, QRect(0, 0, CANONICAL_W, CANONICAL_H), sh_preset, elapsed=elapsed_fx)
 
         painter.restore()
 
@@ -501,15 +566,28 @@ class LayoutCanvasWidget(QWidget):
         if elem.type == "video":
             # Mostrar captura estática o el fotograma real extraído del video .mp4
             pix = self._resolve_pixmap(elem) or self._video_frame_pix
+            sh_preset = normalize_shader_preset(getattr(self.project, "shader_preset", "none") if self.project else "none")
+            sh_target = normalize_shader_target(getattr(self.project, "shader_target", "tv_rect") if self.project else "tv_rect")
+            elapsed_fx = time.monotonic() - self._fx_start_ts
+
             if pix and not pix.isNull():
                 painter.fillRect(rect, QColor(0, 0, 0))
-                painter.drawPixmap(irect, pix)
+                if sh_preset != "none" and sh_target == "tv_rect":
+                    filtered_img = apply_shader_to_image(
+                        pix.toImage(),
+                        irect.size(),
+                        sh_preset,
+                        elapsed=elapsed_fx,
+                    )
+                    painter.drawImage(irect, filtered_img)
+                else:
+                    painter.drawPixmap(irect, pix)
 
-                # Filtro CRT sutil con scanlines
-                painter.fillRect(rect, QColor(0, 0, 0, 35))
-                painter.setPen(QPen(QColor(0, 0, 0, 55), 1))
-                for ly in range(int(y), int(y + h), 4):
-                    painter.drawLine(int(x), ly, int(x + w), ly)
+                    # Filtro CRT sutil con scanlines nativo del placeholder
+                    painter.fillRect(rect, QColor(0, 0, 0, 35))
+                    painter.setPen(QPen(QColor(0, 0, 0, 55), 1))
+                    for ly in range(int(y), int(y + h), 4):
+                        painter.drawLine(int(x), ly, int(x + w), ly)
 
                 # Insignia sutil de vista pausada
                 painter.setPen(QPen(QColor("#38bdf8"), 1.2))
@@ -650,9 +728,14 @@ class LayoutCanvasWidget(QWidget):
                 spacing = max(int(elem.effect_param), 2)
                 for ly in range(int(y), int(y + h), spacing):
                     painter.drawLine(int(x), ly, int(x + w), ly)
-            elif elem.effect_type == "vignette":
-                painter.setPen(QPen(QColor(0, 0, 0, int(255 * elem.effect_intensity)), 10))
-                painter.drawRect(rect)
+            else:
+                render_shader_overlay_painter(
+                    painter,
+                    rect,
+                    elem.effect_type,
+                    elapsed=time.monotonic() - self._fx_start_ts,
+                    intensity=elem.effect_intensity,
+                )
 
         painter.restore()
 

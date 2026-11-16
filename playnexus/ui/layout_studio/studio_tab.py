@@ -30,11 +30,13 @@ from playnexus.ui.layout_studio.inspector import LayoutInspectorWidget
 from playnexus.ui.layout_studio.code_editor import LayoutCodeEditorWidget
 from playnexus.ui.layout_studio.runtime_hook import (
     get_trimmed_image_info, should_trim_alpha,
-    install_studio_overrides, update_studio_overrides,
+    install_studio_overrides, update_studio_overrides, update_studio_effects,
     extract_elements_from_theme_instance,
     sync_quiet_studio_instance,
     measure_native_layer_bbox,
 )
+from playnexus.ui.shaders import normalize_shader_preset, normalize_shader_target
+from playnexus.ui.particles import normalize_particle_preset
 
 
 class NewLayoutDialog(QDialog):
@@ -499,6 +501,7 @@ class LayoutStudioWidget(QWidget):
         self.inspector.layer_order_changed.connect(self._on_layer_order_changed)
         self.inspector.layer_visibility_changed.connect(self._on_layer_visibility_changed)
         self.inspector.skew_mode_toggled.connect(self.canvas.set_skew_mode)
+        self.inspector.project_effects_changed.connect(self._on_project_effects_changed)
         self.side_tabs.addTab(self.inspector, "🎨  Inspector Visual")
 
         self.code_editor = LayoutCodeEditorWidget(self)
@@ -847,6 +850,38 @@ class LayoutStudioWidget(QWidget):
             except Exception:
                 pass
 
+        # Extraer Shaders GPU y Partículas declarados explícitamente o en STUDIO_EFFECTS
+        fx_parsed: dict[str, Any] = {}
+        if code:
+            try:
+                tree_fx = ast.parse(code)
+                for node in ast.walk(tree_fx):
+                    if isinstance(node, ast.Assign):
+                        for tgt in node.targets:
+                            if isinstance(tgt, ast.Name):
+                                if tgt.id == "STUDIO_EFFECTS" and isinstance(node.value, ast.Dict):
+                                    fx_parsed.update(ast.literal_eval(node.value) or {})
+                                elif tgt.id == "SHADER_PRESET" and "shader_preset" not in fx_parsed:
+                                    fx_parsed["shader_preset"] = ast.literal_eval(node.value)
+                                elif tgt.id == "SHADER_TARGET" and "shader_target" not in fx_parsed:
+                                    fx_parsed["shader_target"] = ast.literal_eval(node.value)
+                                elif tgt.id == "PARTICLE_PRESET" and "particle_preset" not in fx_parsed:
+                                    fx_parsed["particle_preset"] = ast.literal_eval(node.value)
+            except Exception:
+                pass
+
+        if inst is not None:
+            if "shader_preset" not in fx_parsed and hasattr(inst, "SHADER_PRESET"):
+                fx_parsed["shader_preset"] = getattr(inst, "SHADER_PRESET", None)
+            if "shader_target" not in fx_parsed and hasattr(inst, "SHADER_TARGET"):
+                fx_parsed["shader_target"] = getattr(inst, "SHADER_TARGET", "tv_rect")
+            if "particle_preset" not in fx_parsed and hasattr(inst, "PARTICLE_PRESET"):
+                fx_parsed["particle_preset"] = getattr(inst, "PARTICLE_PRESET", None)
+
+        proj.shader_preset = normalize_shader_preset(fx_parsed.get("shader_preset"))
+        proj.shader_target = normalize_shader_target(fx_parsed.get("shader_target"))
+        proj.particle_preset = normalize_particle_preset(fx_parsed.get("particle_preset"))
+
         return proj
 
     # -------------------------------------------------------------------------
@@ -916,6 +951,12 @@ class LayoutStudioWidget(QWidget):
         if test_widget is not None:
             try:
                 update_studio_overrides(test_widget, self.current_project.elements)
+                update_studio_effects(
+                    test_widget,
+                    shader_preset=self.current_project.shader_preset,
+                    shader_target=self.current_project.shader_target,
+                    particle_preset=self.current_project.particle_preset,
+                )
             except Exception:
                 pass
         self.canvas.update()
@@ -938,6 +979,23 @@ class LayoutStudioWidget(QWidget):
     def _on_skew_mode_toggled(self, checked: bool):
         self.canvas.set_skew_mode(checked)
 
+    def _on_project_effects_changed(self):
+        if not self.current_project:
+            return
+        self.canvas.refresh_project_effects()
+        test_widget = getattr(self, "_test_layout_widget", None)
+        if test_widget is not None:
+            try:
+                update_studio_effects(
+                    test_widget,
+                    shader_preset=self.current_project.shader_preset,
+                    shader_target=self.current_project.shader_target,
+                    particle_preset=self.current_project.particle_preset,
+                )
+            except Exception:
+                pass
+        self._sync_project_to_code()
+
     def _sync_project_to_code(self):
         """Actualiza el código Python cuando ocurren cambios visuales."""
         if self._is_syncing or not self.current_project:
@@ -945,6 +1003,38 @@ class LayoutStudioWidget(QWidget):
         self._is_syncing = True
 
         current_code = self._cached_code or self.code_editor.get_code()
+        sh_val = normalize_shader_preset(getattr(self.current_project, "shader_preset", "none"))
+        tg_val = normalize_shader_target(getattr(self.current_project, "shader_target", "tv_rect"))
+        pt_val = normalize_particle_preset(getattr(self.current_project, "particle_preset", "none"))
+        sh_lit = None if sh_val == "none" else sh_val
+        pt_lit = None if pt_val == "none" else pt_val
+
+        # Si el layout declara constantes explícitas SHADER_PRESET / PARTICLE_PRESET, mantenerlas sincronizadas
+        if re.search(r"^[ \t]*SHADER_PRESET\s*=", current_code, flags=re.MULTILINE):
+            current_code = re.sub(
+                r"^([ \t]*)SHADER_PRESET\s*=.*$",
+                rf"\1SHADER_PRESET = {sh_lit!r}",
+                current_code,
+                count=1,
+                flags=re.MULTILINE,
+            )
+        if re.search(r"^[ \t]*SHADER_TARGET\s*=", current_code, flags=re.MULTILINE):
+            current_code = re.sub(
+                r"^([ \t]*)SHADER_TARGET\s*=.*$",
+                rf"\1SHADER_TARGET = {tg_val!r}",
+                current_code,
+                count=1,
+                flags=re.MULTILINE,
+            )
+        if re.search(r"^[ \t]*PARTICLE_PRESET\s*=", current_code, flags=re.MULTILINE):
+            current_code = re.sub(
+                r"^([ \t]*)PARTICLE_PRESET\s*=.*$",
+                rf"\1PARTICLE_PRESET = {pt_lit!r}",
+                current_code,
+                count=1,
+                flags=re.MULTILINE,
+            )
+
         # Si el layout usa la lista ELEMENTS = [...] (plantillas generadas por Studio)
         if "ELEMENTS = [" in current_code and "STUDIO_ELEMENTS = [" not in current_code:
             elements_code = []
@@ -959,17 +1049,23 @@ class LayoutStudioWidget(QWidget):
             # para evitar doble reescalado o doble desplazamiento al aplicar los overrides.
             new_code = current_code
 
-            # Persistir STUDIO_ELEMENTS y el hook de runtime al final del módulo
+            studio_effects = {
+                "shader_preset": sh_lit,
+                "shader_target": tg_val,
+                "particle_preset": pt_lit,
+            }
+            # Persistir STUDIO_ELEMENTS, STUDIO_EFFECTS y el hook de runtime al final del módulo
             studio_lines = [f"    {elem.to_dict()!r}," for elem in sorted(self.current_project.elements, key=lambda e: e.z_index)]
             studio_block = (
                 "# --- PLAYNEXUS STUDIO OVERRIDES START ---\n"
                 "STUDIO_ELEMENTS = [\n" + "\n".join(studio_lines) + "\n]\n"
+                f"STUDIO_EFFECTS = {studio_effects!r}\n"
                 "try:\n"
                 "    from playnexus.ui.layout_studio.runtime_hook import install_studio_overrides as _install_studio_overrides\n"
                 "    _orig_init = ThemeLayout.__init__\n"
                 "    def _studio_patched_init(self, *args, **kwargs):\n"
                 "        _orig_init(self, *args, **kwargs)\n"
-                "        _install_studio_overrides(self, STUDIO_ELEMENTS)\n"
+                "        _install_studio_overrides(self, STUDIO_ELEMENTS, **STUDIO_EFFECTS)\n"
                 "    if not getattr(ThemeLayout.__init__, '_is_studio_patched', False):\n"
                 "        _orig_init = ThemeLayout.__init__\n"
                 "        _studio_patched_init._is_studio_patched = True\n"
@@ -1196,6 +1292,12 @@ class LayoutStudioWidget(QWidget):
         if test_widget is not None:
             try:
                 update_studio_overrides(test_widget, self.current_project.elements)
+                update_studio_effects(
+                    test_widget,
+                    shader_preset=self.current_project.shader_preset,
+                    shader_target=self.current_project.shader_target,
+                    particle_preset=self.current_project.particle_preset,
+                )
             except Exception:
                 pass
 
@@ -1352,7 +1454,13 @@ class LayoutStudioWidget(QWidget):
             container_layout.setSpacing(0)
 
             layout_widget = layout_cls(self.current_project.name, container)
-            install_studio_overrides(layout_widget, self.current_project.elements)
+            install_studio_overrides(
+                layout_widget,
+                self.current_project.elements,
+                shader_preset=self.current_project.shader_preset,
+                shader_target=self.current_project.shader_target,
+                particle_preset=self.current_project.particle_preset,
+            )
             self._test_layout_widget = layout_widget
             container_layout.addWidget(layout_widget, 1)
 

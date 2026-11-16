@@ -41,9 +41,9 @@ class TableLayout(BaseLayout):
 
         self._size_cache: dict[str, tuple[str, int]] = {}
 
-        self.table = QTableWidget(0, 9)
+        self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels([
-            "Título", "ROM / Archivo", "Sourcefile", "Año", "Fabricante", "Género", "Formato", "Tamaño", "Emulador efectivo"
+            "Título", "ROM / Archivo", "Sourcefile", "Año", "Fabricante", "Género", "Formato", "Tamaño", "Emulador efectivo", "Logros RA"
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Interactive)
@@ -134,6 +134,28 @@ class TableLayout(BaseLayout):
             source = g.get("source", "")
             source_str = f" ({source})" if source else ""
             self.table.setItem(i, 8, SortableTableWidgetItem(f"{emu}{source_str}"))
+
+            if g.get("is_menu_target"):
+                ra_txt = "—"
+                ra_sort = -1.0
+            else:
+                db_ref = getattr(self, "db", None)
+                if db_ref is not None:
+                    from playnexus.services.retroachievements import format_ra_badge_text, get_cached_ra_progress_summary
+                    ra_sum = get_cached_ra_progress_summary(db_ref, g)
+                    if ra_sum and ra_sum.get("matched"):
+                        ra_txt = format_ra_badge_text(ra_sum)
+                        ra_sort = float(ra_sum.get("pct") or 0.0)
+                    elif ra_sum:
+                        ra_txt = "N/D"
+                        ra_sort = -0.5
+                    else:
+                        ra_txt = "—"
+                        ra_sort = -1.0
+                else:
+                    ra_txt = "—"
+                    ra_sort = -1.0
+            self.table.setItem(i, 9, SortableTableWidgetItem(ra_txt, sort_key=ra_sort))
 
         self.table.setSortingEnabled(True)
         self.table.setUpdatesEnabled(True)

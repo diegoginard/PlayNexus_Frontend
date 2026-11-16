@@ -22,6 +22,15 @@ from PySide6.QtWidgets import (
 from playnexus.db import Database, APP_DIR
 from playnexus.ui.layouts import get_available_layouts
 from playnexus.ui.settings_tab import SCREEN_MODES, RESOLUTIONS_LIST
+from playnexus.ui.shaders import (
+    EFFECT_PERF_PROFILES,
+    SHADER_PRESETS,
+    SHADER_TARGETS,
+    normalize_effects_perf,
+    normalize_shader_preset,
+    normalize_shader_target,
+)
+from playnexus.ui.particles import PARTICLE_PRESETS, normalize_particle_preset
 
 
 class FrontendSettingsWidget(QWidget):
@@ -320,6 +329,77 @@ class FrontendSettingsWidget(QWidget):
 
         v_video.addWidget(self.custom_res_container)
         self.custom_res_container.setVisible(False)
+
+        # Fila de transición entre vistas (Menú <-> Lista)
+        row_trans = QHBoxLayout()
+        row_trans.setSpacing(12)
+        row_trans.addWidget(QLabel("Transición entre vistas (Menús / Listas):"))
+        self.transition_combo = QComboBox()
+        self.transition_combo.addItem("Transición suave (Crossfade 220 ms) — Recomendado", "fade")
+        self.transition_combo.addItem("Instantáneo (Sin animación)", "instant")
+        self.transition_combo.currentIndexChanged.connect(self._save_video_settings)
+        row_trans.addWidget(self.transition_combo, 1)
+        row_trans.addStretch(1)
+        v_video.addLayout(row_trans)
+
+        # Sub-bloque Fase 4: Motor de Shaders GPU y Partículas Dinámicas
+        sep_fx = QFrame()
+        sep_fx.setFrameShape(QFrame.HLine)
+        sep_fx.setStyleSheet("color: #cbd5e1; margin-top: 6px; margin-bottom: 4px;")
+        v_video.addWidget(sep_fx)
+
+        lbl_fx_hdr = QLabel("✨ <b>Motor Visual GPU (Shaders Retro y Partículas Dinámicas)</b>")
+        lbl_fx_hdr.setStyleSheet("color: #38bdf8; font-size: 10pt;")
+        v_video.addWidget(lbl_fx_hdr)
+
+        row_fx1 = QHBoxLayout()
+        row_fx1.setSpacing(12)
+
+        col_sh = QVBoxLayout()
+        col_sh.addWidget(QLabel("<b>Shader Retro:</b>"))
+        self.shader_preset_combo = QComboBox()
+        self.shader_preset_combo.addItem("Seguir configuración del Layout (Recomendado)", "layout")
+        for key, label in SHADER_PRESETS:
+            self.shader_preset_combo.addItem(label, key)
+        self.shader_preset_combo.currentIndexChanged.connect(self._save_video_settings)
+        col_sh.addWidget(self.shader_preset_combo)
+        row_fx1.addLayout(col_sh, 1)
+
+        col_tg = QVBoxLayout()
+        col_tg.addWidget(QLabel("<b>Objetivo del Shader:</b>"))
+        self.shader_target_combo = QComboBox()
+        self.shader_target_combo.addItem("Seguir objetivo del Layout", "layout")
+        for key, label in SHADER_TARGETS:
+            self.shader_target_combo.addItem(label, key)
+        self.shader_target_combo.currentIndexChanged.connect(self._save_video_settings)
+        col_tg.addWidget(self.shader_target_combo)
+        row_fx1.addLayout(col_tg, 1)
+
+        v_video.addLayout(row_fx1)
+
+        row_fx2 = QHBoxLayout()
+        row_fx2.setSpacing(12)
+
+        col_pt = QVBoxLayout()
+        col_pt.addWidget(QLabel("<b>Partículas Ambientales:</b>"))
+        self.particle_preset_combo = QComboBox()
+        self.particle_preset_combo.addItem("Seguir partículas del Layout", "layout")
+        for key, label in PARTICLE_PRESETS:
+            self.particle_preset_combo.addItem(label, key)
+        self.particle_preset_combo.currentIndexChanged.connect(self._save_video_settings)
+        col_pt.addWidget(self.particle_preset_combo)
+        row_fx2.addLayout(col_pt, 1)
+
+        col_perf = QVBoxLayout()
+        col_perf.addWidget(QLabel("<b>Perfil de Rendimiento GPU/CPU:</b>"))
+        self.effects_perf_combo = QComboBox()
+        for key, label in EFFECT_PERF_PROFILES:
+            self.effects_perf_combo.addItem(label, key)
+        self.effects_perf_combo.currentIndexChanged.connect(self._save_video_settings)
+        col_perf.addWidget(self.effects_perf_combo)
+        row_fx2.addLayout(col_perf, 1)
+
+        v_video.addLayout(row_fx2)
 
         page_video_layout.addWidget(grp_video)
         page_video_layout.addStretch(1)
@@ -623,6 +703,34 @@ class FrontendSettingsWidget(QWidget):
             self.custom_res_container.setVisible(self.res_combo.currentData() == "custom")
             self._update_system_res_label()
 
+            trans_mode = self.db.get_setting("frontend_view_transition", "fade").strip().lower()
+            idx_tr = self.transition_combo.findData(trans_mode)
+            if idx_tr >= 0:
+                self.transition_combo.setCurrentIndex(idx_tr)
+
+            if hasattr(self, "shader_preset_combo"):
+                sh_val = normalize_shader_preset(self.db.get_setting("frontend_shader_preset", "layout"), allow_layout=True)
+                idx_sh = self.shader_preset_combo.findData(sh_val)
+                if idx_sh >= 0:
+                    self.shader_preset_combo.setCurrentIndex(idx_sh)
+
+                raw_tg = self.db.get_setting("frontend_shader_target", "layout").strip().lower()
+                tg_val = "layout" if raw_tg in ("", "layout", "auto") else normalize_shader_target(raw_tg)
+                idx_tg = self.shader_target_combo.findData(tg_val)
+                if idx_tg >= 0:
+                    self.shader_target_combo.setCurrentIndex(idx_tg)
+
+                pt_val = normalize_particle_preset(self.db.get_setting("frontend_particle_preset", "layout"), allow_layout=True)
+                idx_pt = self.particle_preset_combo.findData(pt_val)
+                if idx_pt >= 0:
+                    self.particle_preset_combo.setCurrentIndex(idx_pt)
+
+                perf_val = normalize_effects_perf(self.db.get_setting("frontend_effects_perf", "high"))
+                idx_pf = self.effects_perf_combo.findData(perf_val)
+                if idx_pf >= 0:
+                    self.effects_perf_combo.setCurrentIndex(idx_pf)
+                self.shader_target_combo.setEnabled(perf_val != "off" and sh_val != "none")
+
             # 4. Cargar configuración de Splash Screen
             splash_en = self.db.get_setting("frontend_splash_enabled", "false").strip().lower() in ("true", "1", "yes")
             self.chk_splash.setChecked(splash_en)
@@ -872,6 +980,18 @@ class FrontendSettingsWidget(QWidget):
         if hasattr(self, "spin_custom_w") and hasattr(self, "spin_custom_h"):
             self.db.set_setting("video_custom_width", str(self.spin_custom_w.value()))
             self.db.set_setting("video_custom_height", str(self.spin_custom_h.value()))
+        if hasattr(self, "transition_combo"):
+            self.db.set_setting("frontend_view_transition", str(self.transition_combo.currentData() or "fade"))
+        if hasattr(self, "shader_preset_combo"):
+            sh_sel = str(self.shader_preset_combo.currentData() or "layout")
+            tg_sel = str(self.shader_target_combo.currentData() or "layout")
+            pt_sel = str(self.particle_preset_combo.currentData() or "layout")
+            pf_sel = str(self.effects_perf_combo.currentData() or "high")
+            self.db.set_setting("frontend_shader_preset", sh_sel)
+            self.db.set_setting("frontend_shader_target", tg_sel)
+            self.db.set_setting("frontend_particle_preset", pt_sel)
+            self.db.set_setting("frontend_effects_perf", pf_sel)
+            self.shader_target_combo.setEnabled(pf_sel != "off" and sh_sel != "none")
 
     def _on_splash_toggled(self, checked: bool):
         self.splash_container.setVisible(checked)

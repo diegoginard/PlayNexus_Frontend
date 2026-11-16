@@ -90,6 +90,66 @@ def _safe_filename(name: str, fallback: str = "item") -> str:
     return clean or fallback
 
 
+def _parse_bool_flag(val: object) -> int:
+    """Normaliza banderas booleanas de texto plano o UI a 0/1."""
+    if isinstance(val, bool):
+        return 1 if val else 0
+    if isinstance(val, (int, float)):
+        return 1 if int(val) != 0 else 0
+    s = str(val or "").strip().lower()
+    return 1 if s in ("1", "true", "yes", "si", "sí", "★") else 0
+
+
+def _parse_nonneg_int(val: object) -> int:
+    """Convierte un valor numérico de texto plano a entero >= 0 de forma segura."""
+    if val is None or val == "":
+        return 0
+    try:
+        return max(0, int(float(str(val).strip())))
+    except (ValueError, TypeError):
+        return 0
+
+
+def _norm_rom_key(rom_path: object) -> str:
+    """Clave normalizada de ruta de ROM para sincronizar telemetría/favoritos entre listas."""
+    s = str(rom_path or "").strip().replace("\\", "/")
+    return s.lower() if s else ""
+
+
+def format_play_time(seconds: object) -> str:
+    """Formatea una duración acumulada en segundos a texto legible ('0 min', '42 min', '3h 15m')."""
+    sec = _parse_nonneg_int(seconds)
+    if sec <= 0:
+        return "0 min"
+    if sec < 60:
+        return f"{sec} s"
+    if sec < 3600:
+        return f"{sec // 60} min"
+    hours = sec // 3600
+    mins = (sec % 3600) // 60
+    return f"{hours}h {mins:02d}m" if mins else f"{hours}h"
+
+
+def _sort_games_in_place(items: list, sort_mode: str = "title") -> None:
+    """Ordena una lista de juegos según `sort_mode`, desempatando siempre por título A-Z."""
+    items.sort(key=lambda item: (item.get("title") or "").lower())
+    mode = str(sort_mode or "title").strip().lower()
+    if mode == "last_played_desc":
+        items.sort(key=lambda item: str(item.get("last_played") or ""), reverse=True)
+    elif mode == "play_count_desc":
+        items.sort(
+            key=lambda item: (_parse_nonneg_int(item.get("play_count")), str(item.get("last_played") or "")),
+            reverse=True,
+        )
+    elif mode == "play_time_desc":
+        items.sort(
+            key=lambda item: (_parse_nonneg_int(item.get("play_time_seconds")), _parse_nonneg_int(item.get("play_count"))),
+            reverse=True,
+        )
+    elif mode == "favorites_first":
+        items.sort(key=lambda item: _parse_bool_flag(item.get("is_favorite")), reverse=True)
+
+
 LIST_DEFAULTS = {
     "name": "",
     "list_type": "games",
@@ -110,6 +170,7 @@ LIST_DEFAULTS = {
     "cabinet_path": "",
     "marquee_path": "",
     "bezel_path": "",
+    "manual_path": "",
     "bezel_hud_enabled": "true",
     "bezel_hud_path": "",
     "loading_path": "",
@@ -120,6 +181,7 @@ LIST_DEFAULTS = {
     "source_list_id": None,
     "filter_rules": "[]",
     "filter_match_mode": "all",
+    "sort_mode": "title",
 }
 
 EMULATOR_DEFAULTS = {
@@ -299,7 +361,7 @@ class _PlainTextStore:
                 for k, def_v in LIST_DEFAULTS.items():
                     lst[k] = data.get(k, def_v)
                 for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                           "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
+                           "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "manual_path", "xml_path", "icon_path", "bezel_hud_path",
                            "loading_path", "loading_in_path", "loading_out_path"):
                     if lst.get(pk):
                         lst[pk] = str(lst[pk]).strip().replace("\\", "/")
@@ -379,6 +441,12 @@ class _PlainTextStore:
                     created_at = parts[16] if len(parts) > 16 else ""
                     sourcefile = parts[17] if len(parts) > 17 else ""
                     bezel_hud_mode = parts[18].strip() if len(parts) > 18 else ""
+                    is_favorite = _parse_bool_flag(parts[19]) if len(parts) > 19 else 0
+                    play_count = _parse_nonneg_int(parts[20]) if len(parts) > 20 else 0
+                    play_time_seconds = _parse_nonneg_int(parts[21]) if len(parts) > 21 else 0
+                    last_played = parts[22].strip() if len(parts) > 22 else ""
+                    tags = parts[23].strip() if len(parts) > 23 else ""
+                    manual_file_path = parts[24].strip().replace("\\", "/") if len(parts) > 24 else ""
                     if not sourcefile and xml_metadata and xml_metadata != "{}":
                         try:
                             _m = json.loads(xml_metadata)
@@ -408,6 +476,12 @@ class _PlainTextStore:
                         "bezel_hud_mode": bezel_hud_mode,
                         "xml_metadata": xml_metadata,
                         "created_at": created_at,
+                        "is_favorite": is_favorite,
+                        "play_count": play_count,
+                        "play_time_seconds": play_time_seconds,
+                        "last_played": last_played,
+                        "tags": tags,
+                        "manual_file_path": manual_file_path,
                     }
                     self.games_by_id[gid] = g_dict
                     self.games_by_list[lid].append(g_dict)
@@ -549,7 +623,8 @@ class _PlainTextStore:
         lines.append("[Games]")
         lines.append(
             "# id;rom_name;title;rom_path;year;manufacturer;genre;players;cloneof;rating;crc;"
-            "emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode"
+            "emulator_override_id;launch_arguments;cover_path;notes;xml_metadata;created_at;sourcefile;bezel_hud_mode;"
+            "is_favorite;play_count;play_time_seconds;last_played;tags;manual_file_path"
         )
         for g in self.games_by_list.get(lid, []):
             row_fields = [
@@ -572,6 +647,12 @@ class _PlainTextStore:
                 _escape_field(g.get("created_at", "")),
                 _escape_field(g.get("sourcefile", "")),
                 _escape_field(g.get("bezel_hud_mode", "")),
+                _escape_field(_parse_bool_flag(g.get("is_favorite"))),
+                _escape_field(_parse_nonneg_int(g.get("play_count"))),
+                _escape_field(_parse_nonneg_int(g.get("play_time_seconds"))),
+                _escape_field(g.get("last_played", "")),
+                _escape_field(g.get("tags", "")),
+                _escape_field(g.get("manual_file_path", "")),
             ]
             lines.append(";".join(row_fields))
 
@@ -790,7 +871,7 @@ class Database:
             else:
                 lst[k] = def_v
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
+                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "manual_path", "xml_path", "icon_path", "bezel_hud_path",
                    "loading_path", "loading_in_path", "loading_out_path"):
             if lst.get(pk):
                 lst[pk] = str(lst[pk]).strip().replace("\\", "/")
@@ -833,7 +914,7 @@ class Database:
                     raise ValueError(f"Ya existe una lista con el nombre '{new_name}'.")
             updates["name"] = new_name
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
-                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "xml_path", "icon_path", "bezel_hud_path",
+                   "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "manual_path", "xml_path", "icon_path", "bezel_hud_path",
                    "loading_path", "loading_in_path", "loading_out_path"):
             if pk in updates and updates[pk] is not None:
                 updates[pk] = str(updates[pk]).strip().replace("\\", "/")
@@ -924,13 +1005,14 @@ class Database:
         """
         lid = int(list_id)
         games = self._store.games_by_list.get(lid, [])
+        lst = self._store.game_lists.get(lid, {})
+        sort_mode = str(lst.get("sort_mode") or "title")
         if not enriched:
             out_raw = [RowDict(g) for g in games]
-            out_raw.sort(key=lambda item: (item.get("title") or "").lower())
+            _sort_games_in_place(out_raw, sort_mode)
             return out_raw
 
         term = (search_term or "").strip().strip("%").lower()
-        lst = self._store.game_lists.get(lid, {})
         def_emu_id = lst.get("default_emulator_id")
         base_emu = self._store.emulators.get(def_emu_id) if def_emu_id else None
         base_emu_name = base_emu["name"] if base_emu else None
@@ -941,7 +1023,7 @@ class Database:
                 haystack = (
                     f"{g.get('title', '')} {g.get('rom_path', '')} {g.get('rom_name', '')} "
                     f"{g.get('manufacturer', '')} {g.get('year', '')} {g.get('genre', '')} "
-                    f"{g.get('sourcefile', '')}"
+                    f"{g.get('sourcefile', '')} {g.get('tags', '')}"
                 ).lower()
                 if term not in haystack:
                     continue
@@ -957,6 +1039,7 @@ class Database:
             d["cabinet_path"] = lst.get("cabinet_path", "")
             d["marquee_path"] = lst.get("marquee_path", "")
             d["bezel_path"] = lst.get("bezel_path", "")
+            d["manual_path"] = lst.get("manual_path", "")
             d["media_path"] = lst.get("media_path", "")
 
             ovr_id = g.get("emulator_override_id")
@@ -973,7 +1056,7 @@ class Database:
 
             out.append(d)
 
-        out.sort(key=lambda item: (item.get("title") or "").lower())
+        _sort_games_in_place(out, sort_mode)
         return out
 
     def insert_game(self, list_id: int, **fields) -> int:
@@ -1011,6 +1094,12 @@ class Database:
             "bezel_hud_mode": str(fields.get("bezel_hud_mode") or ""),
             "xml_metadata": str(fields.get("xml_metadata") or "{}"),
             "created_at": str(fields.get("created_at") or now_str),
+            "is_favorite": _parse_bool_flag(fields.get("is_favorite")),
+            "play_count": _parse_nonneg_int(fields.get("play_count")),
+            "play_time_seconds": _parse_nonneg_int(fields.get("play_time_seconds")),
+            "last_played": str(fields.get("last_played") or ""),
+            "tags": str(fields.get("tags") or "").strip(),
+            "manual_file_path": str(fields.get("manual_file_path") or "").strip().replace("\\", "/"),
         }
         self._store.games_by_id[gid] = g_dict
         self._store.games_by_list.setdefault(lid, []).append(g_dict)
@@ -1028,9 +1117,114 @@ class Database:
         if "emulator_override_id" in updates:
             raw_e = g.get("emulator_override_id")
             g["emulator_override_id"] = int(raw_e) if (raw_e is not None and str(raw_e).strip() != "") else None
+        if "is_favorite" in updates:
+            g["is_favorite"] = _parse_bool_flag(g.get("is_favorite"))
+        if "play_count" in updates:
+            g["play_count"] = _parse_nonneg_int(g.get("play_count"))
+        if "play_time_seconds" in updates:
+            g["play_time_seconds"] = _parse_nonneg_int(g.get("play_time_seconds"))
+        if "last_played" in updates:
+            g["last_played"] = str(g.get("last_played") or "").strip()
+        if "tags" in updates:
+            g["tags"] = str(g.get("tags") or "").strip()
+        if "manual_file_path" in updates:
+            g["manual_file_path"] = str(g.get("manual_file_path") or "").strip().replace("\\", "/")
+        prop_fields = tuple(f for f in ("is_favorite", "tags", "manual_file_path") if f in updates)
+        if prop_fields:
+            self._propagate_rom_fields(g, prop_fields)
         self._store._dirty_lists.add(int(g["list_id"]))
         self._store.flush()
         return gid
+
+    def _propagate_rom_fields(self, source_game: dict, field_names: tuple[str, ...]) -> None:
+        """Sincroniza favoritos o telemetría con copias del mismo ROM en otras listas (ej. filtradas)."""
+        rom_key = _norm_rom_key(source_game.get("rom_path"))
+        if not rom_key:
+            return
+        src_id = source_game.get("id")
+        for other_id, other in self._store.games_by_id.items():
+            if other_id == src_id:
+                continue
+            if _norm_rom_key(other.get("rom_path")) == rom_key:
+                for fn in field_names:
+                    other[fn] = source_game[fn]
+                self._store._dirty_lists.add(int(other["list_id"]))
+
+    def toggle_game_favorite(self, game_id: int) -> bool | None:
+        """Alterna el estado de favorito de un juego, sincroniza listas y guarda en .txt."""
+        gid = int(game_id)
+        g = self._store.games_by_id.get(gid)
+        if not g:
+            return None
+        new_val = 0 if _parse_bool_flag(g.get("is_favorite")) else 1
+        with self.batch():
+            g["is_favorite"] = new_val
+            self._store._dirty_lists.add(int(g["list_id"]))
+            self._propagate_rom_fields(g, ("is_favorite",))
+        return bool(new_val)
+
+    def set_game_favorite(self, game_id: int, is_favorite: bool) -> bool | None:
+        """Fija explícitamente el estado de favorito de un juego."""
+        gid = int(game_id)
+        g = self._store.games_by_id.get(gid)
+        if not g:
+            return None
+        new_val = 1 if is_favorite else 0
+        with self.batch():
+            g["is_favorite"] = new_val
+            self._store._dirty_lists.add(int(g["list_id"]))
+            self._propagate_rom_fields(g, ("is_favorite",))
+        return bool(new_val)
+
+    def record_game_launch(self, game_id: int, launched_at: str | None = None) -> dict | None:
+        """Incrementa el contador de partidas y actualiza la fecha de última ejecución."""
+        gid = int(game_id)
+        g = self._store.games_by_id.get(gid)
+        if not g:
+            return None
+        ts = launched_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self.batch():
+            g["play_count"] = _parse_nonneg_int(g.get("play_count")) + 1
+            g["last_played"] = ts
+            self._store._dirty_lists.add(int(g["list_id"]))
+            self._propagate_rom_fields(g, ("play_count", "last_played"))
+        return RowDict(g)
+
+    def record_game_play_time(self, game_id: int, elapsed_seconds: int, rom_path: str = "") -> dict | None:
+        """Suma segundos reales de sesión al tiempo total jugado del juego."""
+        gid = int(game_id)
+        g = self._store.games_by_id.get(gid)
+        if not g and rom_path:
+            rk = _norm_rom_key(rom_path)
+            if rk:
+                g = next(
+                    (cand for cand in self._store.games_by_id.values() if _norm_rom_key(cand.get("rom_path")) == rk),
+                    None,
+                )
+        if not g:
+            return None
+        delta = _parse_nonneg_int(elapsed_seconds)
+        if delta <= 0:
+            return RowDict(g)
+        with self.batch():
+            g["play_time_seconds"] = _parse_nonneg_int(g.get("play_time_seconds")) + delta
+            self._store._dirty_lists.add(int(g["list_id"]))
+            self._propagate_rom_fields(g, ("play_time_seconds",))
+        return RowDict(g)
+
+    def reset_game_telemetry(self, game_id: int) -> bool:
+        """Reinicia partidas, tiempo jugado y última ejecución para un juego (y sus copias)."""
+        gid = int(game_id)
+        g = self._store.games_by_id.get(gid)
+        if not g:
+            return False
+        with self.batch():
+            g["play_count"] = 0
+            g["play_time_seconds"] = 0
+            g["last_played"] = ""
+            self._store._dirty_lists.add(int(g["list_id"]))
+            self._propagate_rom_fields(g, ("play_count", "play_time_seconds", "last_played"))
+        return True
 
     def delete_game(self, game_id: int) -> int:
         """Quita un juego de su lista y actualiza su archivo .txt en lists/."""

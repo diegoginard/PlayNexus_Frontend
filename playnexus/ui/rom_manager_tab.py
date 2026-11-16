@@ -695,6 +695,7 @@ class MediaPreviewWidget(QWidget):
         self.btn_set_folder.setVisible(False)
         self.btn_open_loc.setVisible(False)
         self.btn_delete.setVisible(False)
+        self._set_pdf_button_path("")
         self.canvas.set_drop_config(False)
         self.canvas.show_empty("Sin selección", message)
 
@@ -718,12 +719,14 @@ class MediaPreviewWidget(QWidget):
         self.slot_title_lbl.setText(f"{spec.label} ({req_badge}) — {rom.title}")
 
         can_drop = bool(spec.folder_exists and rom.stem)
-        allowed_drop = spec.extensions + (VIDEO_EXTS if spec.media_kind == "video" else IMAGE_EXTS)
+        kind_exts = VIDEO_EXTS if spec.media_kind == "video" else ((".pdf",) if spec.media_kind == "pdf" else IMAGE_EXTS)
+        allowed_drop = spec.extensions + kind_exts
         self.canvas.set_drop_config(can_drop, allowed_drop)
 
         self.btn_set_folder.setVisible(not spec.folder_exists)
         self.btn_assign.setVisible(spec.folder_exists and bool(rom.stem))
         self.btn_open_loc.setVisible(spec.folder_exists or bool(slot.file_path))
+        self._set_pdf_button_path(slot.file_path if (slot.media_kind == "pdf" and slot.file_path and os.path.isfile(slot.file_path)) else "")
 
         # Hay archivo existente para previsualizar
         if slot.file_path and os.path.isfile(slot.file_path):
@@ -741,6 +744,16 @@ class MediaPreviewWidget(QWidget):
                 self.player.setSource(QUrl.fromLocalFile(slot.file_path))
                 if self._auto_play:
                     self.player.play()
+            elif slot.media_kind == "pdf":
+                self.video_controls_frame.setVisible(False)
+                self.btn_checkerboard.setVisible(False)
+                pix = self._build_pdf_preview_pixmap(slot.file_path)
+                note_txt = f"  ·  ⚠ {slot.note}" if slot.note else ""
+                self.meta_lbl.setText(
+                    f"{os.path.basename(slot.file_path)}  ·  Documento PDF  ·  "
+                    f"{format_file_size(slot.size_bytes)}{note_txt}"
+                )
+                self.canvas.show_image(pix, slot.file_path)
             else:
                 self.video_controls_frame.setVisible(False)
                 self.btn_checkerboard.setVisible(True)
@@ -785,6 +798,55 @@ class MediaPreviewWidget(QWidget):
             self.meta_lbl.setText(slot.note or f"No encontrado en {spec.folder_path}")
             self._rebuild_suggestions(fuzzy_candidates or [])
 
+    def _set_pdf_button_path(self, pdf_path: str):
+        self._current_pdf_path = str(pdf_path or "")
+        if not hasattr(self, "btn_open_pdf"):
+            self.btn_open_pdf = QPushButton("📖 Abrir Manual PDF…")
+            self.btn_open_pdf.setStyleSheet(
+                "QPushButton { background-color: #2e245c; border-color: #7c3aed; color: #f5f3ff; font-weight: 700; padding: 6px 12px; }"
+                "QPushButton:hover { background-color: #4c1d95; }"
+            )
+            self.btn_open_pdf.clicked.connect(self._open_current_pdf)
+            lay = self.layout()
+            if lay is not None:
+                idx = max(0, lay.count() - 1)
+                lay.insertWidget(idx, self.btn_open_pdf)
+        self.btn_open_pdf.setVisible(bool(self._current_pdf_path))
+
+    def _open_current_pdf(self):
+        p = getattr(self, "_current_pdf_path", "")
+        if not p or not os.path.isfile(p):
+            return
+        from playnexus.ui.manual_viewer import ManualViewerDialog
+
+        title = self._current_rom.title if getattr(self, "_current_rom", None) else Path(p).stem
+        dlg = ManualViewerDialog(p, game_title=title, parent=self)
+        dlg.exec()
+
+    def _build_pdf_preview_pixmap(self, pdf_path: str) -> QPixmap:
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QColor, QFont, QPainter
+        from playnexus.ui.manual_viewer import render_pdf_first_page_pixmap
+
+        pix, pages = render_pdf_first_page_pixmap(pdf_path, QSize(520, 400))
+        if not pix.isNull():
+            self.btn_open_pdf.setText(f"📖 Abrir Manual PDF ({pages} pág.)…")
+            return pix
+        self.btn_open_pdf.setText("📖 Abrir Manual PDF…")
+        card = QPixmap(360, 440)
+        card.fill(QColor("#141926"))
+        painter = QPainter(card)
+        painter.setPen(QColor("#7c3aed"))
+        painter.drawRect(8, 8, 344, 424)
+        painter.setPen(QColor("#f8fafc"))
+        painter.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        painter.drawText(card.rect().adjusted(20, -40, -20, 0), Qt.AlignCenter, "📖\nMANUAL PDF")
+        painter.setPen(QColor("#94a3b8"))
+        painter.setFont(QFont("Segoe UI", 10))
+        painter.drawText(card.rect().adjusted(20, 80, -20, -20), Qt.AlignCenter | Qt.TextWordWrap, Path(pdf_path).name)
+        painter.end()
+        return card
+
 
 class RomManagerWidget(QWidget):
     """
@@ -793,12 +855,14 @@ class RomManagerWidget(QWidget):
 
     list_updated = Signal(int)        # Emite list_id cuando se actualiza layout o carpeta de una lista
     edit_list_requested = Signal(int) # Pide a MainWindow abrir ListDialog completo para esa lista
+    games_metadata_updated = Signal(int)  # Emite list_id cuando el scraper actualiza metadatos de juegos
 
     def __init__(self, db: Database, parent=None):
         super().__init__(parent)
         self.db = db
         self._lists_by_id: dict[int, dict[str, Any]] = {}
         self._summary: AuditSummary | None = None
+        self._visible_filtered_roms: list[RomAuditResult] = []
         self._worker: RomMediaScanWorker | None = None
         self._selected_game_id: int | None = None
         self._selected_key: str | None = None
@@ -855,6 +919,24 @@ class RomManagerWidget(QWidget):
         self.btn_scan.setMinimumHeight(34)
         self.btn_scan.clicked.connect(self.start_scan)
 
+        self.btn_scrape = QPushButton("🌐  Scrapear Faltantes…")
+        self.btn_scrape.setMinimumHeight(34)
+        self.btn_scrape.setToolTip("Buscar y descargar online la media faltante declarada en el layout")
+        self.btn_scrape.clicked.connect(self._open_batch_scrape)
+        self.btn_scrape.setEnabled(False)
+
+        self.btn_scraper_cfg = QPushButton("⚙ Scraper")
+        self.btn_scraper_cfg.setToolTip("Configurar proveedores online, regiones y credenciales ScreenScraper")
+        self.btn_scraper_cfg.clicked.connect(self._open_scraper_settings)
+
+        self.btn_toolkit = QPushButton("🛠 Pro Toolkit…")
+        self.btn_toolkit.setToolTip("Auto-Trim de Wheels/Logos, Normalizador de Videos (ffmpeg) y Auditor 1G1R / Duplicados")
+        self.btn_toolkit.clicked.connect(self._open_pro_toolkit)
+
+        self.btn_ra_sync = QPushButton("🏆 RetroAchievements…")
+        self.btn_ra_sync.setToolTip("Configurar API Key y sincronizar logros de RetroAchievements")
+        self.btn_ra_sync.clicked.connect(self._open_retroachievements)
+
         self.btn_export = QPushButton("📄 Exportar CSV")
         self.btn_export.setToolTip("Exportar reporte de auditoría y media faltante a CSV")
         self.btn_export.clicked.connect(self._export_report)
@@ -867,6 +949,10 @@ class RomManagerWidget(QWidget):
         controls_row.addWidget(self.btn_apply_layout)
         controls_row.addWidget(self.btn_edit_folders)
         controls_row.addWidget(self.btn_scan)
+        controls_row.addWidget(self.btn_scrape)
+        controls_row.addWidget(self.btn_scraper_cfg)
+        controls_row.addWidget(self.btn_toolkit)
+        controls_row.addWidget(self.btn_ra_sync)
         controls_row.addWidget(self.btn_export)
         top_vbox.addLayout(controls_row)
 
@@ -970,10 +1056,19 @@ class RomManagerWidget(QWidget):
         right_vbox.setSpacing(8)
 
         # Cabecera de la ROM seleccionada
+        info_head_row = QHBoxLayout()
+        info_head_row.setSpacing(6)
         self.rom_info_title = QLabel("Ninguna ROM seleccionada")
         self.rom_info_title.setFont(QFont("Segoe UI", 11.5, QFont.Bold))
         self.rom_info_title.setWordWrap(True)
-        right_vbox.addWidget(self.rom_info_title)
+        info_head_row.addWidget(self.rom_info_title, 1)
+
+        self.btn_scrape_single = QPushButton("🌐 Buscar online…")
+        self.btn_scrape_single.setToolTip("Buscar candidatos online y descargar media puntual para esta ROM")
+        self.btn_scrape_single.setEnabled(False)
+        self.btn_scrape_single.clicked.connect(lambda: self._open_single_rom_scrape())
+        info_head_row.addWidget(self.btn_scrape_single)
+        right_vbox.addLayout(info_head_row)
 
         self.rom_info_sub = QLabel("—")
         self.rom_info_sub.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
@@ -1205,7 +1300,10 @@ class RomManagerWidget(QWidget):
         self.previewer.stop_and_release()
         self.previewer.clear_preview()
         self._summary = None
+        self._visible_filtered_roms = []
         self.btn_export.setEnabled(False)
+        self.btn_scrape.setEnabled(False)
+        self.btn_scrape_single.setEnabled(False)
         self.table.setRowCount(0)
         self.table.setColumnCount(0)
         self.slots_list.clear()
@@ -1283,6 +1381,7 @@ class RomManagerWidget(QWidget):
         self.btn_scan.setText("🔍  Escanear Media")
         self._summary = summary
         self.btn_export.setEnabled(summary.total_roms > 0)
+        self.btn_scrape.setEnabled(summary.total_roms > 0 and summary.list_type != "menu")
 
         self._refresh_requirements_bar()
         self._update_summary_banner()
@@ -1389,6 +1488,34 @@ class RomManagerWidget(QWidget):
                 cell.setToolTip(slot.file_path)
             self.table.setItem(row_idx, 3 + col_offset, cell)
 
+        # Columna final: Progreso en caché de RetroAchievements (O(1))
+        ra_col = 3 + len(self._summary.specs)
+        if item.is_menu_target:
+            ra_cell = SortableTableItem("—")
+            ra_cell.setForeground(QColor("#64748b"))
+            ra_cell.setData(SortableTableItem.SORT_ROLE, -1)
+        else:
+            from playnexus.services.retroachievements import format_ra_badge_text, get_cached_ra_progress_summary
+            ra_sum = get_cached_ra_progress_summary(self.db, {"id": item.game_id, "rom_path": item.rom_path})
+            if ra_sum and ra_sum.get("matched"):
+                ra_txt = format_ra_badge_text(ra_sum)
+                ra_color = QColor("#fde047") if float(ra_sum.get("pct") or 0) > 0 else QColor("#93c5fd")
+                ra_sort = float(ra_sum.get("pct") or 0)
+            elif ra_sum:
+                ra_txt = "N/D"
+                ra_color = QColor("#64748b")
+                ra_sort = -0.5
+            else:
+                ra_txt = "—"
+                ra_color = QColor("#64748b")
+                ra_sort = -1
+            ra_cell = SortableTableItem(ra_txt)
+            ra_cell.setForeground(ra_color)
+            ra_cell.setData(SortableTableItem.SORT_ROLE, ra_sort)
+        ra_cell.setTextAlignment(Qt.AlignCenter)
+        ra_cell.setData(Qt.UserRole, (item.game_id, None))
+        self.table.setItem(row_idx, ra_col, ra_cell)
+
     def _populate_table(self):
         s = self._summary
         if not s:
@@ -1397,6 +1524,7 @@ class RomManagerWidget(QWidget):
         term = self.search_edit.text().strip().lower()
         mode = self.filter_combo.currentData() or "all"
         filtered = [r for r in s.results if self._matches_active_filters(r, term, mode)]
+        self._visible_filtered_roms = filtered
 
         prev_game_id = self._selected_game_id
         prev_key = self._selected_key
@@ -1410,6 +1538,7 @@ class RomManagerWidget(QWidget):
         for spec in s.specs:
             star = "★ " if spec.required else ""
             col_headers.append(f"{star}{spec.label}")
+        col_headers.append("🏆 Logros RA")
 
         self.table.setColumnCount(len(col_headers))
         self.table.setHorizontalHeaderLabels(col_headers)
@@ -1451,6 +1580,7 @@ class RomManagerWidget(QWidget):
             self._select_game_and_slot(target_gid, prev_key)
         else:
             self._selected_game_id = None
+            self.btn_scrape_single.setEnabled(False)
             self.slots_list.clear()
             self.rom_info_title.setText("Ninguna ROM coincide con el filtro")
             self.rom_info_sub.setText("—")
@@ -1512,6 +1642,17 @@ class RomManagerWidget(QWidget):
                 act_del = menu.addAction("🗑 Eliminar archivo de media")
             menu.addSeparator()
 
+        act_scrape_single = None
+        act_ra_single = None
+        act_manual = None
+        if not rom.is_menu_target and rom.stem:
+            act_scrape_single = menu.addAction(f"🌐 Buscar media online para '{rom.title}'…")
+            act_ra_single = menu.addAction("🏆 Ver / Sincronizar RetroAchievements…")
+            from playnexus.services.media import resolve_game_manual_pdf
+            g_row = self.db.get_game(rom.game_id) or {"id": rom.game_id, "rom_path": rom.rom_path}
+            if resolve_game_manual_pdf(g_row, list_row=self._current_list_row()):
+                act_manual = menu.addAction("📖 Abrir Manual PDF…")
+
         act_open_rom = None
         if rom.rom_path and os.path.exists(rom.rom_path):
             act_open_rom = menu.addAction("📂 Abrir ubicación de la ROM")
@@ -1525,6 +1666,12 @@ class RomManagerWidget(QWidget):
             _open_in_file_explorer(slot.file_path, is_dir=False)
         elif chosen == act_del and slot and slot.file_path:
             self._handle_delete_file(slot.file_path)
+        elif act_scrape_single and chosen == act_scrape_single:
+            self._open_single_rom_scrape(rom.game_id)
+        elif act_ra_single and chosen == act_ra_single:
+            self._open_ra_single(rom.game_id)
+        elif act_manual and chosen == act_manual:
+            self._open_manual_for_rom(rom.game_id)
         elif chosen == act_open_rom:
             _open_in_file_explorer(rom.rom_path, is_dir=False)
 
@@ -1539,6 +1686,7 @@ class RomManagerWidget(QWidget):
             return
 
         self._selected_game_id = game_id
+        self.btn_scrape_single.setEnabled(not rom.is_menu_target and bool(rom.stem))
         self.rom_info_title.setText(rom.title)
         if rom.is_menu_target:
             self.rom_info_sub.setText(f"Ítem de Menú de Sistemas  ·  Nombre base: {rom.stem}")
@@ -1569,7 +1717,7 @@ class RomManagerWidget(QWidget):
                 continue
             status_txt, status_col, _ = self._slot_cell_presentation(slot)
             star = "★ " if spec.required else ""
-            kind_icon = "🎬" if spec.media_kind == "video" else "🖼"
+            kind_icon = "🎬" if spec.media_kind == "video" else ("📖" if spec.media_kind == "pdf" else "🖼")
             size_txt = f" ({format_file_size(slot.size_bytes)})" if slot.file_path else ""
             li = QListWidgetItem(f"{kind_icon} {star}{spec.label}:  {status_txt}{size_txt}")
             li.setForeground(status_col)
@@ -1635,9 +1783,10 @@ class RomManagerWidget(QWidget):
             return
 
         if not source_path:
-            valid_exts = sorted(set(spec.extensions) | set(VIDEO_EXTS if spec.media_kind == "video" else IMAGE_EXTS))
+            extra_exts = VIDEO_EXTS if spec.media_kind == "video" else ((".pdf",) if spec.media_kind == "pdf" else IMAGE_EXTS)
+            valid_exts = sorted(set(spec.extensions) | set(extra_exts))
             filt_str = " ".join(f"*{e}" for e in valid_exts)
-            kind_lbl = "Videos" if spec.media_kind == "video" else "Imágenes"
+            kind_lbl = "Videos" if spec.media_kind == "video" else ("Manuales PDF" if spec.media_kind == "pdf" else "Imágenes")
             source_path, _ = QFileDialog.getOpenFileName(
                 self,
                 f"Seleccionar {spec.label} para '{rom.title}'",
@@ -1665,7 +1814,8 @@ class RomManagerWidget(QWidget):
         # Liberar video antes de sobrescribir si el reproductor lo tiene abierto
         self.previewer.stop_and_release()
 
-        allowed = spec.extensions + (VIDEO_EXTS if spec.media_kind == "video" else IMAGE_EXTS)
+        extra_exts = VIDEO_EXTS if spec.media_kind == "video" else ((".pdf",) if spec.media_kind == "pdf" else IMAGE_EXTS)
+        allowed = spec.extensions + extra_exts
         try:
             dest_path = assign_media_file(
                 source_path=source_path,
@@ -1869,6 +2019,81 @@ class RomManagerWidget(QWidget):
             QMessageBox.critical(self, "Error al exportar", str(exc))
 
     # -----------------------------------------------------------------
+    # SCRAPER ONLINE INTEGRADO
+    # -----------------------------------------------------------------
+    def _open_scraper_settings(self):
+        from playnexus.ui.scraper_dialogs import ScraperSettingsDialog
+
+        dlg = ScraperSettingsDialog(self.db, self)
+        dlg.exec()
+
+    def _open_batch_scrape(self):
+        row = self._current_list_row()
+        if not row or not self._summary:
+            QMessageBox.information(self, "Escaneo requerido", "Escaneá primero una lista contra un layout.")
+            return
+        if self._summary.list_type == "menu":
+            QMessageBox.information(
+                self,
+                "Lista no compatible",
+                "El scraping automático aplica a listas de juegos/ROMs.",
+            )
+            return
+
+        from playnexus.ui.scraper_dialogs import BatchScrapeDialog
+
+        games_rows = self.db.get_games(int(row["id"]), enriched=False)
+        games_by_id = {int(g["id"]): dict(g) for g in games_rows}
+        dlg = BatchScrapeDialog(
+            db=self.db,
+            list_row=row,
+            summary=self._summary,
+            visible_roms=self._visible_filtered_roms or self._summary.results,
+            games_by_id=games_by_id,
+            release_media_cb=lambda: self.previewer.stop_and_release(flush_events=True),
+            parent=self,
+        )
+        dlg.exec()
+
+        if dlg.has_folder_changes or dlg.has_media_changes:
+            clear_media_cache()
+            self.list_updated.emit(int(row["id"]))
+            self.start_scan()
+        if dlg.has_metadata_changes:
+            self.games_metadata_updated.emit(int(row["id"]))
+
+    def _open_single_rom_scrape(self, game_id: int | None = None):
+        row = self._current_list_row()
+        if not row or not self._summary:
+            return
+        gid = game_id if game_id is not None else self._selected_game_id
+        rom = self._find_rom_result(gid)
+        if not rom or rom.is_menu_target or not rom.stem:
+            return
+
+        from playnexus.ui.scraper_dialogs import SingleRomScrapeDialog
+
+        game_row = self.db.get_game(rom.game_id)
+        dlg = SingleRomScrapeDialog(
+            db=self.db,
+            list_row=row,
+            rom=rom,
+            game_row=dict(game_row) if game_row else None,
+            specs=self._summary.specs,
+            layout_name=self._summary.layout_name,
+            release_media_cb=lambda: self.previewer.stop_and_release(flush_events=True),
+            parent=self,
+        )
+        dlg.exec()
+
+        if dlg.downloaded_any:
+            clear_media_cache()
+            self.list_updated.emit(int(row["id"]))
+            self.start_scan()
+        if dlg.metadata_updated:
+            self.games_metadata_updated.emit(int(row["id"]))
+
+    # -----------------------------------------------------------------
     # CICLO DE VIDA Y LIMPIEZA SEGURA
     # -----------------------------------------------------------------
     def stop_media(self, flush_events: bool = True):
@@ -1882,3 +2107,58 @@ class RomManagerWidget(QWidget):
         if self._worker and self._worker.isRunning():
             self._worker.cancel()
             self._worker.wait(500)
+
+    def _open_pro_toolkit(self):
+        row = self._current_list_row()
+        if not row:
+            QMessageBox.information(self, "Lista requerida", "Seleccioná una lista primero.")
+            return
+        from playnexus.ui.toolkit_dialogs import RomToolkitDialog
+
+        self.previewer.stop_and_release(flush_events=True)
+        games = self.db.get_games(int(row["id"]), enriched=True) if row.get("list_type") != "menu" else []
+        dlg = RomToolkitDialog(self.db, row, games, parent=self)
+        dlg.media_mutated.connect(lambda: self.start_scan())
+        def _on_lib_mutated():
+            self.list_updated.emit(int(row["id"]))
+            self.start_scan()
+        dlg.library_mutated.connect(_on_lib_mutated)
+        dlg.exec()
+
+    def _open_retroachievements(self):
+        row = self._current_list_row()
+        if not row:
+            QMessageBox.information(self, "Lista requerida", "Seleccioná una lista primero.")
+            return
+        if row.get("list_type") == "menu":
+            QMessageBox.information(self, "No aplicable", "Los menús de sistemas no tienen ROMs directas para RetroAchievements.")
+            return
+        from playnexus.ui.ra_dialogs import RABatchSyncDialog
+
+        games = self.db.get_games(int(row["id"]), enriched=True)
+        dlg = RABatchSyncDialog(self.db, row, games, parent=self)
+        dlg.sync_finished.connect(self._populate_table)
+        dlg.exec()
+
+    def _open_ra_single(self, game_id: int):
+        g = self.db.get_game(game_id)
+        if not g:
+            return
+        from playnexus.ui.ra_dialogs import RAGameDetailDialog
+
+        dlg = RAGameDetailDialog(self.db, g, list_row=self._current_list_row(), parent=self)
+        dlg.progress_updated.connect(lambda _d: self._populate_table())
+        dlg.exec()
+
+    def _open_manual_for_rom(self, game_id: int):
+        g = self.db.get_game(game_id)
+        if not g:
+            return
+        from playnexus.services.media import resolve_game_manual_pdf
+        from playnexus.ui.manual_viewer import ManualViewerDialog
+
+        pdf = resolve_game_manual_pdf(g, list_row=self._current_list_row())
+        if not pdf:
+            QMessageBox.information(self, "Sin manual", "Este juego no tiene un archivo PDF de manual asignado.")
+            return
+        ManualViewerDialog(pdf, game_title=g.get("title", ""), db=self.db, parent=self).exec()

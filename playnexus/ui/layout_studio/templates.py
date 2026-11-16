@@ -299,6 +299,9 @@ def generate_layout_code(project: LayoutProject) -> str:
         layout_type=layout_type,
         is_cd=is_cd,
         elements=elements_dicts if elements_dicts else None,
+        shader_preset=getattr(project, "shader_preset", None),
+        shader_target=getattr(project, "shader_target", "tv_rect"),
+        particle_preset=getattr(project, "particle_preset", None),
     )
 
 

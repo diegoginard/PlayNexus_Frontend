@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import ast
 import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,14 @@ from PySide6.QtGui import (
 )
 
 from playnexus.ui.layout_studio.models import LayoutElement, CANONICAL_W, CANONICAL_H
+from playnexus.ui.shaders import (
+    apply_shader_to_image,
+    normalize_shader_preset,
+    normalize_shader_target,
+    render_shader_overlay_painter,
+    resolve_widget_effect_settings,
+)
+from playnexus.ui.particles import ParticleSystem, normalize_particle_preset
 
 NATIVE_LAYER_IDS: set[str] = {
     "bg_image",
@@ -212,6 +221,11 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
         painter.fillRect(snap_rect, QColor(0, 0, 0))
         vid_img = getattr(inst, "_game_video_image", None) or getattr(inst, "_current_video_image", None)
         if vid_img and not vid_img.isNull():
+            sh_preset, sh_target, _pt_preset, fx_perf = resolve_widget_effect_settings(inst)
+            if fx_perf != "off" and sh_preset != "none" and sh_target == "tv_rect":
+                start_ts = float(getattr(inst, "_studio_anim_start_time", 0.0) or 0.0)
+                elapsed = max(0.0, time.time() - start_ts) if start_ts > 0.0 else 0.0
+                vid_img = apply_shader_to_image(vid_img, snap_rect.size(), sh_preset, elapsed=elapsed)
             if hasattr(inst, "SNAP_LOCAL_RECT"):
                 vw, vh = vid_img.width(), vid_img.height()
                 s = min(snap_rect.width() / vw, snap_rect.height() / vh) if vw > 0 and vh > 0 else 1.0
@@ -443,6 +457,15 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
             painter.setFont(QFont(font_fam, elem.font_size, QFont.Bold))
             painter.setPen(QColor(elem.text_color))
             painter.drawText(rect, Qt.AlignVCenter | Qt.AlignLeft, txt.upper())
+        elif elem.type == "effect" and not elem.resource_path:
+            elapsed = max(0.0, time.time() - float(getattr(inst, "_studio_anim_start_time", time.time())))
+            render_shader_overlay_painter(
+                painter,
+                rect,
+                elem.effect_type,
+                elapsed=elapsed,
+                intensity=elem.effect_intensity,
+            )
         elif elem.resource_path:
             p = Path(elem.resource_path)
             if not p.is_file() and hasattr(inst, "layout_dir"):
@@ -1351,15 +1374,66 @@ def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, flo
     return tot_dx, tot_dy, tot_op, tot_rot
 
 
-def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | dict[str, Any]]):
+def update_studio_effects(
+    layout_widget,
+    shader_preset: str | None = None,
+    shader_target: str | None = None,
+    particle_preset: str | None = None,
+) -> None:
+    """Actualiza en vivo shader y partículas del proyecto dentro del Sandbox."""
+    if shader_preset is not None:
+        layout_widget._studio_shader_preset = normalize_shader_preset(shader_preset)
+    if shader_target is not None:
+        layout_widget._studio_shader_target = normalize_shader_target(shader_target)
+    if particle_preset is not None:
+        norm_pt = normalize_particle_preset(particle_preset)
+        layout_widget._studio_particle_preset = norm_pt
+        ps = getattr(layout_widget, "_studio_particles", None)
+        if ps is None:
+            ps = ParticleSystem(norm_pt, "high")
+            layout_widget._studio_particles = ps
+        else:
+            ps.set_preset(norm_pt)
+
+    sh_preset, _sh_target, pt_preset, fx_perf = resolve_widget_effect_settings(layout_widget)
+    ps = getattr(layout_widget, "_studio_particles", None)
+    if ps is not None:
+        ps.set_perf_profile(fx_perf)
+        ps.set_preset(pt_preset)
+
+    timer = getattr(layout_widget, "_studio_anim_timer", None)
+    if timer is not None and fx_perf != "off" and (pt_preset != "none" or sh_preset == "vhs_arcade"):
+        if not timer.isActive():
+            timer.start()
+    layout_widget.update()
+
+
+def install_studio_overrides(
+    layout_widget,
+    elements_list: list[LayoutElement | dict[str, Any]],
+    shader_preset: str | None = None,
+    shader_target: str | None = None,
+    particle_preset: str | None = None,
+):
     """
     Instala el motor de renderizado de alta velocidad (1:1 pre-escalado) sobre `layout_widget`
     (Sandbox o Layout guardado), respetando el 100% del tamaño real y animaciones del layout.
     """
-    import time
     from PySide6.QtCore import QTimer
 
     update_studio_overrides(layout_widget, elements_list)
+
+    init_sh = shader_preset if shader_preset is not None else getattr(layout_widget, "SHADER_PRESET", None)
+    init_tg = shader_target if shader_target is not None else getattr(layout_widget, "SHADER_TARGET", "tv_rect")
+    init_pt = particle_preset if particle_preset is not None else getattr(layout_widget, "PARTICLE_PRESET", None)
+    layout_widget._studio_particles = ParticleSystem(normalize_particle_preset(init_pt), "high")
+    layout_widget._studio_last_fx_tick = time.monotonic()
+    update_studio_effects(
+        layout_widget,
+        shader_preset=init_sh or "none",
+        shader_target=init_tg or "tv_rect",
+        particle_preset=init_pt or "none",
+    )
 
     # Motor cinemático de animaciones de entrada en tiempo de ejecución (~60 FPS)
     layout_widget._studio_anim_start_time = time.time()
@@ -1367,6 +1441,17 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
     anim_timer.setInterval(16)
 
     def _on_studio_anim_tick():
+        now_m = time.monotonic()
+        dt = max(0.004, min(0.08, now_m - float(getattr(layout_widget, "_studio_last_fx_tick", now_m))))
+        layout_widget._studio_last_fx_tick = now_m
+
+        sh_p, _sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
+        ps = getattr(layout_widget, "_studio_particles", None)
+        if ps is not None and fx_perf != "off" and pt_p != "none":
+            ps.set_perf_profile(fx_perf)
+            ps.set_preset(pt_p)
+            ps.step(dt)
+
         elapsed = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
         layout_widget.update()
         elems = getattr(layout_widget, "_studio_elements", [])
@@ -1374,7 +1459,8 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
             any(k in getattr(e, "anim_type", "") for k in ("pointer_pulse", "avatar_float", "disc_spin"))
             for e in elems
         )
-        if elapsed >= 1.5 and not has_continuous:
+        has_live_fx = fx_perf != "off" and (pt_p != "none" or sh_p == "vhs_arcade")
+        if elapsed >= 1.5 and not has_continuous and not has_live_fx:
             anim_timer.stop()
 
     anim_timer.timeout.connect(_on_studio_anim_tick)
@@ -1431,6 +1517,17 @@ def install_studio_overrides(layout_widget, elements_list: list[LayoutElement | 
                 continue
             adx, ady, aop, arot = compute_element_animation(elem, t)
             render_element_in_screen_space(painter, layout_widget, elem, sr, anim_dx=adx, anim_dy=ady, anim_op=aop, anim_rot=arot)
+
+        if not getattr(layout_widget, "_pn_external_overlay", False):
+            sh_p, sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
+            if fx_perf != "off":
+                if pt_p != "none":
+                    ps = getattr(layout_widget, "_studio_particles", None)
+                    if ps is not None:
+                        scale = max(0.45, min(1.5, w / float(CANONICAL_W)))
+                        ps.paint(painter, QRectF(0, 0, w, h), scale=scale)
+                if sh_p != "none" and sh_t == "global":
+                    render_shader_overlay_painter(painter, QRect(0, 0, w, h), sh_p, elapsed=max(0.0, t))
 
         painter.end()
 

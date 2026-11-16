@@ -20,6 +20,8 @@ ACTION_NAV_BACK = "nav_back"
 ACTION_MUTE = "mute_video"
 ACTION_TOGGLE_FPS = "toggle_fps"
 ACTION_TOGGLE_BEZEL = "toggle_bezel"
+ACTION_TOGGLE_FAVORITE = "toggle_favorite"
+ACTION_FRONTEND_MENU = "frontend_menu"
 
 # Compatibilidad con identificadores anteriores
 ACTION_NAV_LETTER = ACTION_NAV_LETTER_FWD
@@ -119,6 +121,20 @@ ACTIONS_INFO = [
         "desc": "Muestra u oculta el marco decorativo (bezel) durante la emulación para ver menús del emulador",
         "default": "F11",
         "default_pad": "L-Thumb",
+    },
+    {
+        "id": ACTION_TOGGLE_FAVORITE,
+        "name": "Marcar / Quitar Favorito",
+        "desc": "Agrega o quita el juego seleccionado de tus favoritos sin interrumpir la ruleta ni el video",
+        "default": "F",
+        "default_pad": "X",
+    },
+    {
+        "id": ACTION_FRONTEND_MENU,
+        "name": "Menú Rápido Arcade (In-Frontend)",
+        "desc": "Abre el menú rápido superpuesto con búsqueda, ruleta aleatoria, filtros, layout y energía",
+        "default": "Tab",
+        "default_pad": "Start",
     },
 ]
 
@@ -222,6 +238,8 @@ ACTION_ALIASES = {
     ACTION_CLOSE_EMULATOR: [Qt.Key_Escape],
     ACTION_TOGGLE_FPS: [Qt.Key_F10, Qt.Key_F3],
     ACTION_TOGGLE_BEZEL: [Qt.Key_F11, Qt.Key_B],
+    ACTION_TOGGLE_FAVORITE: [Qt.Key_F],
+    ACTION_FRONTEND_MENU: [Qt.Key_Tab, Qt.Key_G],
 }
 
 # Alias secundarios por defecto para mandos y joysticks
@@ -232,13 +250,15 @@ GAMEPAD_ACTION_ALIASES = {
     ACTION_NAV_LETTER_FWD: ["D-Pad Right", "L-Stick Right", "POV Right", "Axis X+"],
     ACTION_NAV_STEP5_BACK: ["LB", "Button 5"],
     ACTION_NAV_STEP5_FWD: ["RB", "Button 6"],
-    ACTION_SELECT: ["A", "Start", "Button 1"],
+    ACTION_SELECT: ["A", "Button 1"],
     ACTION_NAV_BACK: ["B", "Back", "Button 2"],
     ACTION_CLOSE_FRONTEND: ["Back+Start"],
     ACTION_CLOSE_EMULATOR: ["Back+Start"],
     ACTION_MUTE: ["Y", "Button 4"],
     ACTION_TOGGLE_FPS: ["R-Thumb", "Button 10", "R3", "RS"],
     ACTION_TOGGLE_BEZEL: ["L-Thumb", "Button 9", "L3", "LS"],
+    ACTION_TOGGLE_FAVORITE: ["X", "Button 3"],
+    ACTION_FRONTEND_MENU: ["Start", "Button 8"],
 }
 
 

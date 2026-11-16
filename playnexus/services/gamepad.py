@@ -17,7 +17,8 @@ from playnexus.services.controls import (
     ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
     ACTION_NAV_BACK, ACTION_SELECT, ACTION_PAGE_UP, ACTION_PAGE_DOWN,
     ACTION_CLOSE_FRONTEND, ACTION_CLOSE_EMULATOR,
-    ACTION_MUTE, ACTION_TOGGLE_FPS, ACTION_TOGGLE_BEZEL, GAMEPAD_ACTION_ALIASES,
+    ACTION_MUTE, ACTION_TOGGLE_FPS, ACTION_TOGGLE_BEZEL, ACTION_TOGGLE_FAVORITE,
+    ACTION_FRONTEND_MENU, GAMEPAD_ACTION_ALIASES,
     get_gamepad_binding, matches_gamepad_action
 )
 
@@ -190,6 +191,7 @@ class GamepadPollingThread(QThread):
     """
     action_triggered = Signal(str)
     input_detected = Signal(str)
+    trigger_pressed = Signal(str)
 
     def __init__(self, db=None, parent=None):
         super().__init__(parent)
@@ -292,6 +294,11 @@ class GamepadPollingThread(QThread):
                 combo_name = next(iter(current_inputs))
             self.input_detected.emit(combo_name)
 
+            newly_pressed = current_inputs - self._prev_inputs
+            for trig in ("LT", "RT", "LB", "RB"):
+                if trig in newly_pressed:
+                    self.trigger_pressed.emit(trig)
+
             # Comprobar qué acción coincide con las entradas activas
             matched_action = None
             if self._matches_action(current_inputs, ACTION_CLOSE_FRONTEND):
@@ -312,6 +319,8 @@ class GamepadPollingThread(QThread):
                     ACTION_PAGE_DOWN,
                     ACTION_MUTE,
                     ACTION_TOGGLE_FPS,
+                    ACTION_TOGGLE_FAVORITE,
+                    ACTION_FRONTEND_MENU,
                 ]
                 for act in check_order:
                     if self._matches_action(current_inputs, act):
@@ -360,6 +369,7 @@ class GamepadManager(QObject):
     """
     action_triggered = Signal(str)  # Id de la acción disparada (ej: 'nav_up', 'select_game', etc.)
     input_detected = Signal(str)    # Nombre del botón/combinación para diálogos de captura
+    trigger_pressed = Signal(str)   # Flanco ascendente LT / RT / LB / RB (p.ej. visor de manuales)
 
     def __init__(self, db=None, parent=None):
         super().__init__(parent)
@@ -367,6 +377,7 @@ class GamepadManager(QObject):
         self._worker = GamepadPollingThread(db=db)
         self._worker.action_triggered.connect(self.action_triggered.emit)
         self._worker.input_detected.connect(self.input_detected.emit)
+        self._worker.trigger_pressed.connect(self.trigger_pressed.emit)
 
         # Iniciar sondeo si hay soporte
         if is_gamepad_supported():

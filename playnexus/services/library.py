@@ -1072,6 +1072,11 @@ def add_game(
 # ----------------------------------------------------------------------
 
 FILTERABLE_FIELDS = [
+    ("is_favorite", "Favorito (1 = Sí / 0 = No)"),
+    ("play_count", "Partidas jugadas (play_count)"),
+    ("play_time_seconds", "Tiempo jugado en seg (play_time_seconds)"),
+    ("last_played", "Última partida (last_played)"),
+    ("tags", "Etiquetas (tags)"),
     ("sourcefile", "Archivo fuente / Driver (sourcefile)"),
     ("genre", "Género (genre)"),
     ("manufacturer", "Fabricante (manufacturer)"),
@@ -1086,6 +1091,7 @@ FILTERABLE_FIELDS = [
     ("notes", "Notas (notes)"),
     ("emulator_override_id", "Emulador específico (ID)"),
     ("launch_arguments", "Argumentos de lanzamiento"),
+    ("manual_file_path", "Manual PDF individual"),
 ]
 
 FILTER_OPERATORS = [
@@ -1093,10 +1099,57 @@ FILTER_OPERATORS = [
     ("not_contains", "No contiene"),
     ("equals", "Es exactamente igual a"),
     ("not_equals", "Es distinto de"),
+    ("gt", "Mayor que (>)"),
+    ("gte", "Mayor o igual que (>=)"),
+    ("lt", "Menor que (<)"),
+    ("lte", "Menor o igual que (<=)"),
     ("starts_with", "Empieza con"),
     ("ends_with", "Termina con"),
     ("is_empty", "Está vacío"),
     ("is_not_empty", "No está vacío"),
+]
+
+SORT_MODES = [
+    ("title", "Alfabético por título (A-Z)"),
+    ("last_played_desc", "Recién jugados (última sesión primero)"),
+    ("play_count_desc", "Más jugados (mayor cantidad de partidas)"),
+    ("play_time_desc", "Mayor tiempo acumulado"),
+    ("favorites_first", "Favoritos primero, luego título A-Z"),
+]
+
+SMART_COLLECTION_PRESETS = [
+    {
+        "id": "favorites",
+        "label": "⭐ Favoritos (marcados en biblioteca o frontend)",
+        "default_name": "Favoritos",
+        "sort_mode": "title",
+        "match_mode": "all",
+        "rules": [{"field": "is_favorite", "operator": "equals", "value": "1"}],
+    },
+    {
+        "id": "recent",
+        "label": "🕒 Recién jugados (con partidas registradas)",
+        "default_name": "Recién jugados",
+        "sort_mode": "last_played_desc",
+        "match_mode": "all",
+        "rules": [{"field": "play_count", "operator": "gt", "value": "0"}],
+    },
+    {
+        "id": "most_played",
+        "label": "🏆 Más jugados (ordenado por partidas)",
+        "default_name": "Más jugados",
+        "sort_mode": "play_count_desc",
+        "match_mode": "all",
+        "rules": [{"field": "play_count", "operator": "gt", "value": "0"}],
+    },
+    {
+        "id": "unplayed",
+        "label": "🧭 Pendientes (0 partidas jugadas)",
+        "default_name": "Pendientes",
+        "sort_mode": "title",
+        "match_mode": "all",
+        "rules": [{"field": "play_count", "operator": "equals", "value": "0"}],
+    },
 ]
 
 
@@ -1134,6 +1187,11 @@ def game_matches_rule(game: dict, field: str, operator: str, target_value: str =
     target = (target_value or "").strip().lower()
     val_lower = val_str.lower()
 
+    if field == "is_favorite" and op in ("equals", "eq", "not_equals", "neq", "not equals"):
+        val_bool = "1" if val_lower in ("1", "true", "yes", "si", "sí", "★") else "0"
+        tgt_bool = "1" if target in ("1", "true", "yes", "si", "sí", "★") else "0"
+        return (val_bool == tgt_bool) if op in ("equals", "eq") else (val_bool != tgt_bool)
+
     if op == "contains":
         return target in val_lower if target else True
     elif op in ("not_contains", "does_not_contain", "not contains"):
@@ -1142,6 +1200,19 @@ def game_matches_rule(game: dict, field: str, operator: str, target_value: str =
         return val_lower == target
     elif op in ("not_equals", "neq", "not equals"):
         return val_lower != target
+    elif op in ("gt", "gte", "lt", "lte"):
+        try:
+            num_val = float(val_str)
+            num_tgt = float(target)
+        except (ValueError, TypeError):
+            return False
+        if op == "gt":
+            return num_val > num_tgt
+        if op == "gte":
+            return num_val >= num_tgt
+        if op == "lt":
+            return num_val < num_tgt
+        return num_val <= num_tgt
     elif op == "starts_with":
         return val_lower.startswith(target)
     elif op == "ends_with":
@@ -1234,11 +1305,30 @@ def sync_filtered_list_games(db, list_id: int) -> int:
                 rating=g.get("rating", ""),
                 crc=g.get("crc", ""),
                 sourcefile=g.get("sourcefile", ""),
+                bezel_hud_mode=g.get("bezel_hud_mode", ""),
                 xml_metadata=g.get("xml_metadata", "{}"),
                 created_at=g.get("created_at", ""),
+                is_favorite=g.get("is_favorite", 0),
+                play_count=g.get("play_count", 0),
+                play_time_seconds=g.get("play_time_seconds", 0),
+                last_played=g.get("last_played", ""),
+                tags=g.get("tags", ""),
+                manual_file_path=g.get("manual_file_path", ""),
             )
     finally:
         db.end_batch()
 
     return len(matching_games)
+
+
+def sync_filtered_lists_for_source(db, source_list_id: int | None = None) -> int:
+    """Re-sincroniza todas las listas filtradas dependientes de `source_list_id` (o todas si es None)."""
+    total_synced = 0
+    for lst in db.get_lists(with_counts=False):
+        if lst.get("list_type") != "filtered":
+            continue
+        if source_list_id is not None and lst.get("source_list_id") != source_list_id:
+            continue
+        total_synced += sync_filtered_list_games(db, lst["id"])
+    return total_synced
 

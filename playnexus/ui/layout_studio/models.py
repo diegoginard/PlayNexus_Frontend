@@ -224,6 +224,9 @@ class LayoutProject:
     media_requirements: list[dict[str, Any]] = field(default_factory=list)
     custom_code: str = ""
     folder_path: str = ""
+    shader_preset: str = "none"
+    shader_target: str = "tv_rect"
+    particle_preset: str = "none"
 
     def add_element(self, elem: LayoutElement) -> None:
         """Agrega un elemento y asigna el z_index más alto."""
