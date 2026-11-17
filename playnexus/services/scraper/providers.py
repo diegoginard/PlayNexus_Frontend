@@ -565,6 +565,9 @@ class ScreenScraperProvider(BaseScraperProvider):
             params["devid"] = devid
         if devpass:
             params["devpassword"] = devpass
+        debug_pw = config.resolved_ss_devdebugpassword()
+        if config.ss_debug_mode and debug_pw:
+            params["devdebugpassword"] = debug_pw
         if config.ss_ssid.strip():
             params["ssid"] = config.ss_ssid.strip()
         if config.ss_sspassword.strip():
@@ -781,7 +784,11 @@ class ScreenScraperProvider(BaseScraperProvider):
         # 1. Intentar lookup exacto por hash/nombre vía jeuInfos.php
         hashes = compute_rom_hashes(rom_path) if (rom_path and os.path.isfile(rom_path)) else {}
         cache_key_info = f"info:{system.screenscraper_id}:{stem}:{hashes.get('crc', '')}"
-        cached_info = self.cache.get("screenscraper", cache_key_info, max_age_sec=86400.0 * 3)
+        cached_info = (
+            None
+            if config.ss_debug_mode
+            else self.cache.get("screenscraper", cache_key_info, max_age_sec=86400.0 * 3)
+        )
 
         jeu_exact = None
         if isinstance(cached_info, dict) and "jeu" in cached_info:
@@ -818,7 +825,11 @@ class ScreenScraperProvider(BaseScraperProvider):
         # 2. Búsqueda textual (si faltan candidatos o si no hubo hash match)
         if clean_q and (len(results) == 0 or max_results > 1):
             cache_key_search = f"search:{system.screenscraper_id}:{clean_q.lower()}"
-            cached_search = self.cache.get("screenscraper", cache_key_search, max_age_sec=86400.0 * 3)
+            cached_search = (
+                None
+                if config.ss_debug_mode
+                else self.cache.get("screenscraper", cache_key_search, max_age_sec=86400.0 * 3)
+            )
             jeux_list = None
             if isinstance(cached_search, dict) and isinstance(cached_search.get("jeux"), list):
                 jeux_list = cached_search["jeux"]

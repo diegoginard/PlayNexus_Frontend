@@ -31,6 +31,11 @@ from playnexus.ui.shaders import (
     normalize_shader_target,
 )
 from playnexus.ui.particles import PARTICLE_PRESETS, normalize_particle_preset
+from playnexus.ui.table_utils import (
+    SortableTableWidgetItem,
+    configure_details_table,
+    paused_table_sorting,
+)
 
 
 class FrontendSettingsWidget(QWidget):
@@ -231,13 +236,11 @@ class FrontendSettingsWidget(QWidget):
         self.sublists_table.setHorizontalHeaderLabels([
             "Sistema / Lista", "Plataforma", "Juegos", "Diseño Visual para este Sistema", "Emulador"
         ])
-        self.sublists_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.sublists_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.sublists_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.sublists_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.sublists_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.sublists_table.setAlternatingRowColors(True)
-        self.sublists_table.setSelectionMode(QTableWidget.NoSelection)
+        configure_details_table(
+            self.sublists_table,
+            col_widths=(220, 150, 95, 220, 160),
+            alternating_rows=True,
+        )
         self.sublists_table.setMinimumHeight(240)
         v_menu.addWidget(self.sublists_table)
 
@@ -873,62 +876,69 @@ class FrontendSettingsWidget(QWidget):
 
         self.empty_menu_label.setVisible(False)
         self.sublists_table.setVisible(True)
-        self.sublists_table.setRowCount(len(sub_items))
-
         available_layouts = get_available_layouts(for_frontend=True)
 
-        for row_idx, item in enumerate(sub_items):
-            item_id = item["id"]
-            name = item["name"]
-            platform = item.get("platform") or "—"
-            game_count = self.db.count_games(item_id)
-            current_layout = item.get("layout") or "Wheel"
-            if current_layout == "Detalles":
-                current_layout = "Wheel"
+        with paused_table_sorting(self.sublists_table, reenable=True):
+            self.sublists_table.clearContents()
+            self.sublists_table.setRowCount(len(sub_items))
 
-            # 0. Nombre
-            name_item = QTableWidgetItem(f"🎮  {name}")
-            name_item.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self.sublists_table.setItem(row_idx, 0, name_item)
+            for row_idx, item in enumerate(sub_items):
+                item_id = item["id"]
+                name = item["name"]
+                platform = item.get("platform") or "—"
+                game_count = self.db.count_games(item_id)
+                current_layout = item.get("layout") or "Wheel"
+                if current_layout == "Detalles":
+                    current_layout = "Wheel"
 
-            # 1. Plataforma
-            plat_item = QTableWidgetItem(platform)
-            plat_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self.sublists_table.setItem(row_idx, 1, plat_item)
+                # 0. Nombre
+                name_item = SortableTableWidgetItem(f"🎮  {name}", sort_key=name.lower())
+                name_item.setFont(QFont("Segoe UI", 9, QFont.Bold))
+                name_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.sublists_table.setItem(row_idx, 0, name_item)
 
-            # 2. Juegos
-            count_item = QTableWidgetItem(f"{game_count} juegos")
-            count_item.setTextAlignment(Qt.AlignCenter)
-            count_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self.sublists_table.setItem(row_idx, 2, count_item)
+                # 1. Plataforma
+                plat_item = SortableTableWidgetItem(platform)
+                plat_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.sublists_table.setItem(row_idx, 1, plat_item)
 
-            # 3. Combo de diseño visual para este sistema
-            layout_combo = QComboBox()
-            layout_combo.addItems(available_layouts)
-            idx_lay = layout_combo.findText(current_layout)
-            if idx_lay >= 0:
-                layout_combo.setCurrentIndex(idx_lay)
-            else:
-                layout_combo.setCurrentText(current_layout)
+                # 2. Juegos
+                count_item = SortableTableWidgetItem(f"{game_count} juegos", sort_key=int(game_count))
+                count_item.setTextAlignment(Qt.AlignCenter)
+                count_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.sublists_table.setItem(row_idx, 2, count_item)
 
-            # Conectar guardado inmediato al cambiar
-            layout_combo.currentTextChanged.connect(
-                lambda new_l, sid=item_id: self._on_sublist_layout_changed(sid, new_l)
-            )
-            self.sublists_table.setCellWidget(row_idx, 3, layout_combo)
+                # 3. Combo de diseño visual (ítem subyacente para ordenación por diseño)
+                lay_sort_item = SortableTableWidgetItem(current_layout)
+                lay_sort_item.setForeground(Qt.transparent)
+                lay_sort_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.sublists_table.setItem(row_idx, 3, lay_sort_item)
 
-            # 4. Emulador
-            emu_id = item.get("default_emulator_id")
-            emu_name = "Sin emulador"
-            if emu_id:
-                emu_data = self.db.get_emulator(emu_id)
-                if emu_data:
-                    emu_name = emu_data.get("name", "Asignado")
-            emu_item = QTableWidgetItem(emu_name)
-            emu_item.setForeground(Qt.gray)
-            emu_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self.sublists_table.setItem(row_idx, 4, emu_item)
+                layout_combo = QComboBox()
+                layout_combo.addItems(available_layouts)
+                idx_lay = layout_combo.findText(current_layout)
+                if idx_lay >= 0:
+                    layout_combo.setCurrentIndex(idx_lay)
+                else:
+                    layout_combo.setCurrentText(current_layout)
+
+                # Conectar guardado inmediato al cambiar
+                layout_combo.currentTextChanged.connect(
+                    lambda new_l, sid=item_id: self._on_sublist_layout_changed(sid, new_l)
+                )
+                self.sublists_table.setCellWidget(row_idx, 3, layout_combo)
+
+                # 4. Emulador
+                emu_id = item.get("default_emulator_id")
+                emu_name = "Sin emulador"
+                if emu_id:
+                    emu_data = self.db.get_emulator(emu_id)
+                    if emu_data:
+                        emu_name = emu_data.get("name", "Asignado")
+                emu_item = SortableTableWidgetItem(emu_name)
+                emu_item.setForeground(Qt.gray)
+                emu_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.sublists_table.setItem(row_idx, 4, emu_item)
 
     def _on_sublist_layout_changed(self, sub_list_id: int, new_layout: str):
         if self._updating or not new_layout:

@@ -19,6 +19,11 @@ from playnexus.services.library import (
     scan_rom_folder, import_scanned_games
 )
 from playnexus.services.themes import get_layout_media_spec
+from playnexus.ui.table_utils import (
+    SortableTableWidgetItem,
+    configure_details_table,
+    paused_table_sorting,
+)
 
 PRESET_EXTENSIONS = {
     "Personalizado...": ("", ""),
@@ -1664,20 +1669,10 @@ class EmulatorManagerWidget(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Nombre", "Plataforma", "Ejecutable", "Argumentos", "Retardo Bezel", "Fade Bezel", "Carga (In)", "Cierre (Out)"
         ])
-        for col in range(8):
-            self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.Interactive)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-
-        self.table.setColumnWidth(0, 180)
-        self.table.setColumnWidth(1, 130)
-        self.table.setColumnWidth(3, 160)
-        self.table.setColumnWidth(4, 100)
-        self.table.setColumnWidth(5, 95)
-        self.table.setColumnWidth(6, 95)
-        self.table.setColumnWidth(7, 95)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        configure_details_table(
+            self.table,
+            col_widths=(180, 130, 260, 160, 100, 95, 95, 95),
+        )
         self.table.doubleClicked.connect(self.edit_selected)
         layout.addWidget(self.table, 1)
 
@@ -1701,56 +1696,61 @@ class EmulatorManagerWidget(QWidget):
         layout.addLayout(btn_row)
 
     def refresh(self):
-        self.setUpdatesEnabled(False)
-        try:
-            rows = self.db.get_emulators()
+        rows = self.db.get_emulators()
+        with paused_table_sorting(self.table, reenable=True):
             self.table.setRowCount(len(rows))
             for i, row in enumerate(rows):
-                name_item = QTableWidgetItem(row["name"])
+                name_item = SortableTableWidgetItem(row["name"])
                 name_item.setData(Qt.UserRole, row["id"])
                 self.table.setItem(i, 0, name_item)
-                self.table.setItem(i, 1, QTableWidgetItem(row["platform"] or "—"))
-                self.table.setItem(i, 2, QTableWidgetItem(row["executable"]))
-                self.table.setItem(i, 3, QTableWidgetItem(row["arguments"]))
+                self.table.setItem(i, 1, SortableTableWidgetItem(row["platform"] or "—"))
+                self.table.setItem(i, 2, SortableTableWidgetItem(row["executable"]))
+                self.table.setItem(i, 3, SortableTableWidgetItem(row["arguments"]))
 
                 d_raw = row.get("bezel_delay", "0.0")
                 f_raw = row.get("bezel_fade", "0.3")
                 load_raw = row.get("loading_time", "1.5")
                 exit_load_raw = row.get("exit_loading_time", "1.0")
                 try:
-                    d_str = f"{float(d_raw):.1f} s"
+                    d_val = float(d_raw)
+                    d_str = f"{d_val:.1f} s"
                 except Exception:
+                    d_val = 0.0
                     d_str = "0.0 s"
                 try:
-                    f_str = f"{float(f_raw):.1f} s"
+                    f_val = float(f_raw)
+                    f_str = f"{f_val:.1f} s"
                 except Exception:
+                    f_val = 0.3
                     f_str = "0.3 s"
                 try:
-                    load_str = f"{float(load_raw):.1f} s"
+                    load_val = float(load_raw)
+                    load_str = f"{load_val:.1f} s"
                 except Exception:
+                    load_val = 1.5
                     load_str = "1.5 s"
                 try:
-                    exit_load_str = f"{float(exit_load_raw):.1f} s"
+                    exit_load_val = float(exit_load_raw)
+                    exit_load_str = f"{exit_load_val:.1f} s"
                 except Exception:
+                    exit_load_val = 1.0
                     exit_load_str = "1.0 s"
 
-                item_d = QTableWidgetItem(d_str)
+                item_d = SortableTableWidgetItem(d_str, sort_key=d_val)
                 item_d.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(i, 4, item_d)
 
-                item_f = QTableWidgetItem(f_str)
+                item_f = SortableTableWidgetItem(f_str, sort_key=f_val)
                 item_f.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(i, 5, item_f)
 
-                item_load = QTableWidgetItem(load_str)
+                item_load = SortableTableWidgetItem(load_str, sort_key=load_val)
                 item_load.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(i, 6, item_load)
 
-                item_exit_load = QTableWidgetItem(exit_load_str)
+                item_exit_load = SortableTableWidgetItem(exit_load_str, sort_key=exit_load_val)
                 item_exit_load.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(i, 7, item_exit_load)
-        finally:
-            self.setUpdatesEnabled(True)
 
     def _get_selected_id(self):
         selected = self.table.selectionModel().selectedRows()

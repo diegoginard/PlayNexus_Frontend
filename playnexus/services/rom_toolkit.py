@@ -43,7 +43,10 @@ DEFAULT_1G1R_REGION_ORDER: tuple[str, ...] = (
 
 TRIM_SUPPORTED_EXTS: tuple[str, ...] = (".png", ".webp", ".bmp", ".tga", ".jpg", ".jpeg")
 VIDEO_NORMALIZE_EXTS: tuple[str, ...] = tuple(
-    dict.fromkeys(list(VIDEO_EXTS) + [".ts", ".vob", ".3gp", ".mpg", ".mpeg", ".m4v", ".ogv"])
+    dict.fromkeys(
+        list(VIDEO_EXTS)
+        + [".mov", ".wmv", ".flv", ".f4v", ".ts", ".vob", ".3gp", ".mpg", ".mpeg", ".m4v", ".ogv", ".ogm", ".divx", ".asf", ".rmvb"]
+    )
 )
 
 _REGION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -761,36 +764,79 @@ def scan_video_candidates(
     max_height: int = 720,
     ffprobe_path: str = "",
     deep_probe_mp4: bool = False,
+    recursive: bool = False,
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+    stats_out: dict[str, Any] | None = None,
 ) -> list[VideoCandidate]:
     """Detecta videos fuera de estándar (no .mp4, > max_size_mb, o códec/resolución excesiva)."""
     root = Path(folder)
     if not root.is_dir():
+        if stats_out is not None:
+            stats_out.update({"scanned_files": 0, "probed_files": 0, "skipped_non_video": 0, "cancelled": False})
         return []
 
-    threshold_bytes = int(max(1.0, float(max_size_mb)) * 1024 * 1024)
+    threshold_mb = max(0.5, float(max_size_mb))
+    threshold_bytes = int(threshold_mb * 1024 * 1024)
+    limit_lbl = f"{threshold_mb:g}"
+
+    video_files: list[Path] = []
+    skipped_non_video = 0
+    if recursive:
+        for dp, _dirnames, fns in os.walk(root):
+            for fn in fns:
+                p = Path(dp) / fn
+                name_l = p.name.lower()
+                if name_l.endswith(".bak") or ".__ff_tmp__" in name_l:
+                    continue
+                if p.suffix.lower() in VIDEO_NORMALIZE_EXTS:
+                    video_files.append(p)
+                else:
+                    skipped_non_video += 1
+        video_files.sort(key=lambda x: str(x.relative_to(root)).lower())
+    else:
+        for p in sorted(root.iterdir(), key=lambda x: x.name.lower()):
+            if not p.is_file():
+                continue
+            name_l = p.name.lower()
+            if name_l.endswith(".bak") or ".__ff_tmp__" in name_l:
+                continue
+            if p.suffix.lower() in VIDEO_NORMALIZE_EXTS:
+                video_files.append(p)
+            else:
+                skipped_non_video += 1
+
     candidates: list[VideoCandidate] = []
+    total = len(video_files)
+    probed_files = 0
+    cancelled = False
 
-    for p in sorted(root.iterdir(), key=lambda x: x.name.lower()):
-        if not p.is_file():
-            continue
-        name_l = p.name.lower()
-        if name_l.endswith(".bak") or ".__ff_tmp__" in name_l:
-            continue
+    for idx, p in enumerate(video_files, start=1):
+        if cancel_check and cancel_check():
+            cancelled = True
+            break
+
+        try:
+            rel_name = str(p.relative_to(root)).replace("\\", "/") if recursive else p.name
+        except ValueError:
+            rel_name = p.name
+
+        if progress_callback:
+            progress_callback(idx, total, rel_name)
+
         ext = p.suffix.lower()
-        if ext not in VIDEO_NORMALIZE_EXTS:
-            continue
-
         size_b = int(p.stat().st_size)
         reasons: list[str] = []
         if ext != ".mp4":
             reasons.append(f"Formato {ext} (objetivo .mp4)")
         if size_b > threshold_bytes:
             mb = size_b / (1024.0 * 1024.0)
-            reasons.append(f"Tamaño {mb:.1f} MB > {max_size_mb:.0f} MB")
+            reasons.append(f"Tamaño {mb:.1f} MB > {limit_lbl} MB")
 
         w = h = 0
         vcodec = pix_fmt = ""
         if ffprobe_path and (reasons or deep_probe_mp4):
+            probed_files += 1
             vinfo = probe_video_info(p, ffprobe_path=ffprobe_path)
             w = vinfo["width"]
             h = vinfo["height"]
@@ -807,7 +853,7 @@ def scan_video_candidates(
             candidates.append(
                 VideoCandidate(
                     file_path=str(p),
-                    filename=p.name,
+                    filename=rel_name,
                     ext=ext,
                     size_bytes=size_b,
                     reasons=reasons,
@@ -817,6 +863,17 @@ def scan_video_candidates(
                     pix_fmt=pix_fmt,
                 )
             )
+
+    if stats_out is not None:
+        stats_out.update(
+            {
+                "scanned_files": total if not cancelled else idx - 1,
+                "total_candidates": len(candidates),
+                "probed_files": probed_files,
+                "skipped_non_video": skipped_non_video,
+                "cancelled": cancelled,
+            }
+        )
     return candidates
 
 

@@ -34,6 +34,7 @@ Thumbs.db
 Layouts/Media/
 config/scraper_cache/
 config/ra_cache/
+config/.key
 
 # PyInstaller
 build/

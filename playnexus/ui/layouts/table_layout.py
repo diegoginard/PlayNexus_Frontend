@@ -6,24 +6,7 @@ from PySide6.QtWidgets import (
 )
 from playnexus.ui.layouts.base import BaseLayout
 from playnexus.services.controls import matches_action, ACTION_NAV_BACK
-
-class SortableTableWidgetItem(QTableWidgetItem):
-    """
-    Elemento de tabla con soporte para ordenación inteligente:
-    - Numérica por sort_key si se especifica (para año y tamaño en bytes)
-    - Alfanumérica sin distinción de mayúsculas/minúsculas para texto
-    """
-    def __init__(self, text: str = "", sort_key=None):
-        super().__init__(text)
-        self._sort_key = sort_key
-
-    def __lt__(self, other):
-        if isinstance(other, SortableTableWidgetItem):
-            if self._sort_key is not None and other._sort_key is not None:
-                return self._sort_key < other._sort_key
-        t1 = (self.text() or "").strip().lower()
-        t2 = (other.text() or "").strip().lower() if other else ""
-        return t1 < t2
+from playnexus.ui.table_utils import SortableTableWidgetItem, configure_details_table
 
 
 class TableLayout(BaseLayout):
@@ -45,25 +28,11 @@ class TableLayout(BaseLayout):
         self.table.setHorizontalHeaderLabels([
             "Título", "ROM / Archivo", "Sourcefile", "Año", "Fabricante", "Género", "Formato", "Tamaño", "Emulador efectivo", "Logros RA"
         ])
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.Interactive)
-        header.setStretchLastSection(True)
-        header.setSectionsClickable(True)
-        header.setSortIndicatorShown(True)
-        self.table.setColumnWidth(0, 240)
-        self.table.setColumnWidth(1, 140)
-        self.table.setColumnWidth(2, 140)
-        self.table.setColumnWidth(3, 65)
-        self.table.setColumnWidth(4, 130)
-        self.table.setColumnWidth(5, 110)
-        self.table.setColumnWidth(6, 75)
-        self.table.setColumnWidth(7, 95)
-        self.table.setColumnWidth(8, 170)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        configure_details_table(
+            self.table,
+            col_widths=(240, 140, 140, 65, 130, 110, 75, 95, 170),
+        )
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.table.setSortingEnabled(True)
 
         self.table.itemSelectionChanged.connect(self._on_item_selected)
         self.table.doubleClicked.connect(self._on_double_clicked)

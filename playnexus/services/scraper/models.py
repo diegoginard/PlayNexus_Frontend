@@ -4,25 +4,130 @@ Modelos y configuración para el motor de scraping online de PlayNexus.
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import os
+import secrets
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from playnexus.db import APP_DIR
 
-def _encode_secret(raw: str) -> str:
-    """Codifica credenciales en base64 URL-safe para persistencia limpia en settings.txt."""
+_KEY_FILENAME = ".key"
+_SECRET_PREFIX = "enc1:"
+_KEY_BYTES = 32
+_NONCE_BYTES = 16
+_TAG_BYTES = 32
+
+
+def _resolve_secret_key_dir(db: Any | None = None, key_dir: Path | str | None = None) -> Path:
+    """Resuelve la carpeta `config/` donde vive `.key` (soporta instancias aisladas de Database)."""
+    if key_dir is not None:
+        return Path(key_dir)
+    if db is not None:
+        base = getattr(db, "path", None) or getattr(db, "data_dir", None)
+        if base:
+            return Path(base) / "config"
+    return Path(APP_DIR) / "config"
+
+
+def _load_or_create_secret_key(key_dir: Path, create: bool) -> bytes | None:
+    """Carga la llave aleatoria de 256 bits desde `config/.key` (o la crea de forma atómica)."""
+    key_path = Path(key_dir) / _KEY_FILENAME
+    try:
+        if key_path.is_file():
+            raw_txt = key_path.read_text(encoding="ascii").strip()
+            raw_key = base64.urlsafe_b64decode(raw_txt.encode("ascii"))
+            if len(raw_key) == _KEY_BYTES:
+                return raw_key
+    except Exception:
+        pass
+
+    if not create:
+        return None
+
+    Path(key_dir).mkdir(parents=True, exist_ok=True)
+    new_key = secrets.token_bytes(_KEY_BYTES)
+    encoded_key = base64.urlsafe_b64encode(new_key).decode("ascii")
+    tmp_path = Path(key_dir) / f".key.tmp.{os.getpid()}"
+    try:
+        tmp_path.write_text(encoded_key, encoding="ascii")
+        os.replace(str(tmp_path), str(key_path))
+    finally:
+        if tmp_path.is_file():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+    return new_key
+
+
+def _xor_keystream(enc_key: bytes, nonce: bytes, data: bytes) -> bytes:
+    """Genera flujo de cifrado CTR mediante SHA-256 sobre clave derivada y nonce aleatorio."""
+    out = bytearray(len(data))
+    offset = 0
+    counter = 0
+    total = len(data)
+    while offset < total:
+        block = hashlib.sha256(enc_key + nonce + counter.to_bytes(4, "big")).digest()
+        chunk_len = min(len(block), total - offset)
+        for i in range(chunk_len):
+            out[offset + i] = data[offset + i] ^ block[i]
+        offset += chunk_len
+        counter += 1
+    return bytes(out)
+
+
+def _derive_subkeys(master_key: bytes) -> tuple[bytes, bytes]:
+    enc_key = hmac.new(master_key, b"playnexus-enc-v1", hashlib.sha256).digest()
+    mac_key = hmac.new(master_key, b"playnexus-mac-v1", hashlib.sha256).digest()
+    return enc_key, mac_key
+
+
+def _encode_secret(raw: str, key_dir: Path | str | None = None) -> str:
+    """Cifra credenciales usando clave aleatoria portátil en config/.key (SHA256-CTR + HMAC-SHA256)."""
     text = (raw or "").strip()
     if not text:
         return ""
-    token = base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii")
-    return f"b64:{token}"
+    resolved_dir = _resolve_secret_key_dir(key_dir=key_dir)
+    master_key = _load_or_create_secret_key(resolved_dir, create=True)
+    if not master_key:
+        raise RuntimeError("No se pudo inicializar la llave local de cifrado.")
+    enc_key, mac_key = _derive_subkeys(master_key)
+    nonce = secrets.token_bytes(_NONCE_BYTES)
+    ciphertext = _xor_keystream(enc_key, nonce, text.encode("utf-8"))
+    tag = hmac.new(mac_key, b"enc1" + nonce + ciphertext, hashlib.sha256).digest()
+    token = base64.urlsafe_b64encode(nonce + ciphertext + tag).decode("ascii")
+    return f"{_SECRET_PREFIX}{token}"
 
 
-def _decode_secret(stored: str) -> str:
-    """Decodifica credenciales guardadas en settings.txt (retrocompatible con texto plano)."""
+def _decode_secret(stored: str, key_dir: Path | str | None = None) -> str:
+    """Descifra secretos `enc1:` (con retrocompatibilidad para valores `b64:` y texto plano)."""
     text = (stored or "").strip()
     if not text:
         return ""
+    if text.startswith(_SECRET_PREFIX):
+        payload_b64 = text[len(_SECRET_PREFIX):]
+        try:
+            blob = base64.urlsafe_b64decode(payload_b64.encode("ascii"))
+            if len(blob) < _NONCE_BYTES + _TAG_BYTES:
+                return ""
+            resolved_dir = _resolve_secret_key_dir(key_dir=key_dir)
+            master_key = _load_or_create_secret_key(resolved_dir, create=False)
+            if not master_key:
+                return ""
+            nonce = blob[:_NONCE_BYTES]
+            tag = blob[-_TAG_BYTES:]
+            ciphertext = blob[_NONCE_BYTES:-_TAG_BYTES]
+            enc_key, mac_key = _derive_subkeys(master_key)
+            expected_tag = hmac.new(mac_key, b"enc1" + nonce + ciphertext, hashlib.sha256).digest()
+            if not hmac.compare_digest(tag, expected_tag):
+                return ""
+            plain = _xor_keystream(enc_key, nonce, ciphertext)
+            return plain.decode("utf-8")
+        except Exception:
+            return ""
     if text.startswith("b64:"):
         payload = text[4:]
         try:
@@ -44,6 +149,8 @@ class ScraperConfig:
     language: str = "es"
     ss_devid: str = ""
     ss_devpassword: str = ""
+    ss_devdebugpassword: str = ""
+    ss_debug_mode: bool = False
     ss_ssid: str = ""
     ss_sspassword: str = ""
     ss_remember: bool = False
@@ -64,6 +171,13 @@ class ScraperConfig:
             self.ss_devpassword.strip()
             or os.environ.get("PLAYNEXUS_SS_DEVPASSWORD", "").strip()
             or os.environ.get("PLAYNEXUS_SS_DEVPASS", "").strip()
+        )
+
+    def resolved_ss_devdebugpassword(self) -> str:
+        """Retorna la Contraseña Debug de desarrollador propia o por entorno."""
+        return (
+            self.ss_devdebugpassword.strip()
+            or os.environ.get("PLAYNEXUS_SS_DEVDEBUGPASSWORD", "").strip()
         )
 
     @property
@@ -120,8 +234,9 @@ def load_scraper_config(db: Any | None) -> ScraperConfig:
     if lang not in ("es", "en", "fr"):
         lang = "es"
 
-    raw_ssid = _decode_secret(_get("scraper_ss_ssid", ""))
-    raw_sspass = _decode_secret(_get("scraper_ss_sspassword", ""))
+    key_dir = _resolve_secret_key_dir(db)
+    raw_ssid = _decode_secret(_get("scraper_ss_ssid", ""), key_dir=key_dir)
+    raw_sspass = _decode_secret(_get("scraper_ss_sspassword", ""), key_dir=key_dir)
     raw_remember = _get("scraper_ss_remember", "").strip().lower()
     if raw_remember in ("true", "false"):
         ss_remember = (raw_remember == "true")
@@ -135,8 +250,10 @@ def load_scraper_config(db: Any | None) -> ScraperConfig:
         preferred_provider=provider,
         region_priority=regions,
         language=lang,
-        ss_devid=_decode_secret(_get("scraper_ss_devid", "")),
-        ss_devpassword=_decode_secret(_get("scraper_ss_devpassword", "")),
+        ss_devid=_decode_secret(_get("scraper_ss_devid", ""), key_dir=key_dir),
+        ss_devpassword=_decode_secret(_get("scraper_ss_devpassword", ""), key_dir=key_dir),
+        ss_devdebugpassword=_decode_secret(_get("scraper_ss_devdebugpassword", ""), key_dir=key_dir),
+        ss_debug_mode=_get("scraper_ss_debug_mode", "false").strip().lower() == "true",
         ss_ssid=raw_ssid,
         ss_sspassword=raw_sspass,
         ss_remember=ss_remember,
@@ -153,16 +270,19 @@ def save_scraper_config(db: Any, config: ScraperConfig) -> None:
     """Guarda ScraperConfig en config/settings.txt mediante db.batch()."""
     if not db:
         return
+    key_dir = _resolve_secret_key_dir(db)
     with db.batch():
         db.set_setting("scraper_provider", config.preferred_provider)
         db.set_setting("scraper_region_priority", ",".join(config.region_priority))
         db.set_setting("scraper_language", config.language)
-        db.set_setting("scraper_ss_devid", _encode_secret(config.ss_devid))
-        db.set_setting("scraper_ss_devpassword", _encode_secret(config.ss_devpassword))
+        db.set_setting("scraper_ss_devid", _encode_secret(config.ss_devid, key_dir=key_dir))
+        db.set_setting("scraper_ss_devpassword", _encode_secret(config.ss_devpassword, key_dir=key_dir))
+        db.set_setting("scraper_ss_devdebugpassword", _encode_secret(config.ss_devdebugpassword, key_dir=key_dir))
+        db.set_setting("scraper_ss_debug_mode", "true" if config.ss_debug_mode else "false")
         db.set_setting("scraper_ss_remember", "true" if config.ss_remember else "false")
         if config.ss_remember:
-            db.set_setting("scraper_ss_ssid", _encode_secret(config.ss_ssid))
-            db.set_setting("scraper_ss_sspassword", _encode_secret(config.ss_sspassword))
+            db.set_setting("scraper_ss_ssid", _encode_secret(config.ss_ssid, key_dir=key_dir))
+            db.set_setting("scraper_ss_sspassword", _encode_secret(config.ss_sspassword, key_dir=key_dir))
         else:
             db.set_setting("scraper_ss_ssid", "")
             db.set_setting("scraper_ss_sspassword", "")

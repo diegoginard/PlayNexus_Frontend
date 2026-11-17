@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl, QRect, QSize
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QUrl, QRect, QSize, QPoint
 from PySide6.QtGui import (
     QColor, QFont, QImage, QPainter, QPen, QPixmap, QBrush, QDragEnterEvent, QDropEvent
 )
@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QSplitter,
     QFrame, QStackedWidget, QSlider, QCheckBox, QFileDialog, QMessageBox,
     QAbstractItemView, QProgressBar, QScrollArea, QSizePolicy, QListWidget,
-    QListWidgetItem, QApplication, QMenu
+    QListWidgetItem, QApplication, QMenu, QLayout, QLayoutItem
 )
 
 from playnexus.db import Database
@@ -46,6 +46,7 @@ from playnexus.services.rom_manager import (
 )
 from playnexus.services.themes import get_layout_media_spec
 from playnexus.ui.layouts import get_available_layouts
+from playnexus.ui.table_utils import configure_details_table, paused_table_sorting
 
 
 def _format_ms(ms: int) -> str:
@@ -848,6 +849,88 @@ class MediaPreviewWidget(QWidget):
         return card
 
 
+class _FlowLayout(QLayout):
+    """Layout adaptable que distribuye botones o chips en varias filas sin comprimir la barra."""
+
+    def __init__(self, parent=None, margin: int = 0, h_spacing: int = 8, v_spacing: int = 6):
+        super().__init__(parent)
+        self._items: list[QLayoutItem] = []
+        self._h_space = max(0, int(h_spacing))
+        self._v_space = max(0, int(v_spacing))
+        self.setContentsMargins(margin, margin, margin, margin)
+
+    def addItem(self, item: QLayoutItem):
+        self._items.append(item)
+
+    def addStretch(self, stretch: int = 0):  # noqa: ARG002
+        return
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self) -> Qt.Orientations:
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect: QRect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self) -> QSize:
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:
+        size = QSize()
+        for item in self._items:
+            w_item = item.widget()
+            if w_item is not None and not w_item.isVisibleTo(self.parentWidget()):
+                continue
+            size = size.expandedTo(item.minimumSize())
+        m = self.contentsMargins()
+        size += QSize(m.left() + m.right(), m.top() + m.bottom())
+        return size
+
+    def _do_layout(self, rect: QRect, test_only: bool) -> int:
+        m = self.contentsMargins()
+        eff = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x = eff.x()
+        y = eff.y()
+        line_h = 0
+
+        for item in self._items:
+            w_item = item.widget()
+            if w_item is not None and not w_item.isVisible():
+                continue
+            hint = item.sizeHint()
+            next_x = x + hint.width() + self._h_space
+            if line_h > 0 and next_x - self._h_space > eff.right():
+                x = eff.x()
+                y = y + line_h + self._v_space
+                next_x = x + hint.width() + self._h_space
+                line_h = 0
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), hint))
+            x = next_x
+            line_h = max(line_h, hint.height())
+
+        return (y + line_h - rect.y()) + m.bottom()
+
+
 class RomManagerWidget(QWidget):
     """
     Pestaña principal del Rom Manager dentro del Configurador de PlayNexus.
@@ -866,6 +949,7 @@ class RomManagerWidget(QWidget):
         self._worker: RomMediaScanWorker | None = None
         self._selected_game_id: int | None = None
         self._selected_key: str | None = None
+        self._applied_table_headers: tuple[str, ...] | None = None
         self._syncing_controls = False
 
         self._search_timer = QTimer(self)
@@ -882,37 +966,58 @@ class RomManagerWidget(QWidget):
         root.setSpacing(10)
 
         # -------------------------------------------------------------
-        # 1. TARJETA DE CONFIGURACIÓN: LISTA, LAYOUT Y BOTÓN ESCANEAR
+        # 1. TARJETA DE CONFIGURACIÓN: SELECCIÓN, ACCIONES Y REQUERIMIENTOS
         # -------------------------------------------------------------
         top_card = QFrame()
         top_card.setStyleSheet(
-            "QFrame { background-color: #1b1e2a; border: 1px solid #2b3144; border-radius: 8px; }"
+            "QFrame#rmTopCard { background-color: #1b1e2a; border: 1px solid #2b3144; border-radius: 8px; }"
         )
+        top_card.setObjectName("rmTopCard")
         top_vbox = QVBoxLayout(top_card)
-        top_vbox.setContentsMargins(12, 10, 12, 10)
-        top_vbox.setSpacing(8)
+        top_vbox.setContentsMargins(14, 10, 14, 10)
+        top_vbox.setSpacing(10)
 
-        controls_row = QHBoxLayout()
-        controls_row.setSpacing(10)
+        # Fila 1: Selección de Lista y Layout
+        select_row = QHBoxLayout()
+        select_row.setSpacing(10)
 
         lbl_l = QLabel("<b>Lista de ROMs:</b>")
         self.list_combo = QComboBox()
-        self.list_combo.setMinimumWidth(220)
+        self.list_combo.setMinimumWidth(150)
+        self.list_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.list_combo.setMinimumContentsLength(12)
         self.list_combo.currentIndexChanged.connect(self._on_list_combo_changed)
 
         lbl_lay = QLabel("<b>Layout a auditar:</b>")
         self.layout_combo = QComboBox()
-        self.layout_combo.setMinimumWidth(220)
+        self.layout_combo.setMinimumWidth(160)
+        self.layout_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.layout_combo.setMinimumContentsLength(12)
         self.layout_combo.currentTextChanged.connect(self._on_layout_combo_changed)
 
-        self.btn_apply_layout = QPushButton("💾 Aplicar layout a lista")
+        self.btn_apply_layout = QPushButton("💾 Aplicar layout")
+        self.btn_apply_layout.setMinimumHeight(32)
         self.btn_apply_layout.setToolTip("Guardar el layout seleccionado como el diseño visual de esta lista")
         self.btn_apply_layout.clicked.connect(self._apply_layout_to_list)
         self.btn_apply_layout.setVisible(False)
 
-        self.btn_edit_folders = QPushButton("📁 Carpetas de lista…")
+        self.btn_edit_folders = QPushButton("📁 Carpetas…")
+        self.btn_edit_folders.setMinimumHeight(32)
         self.btn_edit_folders.setToolTip("Abrir configuración de carpetas y medios de esta lista")
         self.btn_edit_folders.clicked.connect(self._request_edit_current_list)
+
+        select_row.addWidget(lbl_l)
+        select_row.addWidget(self.list_combo, 1)
+        select_row.addSpacing(4)
+        select_row.addWidget(lbl_lay)
+        select_row.addWidget(self.layout_combo, 1)
+        select_row.addWidget(self.btn_apply_layout)
+        select_row.addWidget(self.btn_edit_folders)
+        top_vbox.addLayout(select_row)
+
+        # Fila 2: Botones de acción con distribución adaptable (flujo automático sin aplastarse)
+        actions_bar = QWidget()
+        actions_flow = _FlowLayout(actions_bar, margin=0, h_spacing=8, v_spacing=6)
 
         self.btn_scan = QPushButton("🔍  Escanear Media")
         self.btn_scan.setObjectName("primary")
@@ -926,47 +1031,46 @@ class RomManagerWidget(QWidget):
         self.btn_scrape.setEnabled(False)
 
         self.btn_scraper_cfg = QPushButton("⚙ Scraper")
+        self.btn_scraper_cfg.setMinimumHeight(34)
         self.btn_scraper_cfg.setToolTip("Configurar proveedores online, regiones y credenciales ScreenScraper")
         self.btn_scraper_cfg.clicked.connect(self._open_scraper_settings)
 
         self.btn_toolkit = QPushButton("🛠 Pro Toolkit…")
+        self.btn_toolkit.setMinimumHeight(34)
         self.btn_toolkit.setToolTip("Auto-Trim de Wheels/Logos, Normalizador de Videos (ffmpeg) y Auditor 1G1R / Duplicados")
         self.btn_toolkit.clicked.connect(self._open_pro_toolkit)
 
-        self.btn_ra_sync = QPushButton("🏆 RetroAchievements…")
+        self.btn_ra_sync = QPushButton("🏆 Logros RA…")
+        self.btn_ra_sync.setMinimumHeight(34)
         self.btn_ra_sync.setToolTip("Configurar API Key y sincronizar logros de RetroAchievements")
         self.btn_ra_sync.clicked.connect(self._open_retroachievements)
 
         self.btn_export = QPushButton("📄 Exportar CSV")
+        self.btn_export.setMinimumHeight(34)
         self.btn_export.setToolTip("Exportar reporte de auditoría y media faltante a CSV")
         self.btn_export.clicked.connect(self._export_report)
         self.btn_export.setEnabled(False)
 
-        controls_row.addWidget(lbl_l)
-        controls_row.addWidget(self.list_combo, 1)
-        controls_row.addWidget(lbl_lay)
-        controls_row.addWidget(self.layout_combo, 1)
-        controls_row.addWidget(self.btn_apply_layout)
-        controls_row.addWidget(self.btn_edit_folders)
-        controls_row.addWidget(self.btn_scan)
-        controls_row.addWidget(self.btn_scrape)
-        controls_row.addWidget(self.btn_scraper_cfg)
-        controls_row.addWidget(self.btn_toolkit)
-        controls_row.addWidget(self.btn_ra_sync)
-        controls_row.addWidget(self.btn_export)
-        top_vbox.addLayout(controls_row)
+        for btn in (
+            self.btn_scan,
+            self.btn_scrape,
+            self.btn_scraper_cfg,
+            self.btn_toolkit,
+            self.btn_ra_sync,
+            self.btn_export,
+        ):
+            actions_flow.addWidget(btn)
+        top_vbox.addWidget(actions_bar)
 
-        # Fila de requerimientos leídos desde MEDIA_REQUIREMENTS del layout elegido
+        # Fila 3: Chips de requerimientos con salto automático de línea
         req_wrap = QHBoxLayout()
-        req_wrap.setSpacing(6)
+        req_wrap.setSpacing(8)
         req_lbl = QLabel("Requerimientos:")
         req_lbl.setStyleSheet("color: #9ba7bc; font-size: 8.5pt; font-weight: bold;")
-        req_wrap.addWidget(req_lbl)
+        req_wrap.addWidget(req_lbl, 0, Qt.AlignTop)
 
         self.req_chips_container = QWidget()
-        self.req_chips_layout = QHBoxLayout(self.req_chips_container)
-        self.req_chips_layout.setContentsMargins(0, 0, 0, 0)
-        self.req_chips_layout.setSpacing(6)
+        self.req_chips_layout = _FlowLayout(self.req_chips_container, margin=0, h_spacing=6, v_spacing=6)
         req_wrap.addWidget(self.req_chips_container, 1)
         top_vbox.addLayout(req_wrap)
 
@@ -991,9 +1095,14 @@ class RomManagerWidget(QWidget):
 
         self.summary_label = QLabel("Seleccioná una lista y un layout, luego presioná <b>Escanear Media</b>.")
         self.summary_label.setStyleSheet("color: #cbd5e1; font-size: 9.5pt;")
+        self.summary_label.setMinimumWidth(0)
+        self.summary_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         filter_row.addWidget(self.summary_label, 1)
 
         self.filter_combo = QComboBox()
+        self.filter_combo.setMinimumWidth(180)
+        self.filter_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.filter_combo.setMinimumContentsLength(16)
         self.filter_combo.addItem("Mostrar: Todos", "all")
         self.filter_combo.addItem("❌ Faltan obligatorios", "missing_required")
         self.filter_combo.addItem("⚠️ Falta algún medio (oblig. u opc.)", "missing_any")
@@ -1023,17 +1132,19 @@ class RomManagerWidget(QWidget):
         table_vbox.setSpacing(4)
 
         self.table = QTableWidget()
-        self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
+        configure_details_table(
+            self.table,
+            sorting=True,
+            selection_behavior=QAbstractItemView.SelectItems,
+            hide_vertical_header=True,
+            alternating_rows=True,
+            apply_columns=False,
+        )
         self.table.setStyleSheet(
             "QTableWidget { alternate-background-color: #191d29; gridline-color: #252b3d; }"
             "QTableWidget::item { padding: 5px 8px; }"
             "QTableWidget::item:selected { background-color: #4938ab; color: #ffffff; }"
         )
-        self.table.setSortingEnabled(True)
         self.table.currentCellChanged.connect(self._on_table_cell_changed)
         self.table.cellClicked.connect(self._on_table_cell_clicked)
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -1530,47 +1641,50 @@ class RomManagerWidget(QWidget):
         prev_key = self._selected_key
 
         self.table.blockSignals(True)
-        was_sorting = self.table.isSortingEnabled()
-        self.table.setSortingEnabled(False)
-        self.table.clear()
-
         col_headers = ["Estado", "Juego / Título", "ROM (stem)"]
         for spec in s.specs:
             star = "★ " if spec.required else ""
             col_headers.append(f"{star}{spec.label}")
         col_headers.append("🏆 Logros RA")
 
-        self.table.setColumnCount(len(col_headers))
-        self.table.setHorizontalHeaderLabels(col_headers)
-        self.table.setRowCount(len(filtered))
+        schema_key = tuple(col_headers)
+        schema_changed = (schema_key != self._applied_table_headers)
+        if schema_changed:
+            self.table.setColumnCount(len(col_headers))
+            self.table.setHorizontalHeaderLabels(col_headers)
+            init_widths = [95, 240, 175] + [115] * max(0, len(col_headers) - 3)
+            configure_details_table(
+                self.table,
+                col_widths=init_widths,
+                sorting=True,
+                selection_behavior=QAbstractItemView.SelectItems,
+                hide_vertical_header=True,
+                alternating_rows=True,
+            )
+            self._applied_table_headers = schema_key
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.Interactive)
-        self.table.setColumnWidth(2, 180)
-        for idx_c in range(3, len(col_headers)):
-            header.setSectionResizeMode(idx_c, QHeaderView.ResizeToContents)
+        with paused_table_sorting(self.table, reenable=True):
+            self.table.clearContents()
+            self.table.setRowCount(len(filtered))
 
-        target_col = 0
-        if prev_key:
-            for c_idx, spec in enumerate(s.specs):
-                if spec.key == prev_key:
-                    target_col = 3 + c_idx
-                    break
+            target_col = 0
+            if prev_key:
+                for c_idx, spec in enumerate(s.specs):
+                    if spec.key == prev_key:
+                        target_col = 3 + c_idx
+                        break
 
-        target_item: QTableWidgetItem | None = None
-        target_gid: int | None = None
-        for r_idx, item in enumerate(filtered):
-            self._build_rom_row_cells(r_idx, item)
-            if r_idx == 0 and target_item is None:
-                target_item = self.table.item(r_idx, target_col) or self.table.item(r_idx, 0)
-                target_gid = item.game_id
-            if prev_game_id is not None and item.game_id == prev_game_id:
-                target_item = self.table.item(r_idx, target_col) or self.table.item(r_idx, 0)
-                target_gid = item.game_id
+            target_item: QTableWidgetItem | None = None
+            target_gid: int | None = None
+            for r_idx, item in enumerate(filtered):
+                self._build_rom_row_cells(r_idx, item)
+                if r_idx == 0 and target_item is None:
+                    target_item = self.table.item(r_idx, target_col) or self.table.item(r_idx, 0)
+                    target_gid = item.game_id
+                if prev_game_id is not None and item.game_id == prev_game_id:
+                    target_item = self.table.item(r_idx, target_col) or self.table.item(r_idx, 0)
+                    target_gid = item.game_id
 
-        self.table.setSortingEnabled(was_sorting)
         self.table.blockSignals(False)
 
         self.visible_count_lbl.setText(f"{len(filtered)} de {s.total_roms} elemento(s) mostrados")

@@ -9,11 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 import threading
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QLocale, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -47,6 +48,28 @@ from playnexus.services.rom_toolkit import (
     scan_video_candidates,
     tag_1g1r_duplicates,
 )
+from playnexus.ui.table_utils import (
+    SortableTableWidgetItem,
+    configure_details_table,
+    find_table_row_by_user_data,
+    paused_table_sorting,
+)
+
+
+class _FlexibleMBSpinBox(QDoubleSpinBox):
+    """QDoubleSpinBox que acepta tanto punto como coma decimal sin tratar '.' como separador de miles."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        c_loc = QLocale.c()
+        c_loc.setNumberOptions(QLocale.NumberOption.OmitGroupSeparator)
+        self.setLocale(c_loc)
+
+    def validate(self, text: str, pos: int):
+        return super().validate(text.replace(",", "."), pos)
+
+    def valueFromText(self, text: str) -> float:
+        return super().valueFromText(text.replace(",", "."))
 
 
 class _AutoTrimWorker(QThread):
@@ -87,6 +110,48 @@ class _AutoTrimWorker(QThread):
             cancel_check=self._cancel.is_set,
         )
         self.finished_summary.emit(summary)
+
+
+class _VideoScanWorker(QThread):
+    progress = Signal(int, int, str)
+    finished_scan = Signal(list, dict, float, int)
+
+    def __init__(
+        self,
+        folder: str,
+        max_size_mb: float,
+        max_height: int,
+        ffprobe_path: str,
+        deep_probe_mp4: bool,
+        recursive: bool,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.folder = folder
+        self.max_size_mb = max_size_mb
+        self.max_height = max_height
+        self.ffprobe_path = ffprobe_path
+        self.deep_probe_mp4 = deep_probe_mp4
+        self.recursive = recursive
+        self._cancel = threading.Event()
+
+    def request_cancel(self):
+        self._cancel.set()
+
+    def run(self):
+        stats: dict = {}
+        cands = scan_video_candidates(
+            self.folder,
+            max_size_mb=self.max_size_mb,
+            max_height=self.max_height,
+            ffprobe_path=self.ffprobe_path,
+            deep_probe_mp4=self.deep_probe_mp4,
+            recursive=self.recursive,
+            progress_callback=lambda d, t, name: self.progress.emit(d, t, name),
+            cancel_check=self._cancel.is_set,
+            stats_out=stats,
+        )
+        self.finished_scan.emit(cands, stats, self.max_size_mb, self.max_height)
 
 
 class _VideoNormalizeWorker(QThread):
@@ -173,7 +238,9 @@ class RomToolkitDialog(QDialog):
         self.list_row = dict(list_row or {})
         self.games = [dict(g) for g in (games or [])]
         self._trim_worker: _AutoTrimWorker | None = None
+        self._video_scan_worker: _VideoScanWorker | None = None
         self._video_worker: _VideoNormalizeWorker | None = None
+        self._video_row_by_path: dict[str, int] = {}
         self._dup_analysis: dict = {}
 
         list_name = self.list_row.get("name") or "Lista"
@@ -183,6 +250,20 @@ class RomToolkitDialog(QDialog):
 
         self._build_ui()
         self._refresh_capabilities_banner()
+
+    def _stop_all_workers(self):
+        for w in (self._trim_worker, self._video_scan_worker, self._video_worker):
+            if w and w.isRunning():
+                w.request_cancel()
+                w.wait(2000)
+
+    def done(self, result: int):
+        self._stop_all_workers()
+        super().done(result)
+
+    def closeEvent(self, event):
+        self._stop_all_workers()
+        super().closeEvent(event)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -352,11 +433,10 @@ class RomToolkitDialog(QDialog):
 
         self.trim_table = QTableWidget(0, 4)
         self.trim_table.setHorizontalHeaderLabels(["Archivo", "Estado", "Resolución", "Detalle"])
-        self.trim_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.trim_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.trim_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.trim_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        self.trim_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        configure_details_table(
+            self.trim_table,
+            col_widths=(260, 110, 160, 260),
+        )
         lay.addWidget(self.trim_table, 1)
 
         return w
@@ -382,6 +462,7 @@ class RomToolkitDialog(QDialog):
         if self._trim_worker and self._trim_worker.isRunning():
             return
 
+        self.trim_table.setSortingEnabled(False)
         self.trim_table.setRowCount(0)
         self.trim_progress.setValue(0)
         self.trim_progress.setVisible(True)
@@ -410,16 +491,19 @@ class RomToolkitDialog(QDialog):
         self.trim_progress.setMaximum(max(1, total))
         self.trim_progress.setValue(done)
         if res.status in ("trimmed", "error"):
-            r = self.trim_table.rowCount()
-            self.trim_table.insertRow(r)
-            self.trim_table.setItem(r, 0, QTableWidgetItem(fname))
-            st_lbl = "Recortada" if res.status == "trimmed" else "Error"
-            self.trim_table.setItem(r, 1, QTableWidgetItem(st_lbl))
-            res_txt = f"{res.orig_size[0]}x{res.orig_size[1]} → {res.new_size[0]}x{res.new_size[1]}"
-            self.trim_table.setItem(r, 2, QTableWidgetItem(res_txt))
-            self.trim_table.setItem(r, 3, QTableWidgetItem(res.message))
+            with paused_table_sorting(self.trim_table, disable_updates=False):
+                r = self.trim_table.rowCount()
+                self.trim_table.insertRow(r)
+                self.trim_table.setItem(r, 0, SortableTableWidgetItem(fname))
+                st_lbl = "Recortada" if res.status == "trimmed" else "Error"
+                self.trim_table.setItem(r, 1, SortableTableWidgetItem(st_lbl))
+                res_txt = f"{res.orig_size[0]}x{res.orig_size[1]} → {res.new_size[0]}x{res.new_size[1]}"
+                area_key = int(res.orig_size[0]) * int(res.orig_size[1])
+                self.trim_table.setItem(r, 2, SortableTableWidgetItem(res_txt, sort_key=area_key))
+                self.trim_table.setItem(r, 3, SortableTableWidgetItem(res.message))
 
     def _on_trim_finished(self, summary: dict, dry_run: bool):
+        self.trim_table.setSortingEnabled(True)
         self.btn_trim_dry.setEnabled(True)
         self.btn_trim_run.setEnabled(True)
         self.btn_trim_cancel.setEnabled(False)
@@ -457,8 +541,16 @@ class RomToolkitDialog(QDialog):
         cfg = QGroupBox("Carpeta y Perfil de Normalización MP4 (+faststart)")
         form = QFormLayout(cfg)
 
+        list_name = str(self.list_row.get("name") or "Sin lista").strip()
+        default_vdir = str(self.list_row.get("video_path") or "").strip()
+        self.video_list_lbl = QLabel(f"<b>Lista activa:</b> {list_name}")
+        self.video_list_lbl.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
+        form.addRow("Origen:", self.video_list_lbl)
+
         vfolder_row = QHBoxLayout()
-        self.video_folder_edit = QLineEdit(str(self.list_row.get("video_path") or "").strip())
+        self.video_folder_edit = QLineEdit(default_vdir)
+        self.video_folder_edit.setToolTip(default_vdir or "Ruta de la carpeta de videos a analizar")
+        self.video_folder_edit.textChanged.connect(lambda t: self.video_folder_edit.setToolTip(t.strip()))
         btn_vbrowse = QPushButton("Examinar…")
         btn_vbrowse.clicked.connect(self._browse_video_folder)
         vfolder_row.addWidget(self.video_folder_edit, 1)
@@ -470,9 +562,11 @@ class RomToolkitDialog(QDialog):
         self.video_res_combo.addItem("480p (Liviano Arcade)", 480)
         self.video_res_combo.addItem("720p (Alta Calidad)", 720)
 
-        self.video_max_mb_spin = QSpinBox()
-        self.video_max_mb_spin.setRange(2, 500)
-        self.video_max_mb_spin.setValue(15)
+        self.video_max_mb_spin = _FlexibleMBSpinBox()
+        self.video_max_mb_spin.setDecimals(1)
+        self.video_max_mb_spin.setSingleStep(1.0)
+        self.video_max_mb_spin.setRange(1.0, 500.0)
+        self.video_max_mb_spin.setValue(15.0)
         self.video_max_mb_spin.setSuffix(" MB")
 
         self.video_crf_spin = QSpinBox()
@@ -492,6 +586,18 @@ class RomToolkitDialog(QDialog):
         vopts_row.addWidget(self.video_strip_audio_cb)
         vopts_row.addWidget(self.video_backup_cb)
         form.addRow("Perfil H.264:", vopts_row)
+
+        vscan_opts_row = QHBoxLayout()
+        self.video_recursive_cb = QCheckBox("Incluir subcarpetas")
+        self.video_deep_probe_cb = QCheckBox("Analizar resolución/códec en todos los .mp4 (ffprobe)")
+        self.video_deep_probe_cb.setToolTip(
+            "Inspecciona con ffprobe incluso los .mp4 menores al límite de tamaño (útil para detectar 720p/1080p o códecs no-H.264)."
+        )
+        vscan_opts_row.addWidget(self.video_recursive_cb)
+        vscan_opts_row.addSpacing(12)
+        vscan_opts_row.addWidget(self.video_deep_probe_cb)
+        vscan_opts_row.addStretch()
+        form.addRow("Alcance escaneo:", vscan_opts_row)
         lay.addWidget(cfg)
 
         vact = QHBoxLayout()
@@ -502,7 +608,7 @@ class RomToolkitDialog(QDialog):
         self.btn_video_normalize.clicked.connect(self._start_video_normalize)
         self.btn_video_cancel = QPushButton("⏹ Cancelar")
         self.btn_video_cancel.setEnabled(False)
-        self.btn_video_cancel.clicked.connect(self._cancel_video_normalize)
+        self.btn_video_cancel.clicked.connect(self._cancel_video_action)
 
         vact.addWidget(self.btn_video_scan)
         vact.addWidget(self.btn_video_normalize)
@@ -520,11 +626,10 @@ class RomToolkitDialog(QDialog):
 
         self.video_table = QTableWidget(0, 4)
         self.video_table.setHorizontalHeaderLabels(["Archivo", "Tamaño", "Motivo", "Estado"])
-        self.video_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.video_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.video_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.video_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.video_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        configure_details_table(
+            self.video_table,
+            col_widths=(290, 95, 320, 140),
+        )
         lay.addWidget(self.video_table, 1)
 
         return w
@@ -539,27 +644,72 @@ class RomToolkitDialog(QDialog):
         if not folder or not Path(folder).is_dir():
             QMessageBox.warning(self, "Carpeta inválida", "Indicá una carpeta de videos válida.")
             return
+        if (self._video_scan_worker and self._video_scan_worker.isRunning()) or (
+            self._video_worker and self._video_worker.isRunning()
+        ):
+            return
+
+        self.video_max_mb_spin.interpretText()
+        self.video_crf_spin.interpretText()
+        max_mb = float(self.video_max_mb_spin.value())
+        max_h = int(self.video_res_combo.currentData() or 480)
+        caps = detect_toolkit_capabilities(self.db)
+
+        self.video_table.setRowCount(0)
+        self._video_row_by_path.clear()
+        self.video_progress.setMaximum(0)
+        self.video_progress.setValue(0)
+        self.video_progress.setVisible(True)
+        self.btn_video_scan.setEnabled(False)
+        self.btn_video_normalize.setEnabled(False)
+        self.btn_video_cancel.setEnabled(True)
+        self.video_summary_lbl.setText(f"Escaneando {folder} (>{max_mb:g} MB / máx. {max_h}p)…")
+
+        self._video_scan_worker = _VideoScanWorker(
+            folder=folder,
+            max_size_mb=max_mb,
+            max_height=max_h,
+            ffprobe_path=caps.get("ffprobe_path", ""),
+            deep_probe_mp4=self.video_deep_probe_cb.isChecked(),
+            recursive=self.video_recursive_cb.isChecked(),
+            parent=self,
+        )
+        self._video_scan_worker.progress.connect(self._on_video_scan_progress)
+        self._video_scan_worker.finished_scan.connect(self._on_video_scan_finished)
+        self._video_scan_worker.start()
+
+    def _on_video_scan_progress(self, done: int, total: int, fname: str):
+        self.video_progress.setMaximum(max(1, total))
+        self.video_progress.setValue(done)
+        self.video_summary_lbl.setText(f"Escaneando videos ({done}/{total}): {fname}")
+
+    def _on_video_scan_finished(self, cands: list, stats: dict, max_mb: float, max_h: int):
+        self.btn_video_scan.setEnabled(True)
+        self.btn_video_cancel.setEnabled(False)
+        self.video_progress.setVisible(False)
+
+        with paused_table_sorting(self.video_table, reenable=True):
+            self.video_table.setRowCount(len(cands))
+            self._video_row_by_path.clear()
+            for r, cand in enumerate(cands):
+                item_name = SortableTableWidgetItem(cand.filename)
+                item_name.setData(Qt.UserRole, cand.file_path)
+                self.video_table.setItem(r, 0, item_name)
+                mb = cand.size_bytes / (1024.0 * 1024.0)
+                self.video_table.setItem(r, 1, SortableTableWidgetItem(f"{mb:.2f} MB", sort_key=int(cand.size_bytes)))
+                self.video_table.setItem(r, 2, SortableTableWidgetItem(" · ".join(cand.reasons)))
+                self.video_table.setItem(r, 3, SortableTableWidgetItem("Pendiente"))
+                self._video_row_by_path[cand.file_path] = r
 
         caps = detect_toolkit_capabilities(self.db)
-        cands = scan_video_candidates(
-            folder,
-            max_size_mb=float(self.video_max_mb_spin.value()),
-            max_height=int(self.video_res_combo.currentData() or 480),
-            ffprobe_path=caps.get("ffprobe_path", ""),
+        scanned_n = int(stats.get("scanned_files", len(cands)))
+        probed_n = int(stats.get("probed_files", 0))
+        extra = " (cancelado)" if stats.get("cancelled") else ""
+        probe_txt = f" · ffprobe: {probed_n}" if probed_n else ""
+        self.video_summary_lbl.setText(
+            f"Escaneo finalizado{extra}: {scanned_n} video(s) revisados{probe_txt} · "
+            f"{len(cands)} candidato(s) (filtro: > {max_mb:g} MB o > {max_h}p / no-MP4)"
         )
-        self.video_table.setRowCount(0)
-        for cand in cands:
-            r = self.video_table.rowCount()
-            self.video_table.insertRow(r)
-            item_name = QTableWidgetItem(cand.filename)
-            item_name.setData(Qt.UserRole, cand.file_path)
-            self.video_table.setItem(r, 0, item_name)
-            mb = cand.size_bytes / (1024.0 * 1024.0)
-            self.video_table.setItem(r, 1, QTableWidgetItem(f"{mb:.1f} MB"))
-            self.video_table.setItem(r, 2, QTableWidgetItem(" · ".join(cand.reasons)))
-            self.video_table.setItem(r, 3, QTableWidgetItem("Pendiente"))
-
-        self.video_summary_lbl.setText(f"Videos candidatos encontrados: {len(cands)}")
         self.btn_video_normalize.setEnabled(bool(caps["ffmpeg_available"]) and len(cands) > 0)
 
     def _start_video_normalize(self):
@@ -567,14 +717,29 @@ class RomToolkitDialog(QDialog):
         if not caps["ffmpeg_available"]:
             QMessageBox.warning(self, "ffmpeg faltante", "Configurá primero la ruta de ffmpeg.exe.")
             return
-        files = []
+        if (self._video_worker and self._video_worker.isRunning()) or (
+            self._video_scan_worker and self._video_scan_worker.isRunning()
+        ):
+            return
+
+        files: list[str] = []
         for r in range(self.video_table.rowCount()):
+            st_item = self.video_table.item(r, 3)
+            if st_item and st_item.text().startswith("✅"):
+                continue
             p = self.video_table.item(r, 0).data(Qt.UserRole)
             if p:
                 files.append(str(p))
-        if not files or (self._video_worker and self._video_worker.isRunning()):
+        if not files:
+            QMessageBox.information(
+                self,
+                "Sin videos pendientes",
+                "Todos los videos de la lista ya fueron normalizados. Volvé a escanear si querés revisar de nuevo.",
+            )
             return
 
+        self.video_crf_spin.interpretText()
+        self.video_table.setSortingEnabled(False)
         self.video_progress.setMaximum(len(files))
         self.video_progress.setValue(0)
         self.video_progress.setVisible(True)
@@ -596,22 +761,32 @@ class RomToolkitDialog(QDialog):
         self._video_worker.finished_all.connect(self._on_video_finished)
         self._video_worker.start()
 
-    def _cancel_video_normalize(self):
+    def _cancel_video_action(self):
+        if self._video_scan_worker and self._video_scan_worker.isRunning():
+            self._video_scan_worker.request_cancel()
         if self._video_worker and self._video_worker.isRunning():
             self._video_worker.request_cancel()
 
     def _on_video_item_done(self, idx: int, total: int, res: dict):
         self.video_progress.setValue(idx)
-        row = idx - 1
+        src = str(res.get("src") or "")
+        row = find_table_row_by_user_data(self.video_table, src, col=0)
+        if row < 0:
+            row = self._video_row_by_path.get(src, idx - 1)
         if 0 <= row < self.video_table.rowCount():
             st = res.get("status", "error")
             lbl = "✅ Normalizado" if st == "normalized" else ("⏹ Cancelado" if st == "cancelled" else f"❌ {res.get('message', 'Error')}")
-            self.video_table.setItem(row, 3, QTableWidgetItem(lbl))
+            self.video_table.setItem(row, 3, SortableTableWidgetItem(lbl))
 
     def _on_video_finished(self, summary: dict):
+        self.video_table.setSortingEnabled(True)
         self.btn_video_scan.setEnabled(True)
         caps = detect_toolkit_capabilities(self.db)
-        self.btn_video_normalize.setEnabled(bool(caps["ffmpeg_available"]) and self.video_table.rowCount() > 0)
+        has_pending = any(
+            not (self.video_table.item(r, 3) and self.video_table.item(r, 3).text().startswith("✅"))
+            for r in range(self.video_table.rowCount())
+        )
+        self.btn_video_normalize.setEnabled(bool(caps["ffmpeg_available"]) and has_pending)
         self.btn_video_cancel.setEnabled(False)
         saved_mb = summary.get("bytes_saved", 0) / (1024.0 * 1024.0)
         extra = " (cancelado)" if summary.get("cancelled") else ""
@@ -673,11 +848,10 @@ class RomToolkitDialog(QDialog):
 
         self.dup_table = QTableWidget(0, 4)
         self.dup_table.setHorizontalHeaderLabels(["Grupo / Juego", "Ganador (1G1R)", "Duplicado a gestionar", "Acción / Motivo"])
-        self.dup_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.dup_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.dup_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.dup_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.dup_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        configure_details_table(
+            self.dup_table,
+            col_widths=(200, 260, 260, 200),
+        )
         lay.addWidget(self.dup_table, 1)
 
         act_bar = QHBoxLayout()
@@ -713,21 +887,22 @@ class RomToolkitDialog(QDialog):
             group_by_cloneof=self.dup_cloneof_cb.isChecked(),
         )
         groups: list[DuplicateGroup] = self._dup_analysis.get("duplicate_groups") or []
-        self.dup_table.setRowCount(0)
+        with paused_table_sorting(self.dup_table, reenable=True):
+            self.dup_table.setRowCount(0)
 
-        for gr in groups:
-            winner_name = f"🏆 {gr.winner.get('title') or Path(str(gr.winner.get('rom_path') or '')).name} [{gr.winner_region}]"
-            for dup in gr.duplicates:
-                r = self.dup_table.rowCount()
-                self.dup_table.insertRow(r)
-                self.dup_table.setItem(r, 0, QTableWidgetItem(gr.group_label))
-                self.dup_table.setItem(r, 1, QTableWidgetItem(winner_name))
-                dup_file = Path(str(dup.get("rom_path") or "")).name or str(dup.get("title") or "")
-                item_dup = QTableWidgetItem(f"{dup.get('title') or dup_file} ({dup_file})")
-                item_dup.setData(Qt.UserRole, dup)
-                self.dup_table.setItem(r, 2, item_dup)
-                why = f"Clon de {dup.get('cloneof')}" if dup.get("cloneof") else "Menor prioridad regional/revisión"
-                self.dup_table.setItem(r, 3, QTableWidgetItem(why))
+            for gr in groups:
+                winner_name = f"🏆 {gr.winner.get('title') or Path(str(gr.winner.get('rom_path') or '')).name} [{gr.winner_region}]"
+                for dup in gr.duplicates:
+                    r = self.dup_table.rowCount()
+                    self.dup_table.insertRow(r)
+                    self.dup_table.setItem(r, 0, SortableTableWidgetItem(gr.group_label))
+                    self.dup_table.setItem(r, 1, SortableTableWidgetItem(winner_name))
+                    dup_file = Path(str(dup.get("rom_path") or "")).name or str(dup.get("title") or "")
+                    item_dup = SortableTableWidgetItem(f"{dup.get('title') or dup_file} ({dup_file})")
+                    item_dup.setData(Qt.UserRole, dup)
+                    self.dup_table.setItem(r, 2, item_dup)
+                    why = f"Clon de {dup.get('cloneof')}" if dup.get("cloneof") else "Menor prioridad regional/revisión"
+                    self.dup_table.setItem(r, 3, SortableTableWidgetItem(why))
 
         has_dups = bool(groups)
         for b in (self.btn_dup_tag, self.btn_dup_filter_list, self.btn_dup_remove, self.btn_dup_move):

@@ -41,6 +41,11 @@ from playnexus.services.retroachievements import (
     save_ra_config,
 )
 from playnexus.services.scraper.systems import SYSTEM_CATALOG
+from playnexus.ui.table_utils import (
+    SortableTableWidgetItem,
+    configure_details_table,
+    paused_table_sorting,
+)
 
 _RA_CONSOLE_CHOICES: list[tuple[int, str]] = sorted(
     {
@@ -296,12 +301,10 @@ class RAGameDetailDialog(QDialog):
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Estado", "Logro", "Descripción", "Puntos", "Desbloqueo"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        configure_details_table(
+            self.table,
+            col_widths=(90, 210, 320, 75, 145),
+        )
         root.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
@@ -357,24 +360,29 @@ class RAGameDetailDialog(QDialog):
         self._refresh_table()
 
     def _refresh_table(self):
-        self.table.setRowCount(0)
         if not self._detail or not self._detail.get("achievements"):
+            self.table.setRowCount(0)
             return
         mode = self.filter_combo.currentData()
-        for ach in self._detail.get("achievements") or []:
-            earned = bool(ach.get("earned"))
-            if mode == "unlocked" and not earned:
-                continue
-            if mode == "locked" and earned:
-                continue
-            r = self.table.rowCount()
-            self.table.insertRow(r)
-            st_txt = "🏆 HC" if ach.get("hardcore") else ("✅ Sí" if earned else "🔒")
-            self.table.setItem(r, 0, QTableWidgetItem(st_txt))
-            self.table.setItem(r, 1, QTableWidgetItem(str(ach.get("title") or "")))
-            self.table.setItem(r, 2, QTableWidgetItem(str(ach.get("description") or "")))
-            self.table.setItem(r, 3, QTableWidgetItem(str(ach.get("points") or 0)))
-            self.table.setItem(r, 4, QTableWidgetItem(str(ach.get("date_earned") or "—")))
+        with paused_table_sorting(self.table, reenable=True):
+            self.table.setRowCount(0)
+            for ach in self._detail.get("achievements") or []:
+                earned = bool(ach.get("earned"))
+                if mode == "unlocked" and not earned:
+                    continue
+                if mode == "locked" and earned:
+                    continue
+                r = self.table.rowCount()
+                self.table.insertRow(r)
+                is_hc = bool(ach.get("hardcore"))
+                st_txt = "🏆 HC" if is_hc else ("✅ Sí" if earned else "🔒")
+                st_key = 2 if is_hc else (1 if earned else 0)
+                pts_val = int(ach.get("points") or 0)
+                self.table.setItem(r, 0, SortableTableWidgetItem(st_txt, sort_key=st_key))
+                self.table.setItem(r, 1, SortableTableWidgetItem(str(ach.get("title") or "")))
+                self.table.setItem(r, 2, SortableTableWidgetItem(str(ach.get("description") or "")))
+                self.table.setItem(r, 3, SortableTableWidgetItem(str(pts_val), sort_key=pts_val))
+                self.table.setItem(r, 4, SortableTableWidgetItem(str(ach.get("date_earned") or "—")))
 
     def _open_credentials(self):
         dlg = RACredentialsDialog(self.db, self)
@@ -490,11 +498,10 @@ class RABatchSyncDialog(QDialog):
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["Juego", "Estado", "Progreso RA", "Método / Hash"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        configure_details_table(
+            self.table,
+            col_widths=(320, 140, 180, 180),
+        )
         root.addWidget(self.table, 1)
 
         footer = QHBoxLayout()
@@ -530,6 +537,7 @@ class RABatchSyncDialog(QDialog):
                 sys_key = k
                 break
 
+        self.table.setSortingEnabled(False)
         self.table.setRowCount(0)
         self.progress_bar.setMaximum(len(self.games))
         self.progress_bar.setValue(0)
@@ -558,23 +566,25 @@ class RABatchSyncDialog(QDialog):
 
     def _on_progress(self, done: int, total: int, title: str, item: dict):
         self.progress_bar.setValue(done)
-        r = self.table.rowCount()
-        self.table.insertRow(r)
-        self.table.setItem(r, 0, QTableWidgetItem(title))
-        if item.get("error"):
-            self.table.setItem(r, 1, QTableWidgetItem("❌ Error"))
-            self.table.setItem(r, 2, QTableWidgetItem(str(item.get("error"))))
-            self.table.setItem(r, 3, QTableWidgetItem("—"))
-        elif item.get("matched"):
-            self.table.setItem(r, 1, QTableWidgetItem("✅ Emparejado"))
-            self.table.setItem(r, 2, QTableWidgetItem(format_ra_badge_text(item)))
-            self.table.setItem(r, 3, QTableWidgetItem(str(item.get("match_method") or "")))
-        else:
-            self.table.setItem(r, 1, QTableWidgetItem("— Sin match"))
-            self.table.setItem(r, 2, QTableWidgetItem("No catalogado"))
-            self.table.setItem(r, 3, QTableWidgetItem(str(item.get("hash_method") or "")))
+        with paused_table_sorting(self.table, disable_updates=False):
+            r = self.table.rowCount()
+            self.table.insertRow(r)
+            self.table.setItem(r, 0, SortableTableWidgetItem(title))
+            if item.get("error"):
+                self.table.setItem(r, 1, SortableTableWidgetItem("❌ Error", sort_key=2))
+                self.table.setItem(r, 2, SortableTableWidgetItem(str(item.get("error")), sort_key=-2.0))
+                self.table.setItem(r, 3, SortableTableWidgetItem("—"))
+            elif item.get("matched"):
+                self.table.setItem(r, 1, SortableTableWidgetItem("✅ Emparejado", sort_key=0))
+                self.table.setItem(r, 2, SortableTableWidgetItem(format_ra_badge_text(item), sort_key=float(item.get("pct") or 0.0)))
+                self.table.setItem(r, 3, SortableTableWidgetItem(str(item.get("match_method") or "")))
+            else:
+                self.table.setItem(r, 1, SortableTableWidgetItem("— Sin match", sort_key=1))
+                self.table.setItem(r, 2, SortableTableWidgetItem("No catalogado", sort_key=-1.0))
+                self.table.setItem(r, 3, SortableTableWidgetItem(str(item.get("hash_method") or "")))
 
     def _on_finished(self, summary: dict):
+        self.table.setSortingEnabled(True)
         self.btn_start.setEnabled(True)
         self.btn_cancel.setEnabled(False)
         extra = " (cancelado)" if summary.get("cancelled") else ""
@@ -586,6 +596,7 @@ class RABatchSyncDialog(QDialog):
         self.sync_finished.emit()
 
     def _on_failed(self, err: str):
+        self.table.setSortingEnabled(True)
         self.btn_start.setEnabled(True)
         self.btn_cancel.setEnabled(False)
         self.status_lbl.setText(f"❌ Error: {err}")

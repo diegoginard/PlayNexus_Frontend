@@ -17,7 +17,7 @@ import zipfile
 
 from playnexus.db import APP_DIR
 from playnexus.services.scraper.http_utils import ProviderRateLimiter, http_get_json
-from playnexus.services.scraper.models import _decode_secret, _encode_secret
+from playnexus.services.scraper.models import _decode_secret, _encode_secret, _resolve_secret_key_dir
 from playnexus.services.scraper.systems import clean_rom_search_title, detect_system_for_list, normalize_match_key
 
 RA_API_BASE = "https://retroachievements.org/API"
@@ -107,9 +107,10 @@ class RAHashResult:
 def load_ra_config(db) -> RAConfig:
     if db is None:
         return RAConfig()
+    key_dir = _resolve_secret_key_dir(db)
     username = str(db.get_setting(RA_USERNAME_SETTING_KEY, "") or "").strip()
     enc_key = str(db.get_setting(RA_API_KEY_SETTING_KEY, "") or "").strip()
-    api_key = _decode_secret(enc_key) if enc_key else ""
+    api_key = _decode_secret(enc_key, key_dir=key_dir) if enc_key else ""
     show_raw = str(db.get_setting(RA_SHOW_BADGE_SETTING_KEY, "true") or "true").strip().lower()
     return RAConfig(
         username=username,
@@ -121,9 +122,10 @@ def load_ra_config(db) -> RAConfig:
 def save_ra_config(db, cfg: RAConfig) -> None:
     if db is None:
         return
+    key_dir = _resolve_secret_key_dir(db)
     with db.batch() if hasattr(db, "batch") else _NullCtx():
         db.set_setting(RA_USERNAME_SETTING_KEY, cfg.username.strip())
-        enc = _encode_secret(cfg.api_key.strip()) if cfg.api_key.strip() else ""
+        enc = _encode_secret(cfg.api_key.strip(), key_dir=key_dir) if cfg.api_key.strip() else ""
         db.set_setting(RA_API_KEY_SETTING_KEY, enc)
         db.set_setting(RA_SHOW_BADGE_SETTING_KEY, "true" if cfg.show_badge else "false")
 

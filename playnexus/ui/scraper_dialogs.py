@@ -9,7 +9,7 @@ from dataclasses import replace
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QColor, QFont, QPixmap
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QTableWidget,
@@ -62,6 +63,11 @@ from playnexus.services.scraper import (
     save_scraper_config,
 )
 from playnexus.services.scraper.http_utils import http_get_bytes
+from playnexus.ui.table_utils import (
+    SortableTableWidgetItem,
+    configure_details_table,
+    paused_table_sorting,
+)
 
 
 # =====================================================================
@@ -158,27 +164,46 @@ class ScraperSettingsDialog(QDialog):
         self.db = db
         self.config = current_config or load_scraper_config(db)
         self.setWindowTitle("Configuración del Scraper Online")
-        self.setMinimumWidth(560)
+        self.setMinimumSize(500, 380)
         self._build_ui()
         self._load_values()
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            self.resize(min(660, int(avail.width() * 0.90)), min(680, int(avail.height() * 0.85)))
+        else:
+            self.resize(620, 620)
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 14, 16, 14)
-        root.setSpacing(12)
+        root.setContentsMargins(14, 12, 14, 12)
+        root.setSpacing(10)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+
+        scroll_content = QWidget()
+        body = QVBoxLayout(scroll_content)
+        body.setContentsMargins(0, 0, 8, 0)
+        body.setSpacing(10)
 
         intro = QLabel(
             "Configurá los proveedores online para descargar automáticamente la media declarada "
             "en el <code>MEDIA_REQUIREMENTS</code> de cada layout y completar metadatos de juegos."
         )
         intro.setWordWrap(True)
+        intro.setMinimumWidth(0)
         intro.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
-        root.addWidget(intro)
+        body.addWidget(intro)
 
         # Preferencias generales
         gen_grp = QGroupBox("Preferencias generales")
         form = QFormLayout(gen_grp)
-        form.setSpacing(8)
+        form.setSpacing(7)
 
         self.provider_combo = QComboBox()
         self.provider_combo.addItem("Automático (ArcadeDB / ScreenScraper / Libretro)", "auto")
@@ -212,68 +237,66 @@ class ScraperSettingsDialog(QDialog):
         form.addRow("", self.chk_empty_meta)
         form.addRow("", self.chk_overwrite_meta)
         form.addRow("", self.chk_cache)
-        root.addWidget(gen_grp)
+        body.addWidget(gen_grp)
 
-        # Credenciales ScreenScraper (Usuario y Contraseña + opción Recordar)
-        ss_grp = QGroupBox("Cuenta de ScreenScraper.fr (Opcional)")
+        # Credenciales ScreenScraper (Miembro + API Dev + Debug, cifrado portátil en config/.key)
+        ss_grp = QGroupBox("Cuenta y API de ScreenScraper.fr")
         ss_vbox = QVBoxLayout(ss_grp)
         ss_vbox.setSpacing(6)
 
         ss_note = QLabel(
-            "ScreenScraper ofrece carátulas 2D/3D, wheels HD, cartuchos/discos, flyers, marquees, "
-            "bezels y videos. Ingresá tu <b>usuario</b> y <b>contraseña</b> de ScreenScraper.fr. "
-            "Si no cargás cuenta, <b>Libretro Thumbnails</b> y <b>ArcadeDB</b> siguen funcionando gratis."
+            "ScreenScraper ofrece carátulas 3D/2D, wheels HD, cartuchos/discos, flyers, marquees, "
+            "bezels, videos y manuales PDF. Todas las credenciales se guardan cifradas en "
+            "<code>config/settings.txt</code> (clave portátil en <code>config/.key</code>). "
+            "Sin cuenta, <b>Libretro Thumbnails</b> y <b>ArcadeDB</b> siguen funcionando gratis."
         )
         ss_note.setWordWrap(True)
+        ss_note.setMinimumWidth(0)
         ss_note.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
         ss_vbox.addWidget(ss_note)
 
         ss_form = QFormLayout()
         ss_form.setSpacing(6)
         self.ss_ssid_edit = QLineEdit()
-        self.ss_ssid_edit.setPlaceholderText("Usuario de ScreenScraper")
+        self.ss_ssid_edit.setPlaceholderText("Usuario de miembro (ssid)")
         self.ss_sspass_edit = QLineEdit()
         self.ss_sspass_edit.setEchoMode(QLineEdit.Password)
-        self.ss_sspass_edit.setPlaceholderText("Contraseña de ScreenScraper")
+        self.ss_sspass_edit.setPlaceholderText("Contraseña de miembro (sspassword)")
 
-        ss_opts_row = QHBoxLayout()
+        self.ss_devid_edit = QLineEdit()
+        self.ss_devid_edit.setPlaceholderText("Usuario Dev (devid) — cuenta de desarrollador")
+        self.ss_devpass_edit = QLineEdit()
+        self.ss_devpass_edit.setEchoMode(QLineEdit.Password)
+        self.ss_devpass_edit.setPlaceholderText("Contraseña Dev (devpassword)")
+        self.ss_devdebug_edit = QLineEdit()
+        self.ss_devdebug_edit.setEchoMode(QLineEdit.Password)
+        self.ss_devdebug_edit.setPlaceholderText("Contraseña Debug (devdebugpassword) — opcional")
+
+        ss_opts_grid = QGridLayout()
+        ss_opts_grid.setContentsMargins(0, 2, 0, 0)
+        ss_opts_grid.setHorizontalSpacing(14)
+        ss_opts_grid.setVerticalSpacing(4)
         self.chk_remember_ss = QCheckBox("Recordar usuario y contraseña")
-        self.chk_show_pass = QCheckBox("Mostrar contraseña")
+        self.chk_show_pass = QCheckBox("Mostrar contraseñas")
         self.chk_show_pass.toggled.connect(self._toggle_passwords)
-        ss_opts_row.addWidget(self.chk_remember_ss)
-        ss_opts_row.addStretch()
-        ss_opts_row.addWidget(self.chk_show_pass)
+        self.chk_debug_mode = QCheckBox("Modo Debug API (máx. 100/día)")
+        self.chk_debug_mode.setToolTip(
+            "Envía devdebugpassword en las consultas de prueba y evita la caché local de ScreenScraper."
+        )
+        ss_opts_grid.addWidget(self.chk_remember_ss, 0, 0)
+        ss_opts_grid.addWidget(self.chk_show_pass, 0, 1)
+        ss_opts_grid.addWidget(self.chk_debug_mode, 1, 0, 1, 2)
 
         ss_form.addRow("Usuario:", self.ss_ssid_edit)
         ss_form.addRow("Contraseña:", self.ss_sspass_edit)
-        ss_form.addRow("", ss_opts_row)
+        ss_form.addRow("Usuario Dev (devid):", self.ss_devid_edit)
+        ss_form.addRow("Contraseña Dev:", self.ss_devpass_edit)
+        ss_form.addRow("Contraseña Debug:", self.ss_devdebug_edit)
+        ss_form.addRow("", ss_opts_grid)
         ss_vbox.addLayout(ss_form)
+        body.addWidget(ss_grp)
 
-        # Opciones avanzadas opcionales (Dev ID / Dev Password) ocultas por defecto
-        self.btn_toggle_adv = QPushButton("▸ Credenciales avanzadas de API v2 (opcional)")
-        self.btn_toggle_adv.setCheckable(True)
-        self.btn_toggle_adv.setStyleSheet(
-            "QPushButton { text-align: left; border: none; background: transparent; color: #94a3b8; font-size: 8.5pt; padding: 2px 0; }"
-            "QPushButton:hover { color: #cbd5e1; }"
-        )
-        self.adv_ss_box = QWidget()
-        adv_form = QFormLayout(self.adv_ss_box)
-        adv_form.setContentsMargins(0, 4, 0, 0)
-        adv_form.setSpacing(6)
-        self.ss_devid_edit = QLineEdit()
-        self.ss_devid_edit.setPlaceholderText("Developer ID (devid) — opcional")
-        self.ss_devpass_edit = QLineEdit()
-        self.ss_devpass_edit.setEchoMode(QLineEdit.Password)
-        self.ss_devpass_edit.setPlaceholderText("Developer Password (devpassword) — opcional")
-        adv_form.addRow("Dev ID:", self.ss_devid_edit)
-        adv_form.addRow("Dev Password:", self.ss_devpass_edit)
-        self.adv_ss_box.setVisible(False)
-        self.btn_toggle_adv.toggled.connect(self._toggle_adv_fields)
-        ss_vbox.addWidget(self.btn_toggle_adv)
-        ss_vbox.addWidget(self.adv_ss_box)
-        root.addWidget(ss_grp)
-
-        # Caché + Botones
+        # Caché local
         bottom_row = QHBoxLayout()
         self.cache_lbl = QLabel()
         self.cache_lbl.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
@@ -284,8 +307,13 @@ class ScraperSettingsDialog(QDialog):
 
         bottom_row.addWidget(self.cache_lbl, 1)
         bottom_row.addWidget(btn_clear_cache)
-        root.addLayout(bottom_row)
+        body.addLayout(bottom_row)
+        body.addStretch()
 
+        scroll.setWidget(scroll_content)
+        root.addWidget(scroll, 1)
+
+        # Botones siempre visibles al pie
         btns = QHBoxLayout()
         btns.addStretch()
         btn_cancel = QPushButton("Cancelar")
@@ -300,12 +328,8 @@ class ScraperSettingsDialog(QDialog):
     def _toggle_passwords(self, show: bool):
         mode = QLineEdit.Normal if show else QLineEdit.Password
         self.ss_devpass_edit.setEchoMode(mode)
+        self.ss_devdebug_edit.setEchoMode(mode)
         self.ss_sspass_edit.setEchoMode(mode)
-
-    def _toggle_adv_fields(self, expanded: bool):
-        self.adv_ss_box.setVisible(expanded)
-        prefix = "▾" if expanded else "▸"
-        self.btn_toggle_adv.setText(f"{prefix} Credenciales avanzadas de API v2 (opcional)")
 
     def _refresh_cache_label(self):
         cnt, b = get_scraper_cache_stats()
@@ -336,11 +360,11 @@ class ScraperSettingsDialog(QDialog):
         self.chk_cache.setChecked(c.cache_enabled)
         self.ss_devid_edit.setText(c.ss_devid)
         self.ss_devpass_edit.setText(c.ss_devpassword)
+        self.ss_devdebug_edit.setText(c.ss_devdebugpassword)
+        self.chk_debug_mode.setChecked(c.ss_debug_mode)
         self.ss_ssid_edit.setText(c.ss_ssid)
         self.ss_sspass_edit.setText(c.ss_sspassword)
         self.chk_remember_ss.setChecked(c.ss_remember)
-        has_adv = bool(c.ss_devid.strip() or c.ss_devpassword.strip())
-        self.btn_toggle_adv.setChecked(has_adv)
 
     def _on_save(self):
         regs = tuple(r.strip().lower() for r in self.regions_edit.text().split(",") if r.strip())
@@ -352,6 +376,8 @@ class ScraperSettingsDialog(QDialog):
             language=str(self.lang_combo.currentData() or "es"),
             ss_devid=self.ss_devid_edit.text().strip(),
             ss_devpassword=self.ss_devpass_edit.text().strip(),
+            ss_devdebugpassword=self.ss_devdebug_edit.text().strip(),
+            ss_debug_mode=self.chk_debug_mode.isChecked(),
             ss_ssid=self.ss_ssid_edit.text().strip(),
             ss_sspassword=self.ss_sspass_edit.text().strip(),
             ss_remember=self.chk_remember_ss.isChecked(),
@@ -1078,16 +1104,11 @@ class SingleRomScrapeDialog(QDialog):
         self.cand_table = QTableWidget()
         self.cand_table.setColumnCount(5)
         self.cand_table.setHorizontalHeaderLabels(["Título", "Fuente", "Año", "Score", "Assets"])
-        self.cand_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.cand_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.cand_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.cand_table.verticalHeader().setVisible(False)
-        hdr = self.cand_table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        configure_details_table(
+            self.cand_table,
+            col_widths=(240, 130, 65, 70, 140),
+            hide_vertical_header=True,
+        )
         self.cand_table.currentCellChanged.connect(self._on_candidate_selected)
         splitter.addWidget(self.cand_table)
 
@@ -1200,19 +1221,23 @@ class SingleRomScrapeDialog(QDialog):
     def _on_search_done(self, candidates: list[ScraperCandidate]):
         self.btn_search.setEnabled(True)
         self._candidates = candidates
-        self.cand_table.setRowCount(len(candidates))
-        for r_idx, cand in enumerate(candidates):
-            it0 = QTableWidgetItem(cand.title)
-            it0.setData(Qt.UserRole, r_idx)
-            it1 = QTableWidgetItem(cand.provider_label)
-            it2 = QTableWidgetItem(cand.year or "—")
-            it3 = QTableWidgetItem(f"{int(round(cand.match_score * 100))}%")
-            it4 = QTableWidgetItem(", ".join(cand.assets.keys()) or "Solo meta")
-            self.cand_table.setItem(r_idx, 0, it0)
-            self.cand_table.setItem(r_idx, 1, it1)
-            self.cand_table.setItem(r_idx, 2, it2)
-            self.cand_table.setItem(r_idx, 3, it3)
-            self.cand_table.setItem(r_idx, 4, it4)
+        with paused_table_sorting(self.cand_table, reenable=True):
+            self.cand_table.setRowCount(len(candidates))
+            for r_idx, cand in enumerate(candidates):
+                it0 = SortableTableWidgetItem(cand.title)
+                it0.setData(Qt.UserRole, r_idx)
+                it1 = SortableTableWidgetItem(cand.provider_label)
+                yr_raw = str(cand.year or "").strip()
+                yr_key = int(yr_raw) if yr_raw.isdigit() else -1
+                it2 = SortableTableWidgetItem(yr_raw or "—", sort_key=yr_key)
+                score_pct = int(round(cand.match_score * 100))
+                it3 = SortableTableWidgetItem(f"{score_pct}%", sort_key=float(cand.match_score))
+                it4 = SortableTableWidgetItem(", ".join(cand.assets.keys()) or "Solo meta")
+                self.cand_table.setItem(r_idx, 0, it0)
+                self.cand_table.setItem(r_idx, 1, it1)
+                self.cand_table.setItem(r_idx, 2, it2)
+                self.cand_table.setItem(r_idx, 3, it3)
+                self.cand_table.setItem(r_idx, 4, it4)
 
         if candidates:
             self.status_lbl.setText(f"Se encontraron <b>{len(candidates)}</b> candidato(s).")
@@ -1226,8 +1251,13 @@ class SingleRomScrapeDialog(QDialog):
 
     def _current_candidate(self) -> ScraperCandidate | None:
         row = self.cand_table.currentRow()
-        if 0 <= row < len(self._candidates):
-            return self._candidates[row]
+        if row < 0:
+            return None
+        it0 = self.cand_table.item(row, 0)
+        orig_idx = it0.data(Qt.UserRole) if it0 is not None else None
+        idx = int(orig_idx) if orig_idx is not None else row
+        if 0 <= idx < len(self._candidates):
+            return self._candidates[idx]
         return None
 
     def _on_candidate_selected(self, row: int, _col: int, _pr: int, _pc: int):

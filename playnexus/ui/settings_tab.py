@@ -24,6 +24,11 @@ from playnexus.services.emulator_templates import (
     load_emulator_templates, save_emulator_templates, reset_default_templates
 )
 from playnexus.ui.dialogs import TemplateEditDialog
+from playnexus.ui.table_utils import (
+    SortableTableWidgetItem,
+    configure_details_table,
+    paused_table_sorting,
+)
 
 SCREEN_MODES = [
     ("Pantalla completa exclusiva (Fullscreen)", "fullscreen"),
@@ -432,12 +437,11 @@ class SystemSettingsWidget(QWidget):
         self.controls_table.setHorizontalHeaderLabels([
             "Acción", "Descripción", "Tecla (Teclado)", "Mando / Joystick"
         ])
-        self.controls_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.controls_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.controls_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.controls_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.controls_table.setSelectionMode(QAbstractItemView.NoSelection)
-        self.controls_table.verticalHeader().setVisible(False)
+        configure_details_table(
+            self.controls_table,
+            col_widths=(190, 320, 170, 170),
+            hide_vertical_header=True,
+        )
         self.controls_table.verticalHeader().setDefaultSectionSize(36)
         v_controls.addWidget(self.controls_table)
 
@@ -638,18 +642,10 @@ class SystemSettingsWidget(QWidget):
         self.templates_table.setHorizontalHeaderLabels([
             "Nombre", "Ejecutable", "Argumentos", "Plataforma", "Retardo", "Fade", "Carga (In)", "Cierre (Out)", "Descripción"
         ])
-        self.templates_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.templates_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
-        self.templates_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.Stretch)
-        self.templates_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.templates_table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.templates_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        configure_details_table(
+            self.templates_table,
+            col_widths=(160, 140, 180, 130, 80, 80, 90, 90, 200),
+        )
         self.templates_table.setMinimumHeight(240)
         self.templates_table.doubleClicked.connect(self._edit_selected_template)
         v_templates.addWidget(self.templates_table)
@@ -710,66 +706,76 @@ class SystemSettingsWidget(QWidget):
     def refresh_controls_table(self):
         """Llena la tabla compacta de asignación de teclas y mandos."""
         bindings = get_all_bindings(self.db)
-        self.controls_table.setRowCount(len(bindings))
+        with paused_table_sorting(self.controls_table, reenable=True):
+            self.controls_table.clearContents()
+            self.controls_table.setRowCount(len(bindings))
 
-        for row, info in enumerate(bindings):
-            item_name = QTableWidgetItem(info["name"])
-            item_name.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            item_name.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self.controls_table.setItem(row, 0, item_name)
+            for row, info in enumerate(bindings):
+                item_name = SortableTableWidgetItem(info["name"])
+                item_name.setFont(QFont("Segoe UI", 9, QFont.Bold))
+                item_name.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.controls_table.setItem(row, 0, item_name)
 
-            item_desc = QTableWidgetItem(info["desc"])
-            item_desc.setForeground(Qt.gray)
-            item_desc.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            self.controls_table.setItem(row, 1, item_desc)
+                item_desc = SortableTableWidgetItem(info["desc"])
+                item_desc.setForeground(Qt.gray)
+                item_desc.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.controls_table.setItem(row, 1, item_desc)
 
-            # Teclado (Botón interactivo que muestra la tecla y abre captura al hacer clic)
-            key_text = info['key'] if info['key'] else "Sin asignar"
-            btn_key = QPushButton(f"⌨  {key_text}")
-            btn_key.setCursor(Qt.PointingHandCursor)
-            btn_key.setToolTip("Hacé clic para cambiar la tecla asignada")
-            btn_key.setStyleSheet("""
-                QPushButton {
-                    background-color: #242938;
-                    color: #a5b4fc;
-                    border: 1px solid #4f46e5;
-                    border-radius: 6px;
-                    padding: 4px 14px;
-                    font-weight: bold;
-                    font-size: 9pt;
-                }
-                QPushButton:hover {
-                    background-color: #3730a3;
-                    color: #ffffff;
-                    border-color: #6366f1;
-                }
-            """)
-            btn_key.clicked.connect(lambda checked=False, i=info: self._prompt_key_change(i["id"], i["name"]))
-            self.controls_table.setCellWidget(row, 2, btn_key)
+                # Teclado (Botón interactivo + ítem subyacente para ordenar por tecla)
+                key_text = info["key"] if info["key"] else "Sin asignar"
+                key_sort_item = SortableTableWidgetItem(key_text)
+                key_sort_item.setForeground(Qt.transparent)
+                key_sort_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.controls_table.setItem(row, 2, key_sort_item)
+                btn_key = QPushButton(f"⌨  {key_text}")
+                btn_key.setCursor(Qt.PointingHandCursor)
+                btn_key.setToolTip("Hacé clic para cambiar la tecla asignada")
+                btn_key.setStyleSheet("""
+                    QPushButton {
+                        background-color: #242938;
+                        color: #a5b4fc;
+                        border: 1px solid #4f46e5;
+                        border-radius: 6px;
+                        padding: 4px 14px;
+                        font-weight: bold;
+                        font-size: 9pt;
+                    }
+                    QPushButton:hover {
+                        background-color: #3730a3;
+                        color: #ffffff;
+                        border-color: #6366f1;
+                    }
+                """)
+                btn_key.clicked.connect(lambda checked=False, i=info: self._prompt_key_change(i["id"], i["name"]))
+                self.controls_table.setCellWidget(row, 2, btn_key)
 
-            # Mando / Joystick (Botón interactivo que muestra el control y abre captura al hacer clic)
-            pad_text = info['pad'] if info['pad'] else "Sin asignar"
-            btn_pad = QPushButton(f"🎮  {pad_text}")
-            btn_pad.setCursor(Qt.PointingHandCursor)
-            btn_pad.setToolTip("Hacé clic para cambiar el botón o combo de mando asignado")
-            btn_pad.setStyleSheet("""
-                QPushButton {
-                    background-color: #242938;
-                    color: #38bdf8;
-                    border: 1px solid #0284c7;
-                    border-radius: 6px;
-                    padding: 4px 14px;
-                    font-weight: bold;
-                    font-size: 9pt;
-                }
-                QPushButton:hover {
-                    background-color: #0369a1;
-                    color: #ffffff;
-                    border-color: #38bdf8;
-                }
-            """)
-            btn_pad.clicked.connect(lambda checked=False, i=info: self._prompt_gamepad_change(i["id"], i["name"]))
-            self.controls_table.setCellWidget(row, 3, btn_pad)
+                # Mando / Joystick (Botón interactivo + ítem subyacente para ordenar por mando)
+                pad_text = info["pad"] if info["pad"] else "Sin asignar"
+                pad_sort_item = SortableTableWidgetItem(pad_text)
+                pad_sort_item.setForeground(Qt.transparent)
+                pad_sort_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                self.controls_table.setItem(row, 3, pad_sort_item)
+                btn_pad = QPushButton(f"🎮  {pad_text}")
+                btn_pad.setCursor(Qt.PointingHandCursor)
+                btn_pad.setToolTip("Hacé clic para cambiar el botón o combo de mando asignado")
+                btn_pad.setStyleSheet("""
+                    QPushButton {
+                        background-color: #242938;
+                        color: #38bdf8;
+                        border: 1px solid #0284c7;
+                        border-radius: 6px;
+                        padding: 4px 14px;
+                        font-weight: bold;
+                        font-size: 9pt;
+                    }
+                    QPushButton:hover {
+                        background-color: #0369a1;
+                        color: #ffffff;
+                        border-color: #38bdf8;
+                    }
+                """)
+                btn_pad.clicked.connect(lambda checked=False, i=info: self._prompt_gamepad_change(i["id"], i["name"]))
+                self.controls_table.setCellWidget(row, 3, btn_pad)
 
         # Ajustar altura de la tabla para que quepan todas las filas sin scrollbar interno vertical
         header_h = self.controls_table.horizontalHeader().height() or 28
@@ -834,56 +840,71 @@ class SystemSettingsWidget(QWidget):
     def refresh_templates_table(self):
         """Llena la tabla de plantillas de emuladores desde el archivo de texto plano."""
         templates = load_emulator_templates()
-        self.templates_table.setRowCount(len(templates))
-        for row, t in enumerate(templates):
-            item_name = QTableWidgetItem(t.get("name", ""))
-            item_name.setFont(QFont("Segoe UI", 9, QFont.Bold))
-            self.templates_table.setItem(row, 0, item_name)
+        with paused_table_sorting(self.templates_table, reenable=True):
+            self.templates_table.setRowCount(len(templates))
+            for row, t in enumerate(templates):
+                item_name = SortableTableWidgetItem(t.get("name", ""))
+                item_name.setFont(QFont("Segoe UI", 9, QFont.Bold))
+                item_name.setData(Qt.UserRole, row)
+                self.templates_table.setItem(row, 0, item_name)
 
-            self.templates_table.setItem(row, 1, QTableWidgetItem(t.get("executable", "")))
-            self.templates_table.setItem(row, 2, QTableWidgetItem(t.get("arguments", "")))
-            self.templates_table.setItem(row, 3, QTableWidgetItem(t.get("platform", "") or "—"))
+                self.templates_table.setItem(row, 1, SortableTableWidgetItem(t.get("executable", "")))
+                self.templates_table.setItem(row, 2, SortableTableWidgetItem(t.get("arguments", "")))
+                self.templates_table.setItem(row, 3, SortableTableWidgetItem(t.get("platform", "") or "—"))
 
-            d_raw = t.get("bezel_delay", "0.0")
-            f_raw = t.get("bezel_fade", "0.3")
-            load_raw = t.get("loading_time", "1.5")
-            exit_load_raw = t.get("exit_loading_time", "1.0")
-            try:
-                d_str = f"{float(d_raw):.1f} s"
-            except Exception:
-                d_str = "0.0 s"
-            try:
-                f_str = f"{float(f_raw):.1f} s"
-            except Exception:
-                f_str = "0.3 s"
-            try:
-                load_str = f"{float(load_raw):.1f} s"
-            except Exception:
-                load_str = "1.5 s"
-            try:
-                exit_load_str = f"{float(exit_load_raw):.1f} s"
-            except Exception:
-                exit_load_str = "1.0 s"
+                d_raw = t.get("bezel_delay", "0.0")
+                f_raw = t.get("bezel_fade", "0.3")
+                load_raw = t.get("loading_time", "1.5")
+                exit_load_raw = t.get("exit_loading_time", "1.0")
+                try:
+                    d_val = float(d_raw)
+                    d_str = f"{d_val:.1f} s"
+                except Exception:
+                    d_val = 0.0
+                    d_str = "0.0 s"
+                try:
+                    f_val = float(f_raw)
+                    f_str = f"{f_val:.1f} s"
+                except Exception:
+                    f_val = 0.3
+                    f_str = "0.3 s"
+                try:
+                    load_val = float(load_raw)
+                    load_str = f"{load_val:.1f} s"
+                except Exception:
+                    load_val = 1.5
+                    load_str = "1.5 s"
+                try:
+                    exit_load_val = float(exit_load_raw)
+                    exit_load_str = f"{exit_load_val:.1f} s"
+                except Exception:
+                    exit_load_val = 1.0
+                    exit_load_str = "1.0 s"
 
-            item_d = QTableWidgetItem(d_str)
-            item_d.setTextAlignment(Qt.AlignCenter)
-            self.templates_table.setItem(row, 4, item_d)
+                item_d = SortableTableWidgetItem(d_str, sort_key=d_val)
+                item_d.setTextAlignment(Qt.AlignCenter)
+                self.templates_table.setItem(row, 4, item_d)
 
-            item_f = QTableWidgetItem(f_str)
-            item_f.setTextAlignment(Qt.AlignCenter)
-            self.templates_table.setItem(row, 5, item_f)
+                item_f = SortableTableWidgetItem(f_str, sort_key=f_val)
+                item_f.setTextAlignment(Qt.AlignCenter)
+                self.templates_table.setItem(row, 5, item_f)
 
-            item_load = QTableWidgetItem(load_str)
-            item_load.setTextAlignment(Qt.AlignCenter)
-            self.templates_table.setItem(row, 6, item_load)
+                item_load = SortableTableWidgetItem(load_str, sort_key=load_val)
+                item_load.setTextAlignment(Qt.AlignCenter)
+                self.templates_table.setItem(row, 6, item_load)
 
-            item_exit_load = QTableWidgetItem(exit_load_str)
-            item_exit_load.setTextAlignment(Qt.AlignCenter)
-            self.templates_table.setItem(row, 7, item_exit_load)
+                item_exit_load = SortableTableWidgetItem(exit_load_str, sort_key=exit_load_val)
+                item_exit_load.setTextAlignment(Qt.AlignCenter)
+                self.templates_table.setItem(row, 7, item_exit_load)
 
-            item_desc = QTableWidgetItem(t.get("description", ""))
-            item_desc.setForeground(Qt.gray)
-            self.templates_table.setItem(row, 8, item_desc)
+                item_desc = SortableTableWidgetItem(t.get("description", ""))
+                item_desc.setForeground(Qt.gray)
+                self.templates_table.setItem(row, 8, item_desc)
+
+    def _selected_template_index(self, visual_row: int) -> int:
+        it = self.templates_table.item(visual_row, 0)
+        raw_idx = it.data(Qt.UserRole) if it is not None else None
+        return int(raw_idx) if raw_idx is not None else visual_row
 
     def _add_template(self):
         dialog = TemplateEditDialog(self)
@@ -904,7 +925,7 @@ class SystemSettingsWidget(QWidget):
         if not selected:
             QMessageBox.information(self, "Seleccionar", "Por favor seleccioná una plantilla de la tabla para editar.")
             return
-        row_idx = selected[0].row()
+        row_idx = self._selected_template_index(selected[0].row())
         templates = load_emulator_templates()
         if 0 <= row_idx < len(templates):
             curr = templates[row_idx]
@@ -920,7 +941,7 @@ class SystemSettingsWidget(QWidget):
         if not selected:
             QMessageBox.information(self, "Seleccionar", "Por favor seleccioná una plantilla de la tabla para eliminar.")
             return
-        row_idx = selected[0].row()
+        row_idx = self._selected_template_index(selected[0].row())
         templates = load_emulator_templates()
         if 0 <= row_idx < len(templates):
             target_name = templates[row_idx].get("name", "")
