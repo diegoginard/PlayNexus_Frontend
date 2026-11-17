@@ -36,6 +36,9 @@ config/scraper_cache/
 config/ra_cache/
 config/.key
 
+# Listas de juegos
+lists/*.txt
+
 # PyInstaller
 build/
 dist/
