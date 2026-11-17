@@ -21,6 +21,7 @@ emulator_mute_video = true
 frontend_splash_enabled = true
 frontend_splash_video = splash/splash-1920x1080.mp4
 frontend_startup_list = 15
+frontend_view_transition = fade
 gamepad_close_emulator = Back+Start
 gamepad_mute_video = Y
 gamepad_nav_back = B
@@ -36,6 +37,22 @@ gamepad_toggle_fps = R-Thumb
 layout_preview_sound = false
 list_11_layout = At-The-Arcade Flex
 list_9_layout = At-The-Arcade Flex
+scraper_cache_enabled = true
+scraper_language = es
+scraper_max_workers = 2
+scraper_overwrite_meta = false
+scraper_prefer_hd_video = true
+scraper_provider = arcadedb
+scraper_region_priority = us,wor,ss,eu,es,jp
+scraper_ss_debug_mode = false
+scraper_ss_devdebugpassword = enc1:kgW4nf-8upTJIiYlK91ZW3iALj_RmBDXpRg1WOS_yLODTVxxxkaMCf7pWUFTREyYlBBdgny9bBYcKcM=
+scraper_ss_devid = enc1:Aib81PFw3TKt9Sh2yAanWv3czQsRX-7C0hnAi93wRVYLr43a8PGMFbb8e2Pyi9i82M5PBrR8fXR4oFpIPw==
+scraper_ss_devpassword = enc1:Van3EHrWvMWh4a9l_uKV3PVz4vFMYRWndPIvJb78mupLRmAyhxzDY28X1marG8l_Xquatb3QX_z-vV4=
+scraper_ss_remember = true
+scraper_ss_ssid = enc1:yGNRTq1eFk1QIeoDEJM8k6RO--Yly-7tk6_ooE0pr_XjXl5Ru7ggrfgrZZlGu5y299UMvMTpHskGoGF4rg==
+scraper_ss_sspassword = enc1:CINmaMb8Bgdw-XdZGDPBDO1Vzmtqexi7jYRW6LNfmiRkLeBboUirXh6wtacuSMTHTygVAKnUcgI=
+scraper_timeout_sec = 18.0
+scraper_update_empty_meta = true
 screensaver_blank_time = 20
 screensaver_enabled = true
 screensaver_mode_basic_movie = false
