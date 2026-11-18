@@ -30,6 +30,7 @@ from playnexus.ui.shaders import (
     normalize_shader_preset,
     normalize_shader_target,
 )
+from playnexus.ui.gpu_renderer import RENDER_BACKEND_PROFILES, normalize_render_backend
 from playnexus.ui.particles import PARTICLE_PRESETS, normalize_particle_preset
 from playnexus.ui.table_utils import (
     SortableTableWidgetItem,
@@ -404,6 +405,23 @@ class FrontendSettingsWidget(QWidget):
 
         v_video.addLayout(row_fx2)
 
+        row_fx3 = QHBoxLayout()
+        row_fx3.setSpacing(12)
+        col_rb = QVBoxLayout()
+        col_rb.addWidget(QLabel("<b>Motor de Renderizado del Frontend:</b>"))
+        self.render_backend_combo = QComboBox()
+        self.render_backend_combo.setToolTip(
+            "Acelera temas, video snaps, shaders retro, deformaciones y collage 2x2 directamente en GPU OpenGL "
+            "(con respaldo automático a CPU si OpenGL no está disponible)."
+        )
+        for key, label in RENDER_BACKEND_PROFILES:
+            self.render_backend_combo.addItem(label, key)
+        self.render_backend_combo.currentIndexChanged.connect(self._save_video_settings)
+        col_rb.addWidget(self.render_backend_combo)
+        row_fx3.addLayout(col_rb, 1)
+        row_fx3.addStretch(1)
+        v_video.addLayout(row_fx3)
+
         page_video_layout.addWidget(grp_video)
         page_video_layout.addStretch(1)
         self.stacked_widget.addWidget(_make_tab_scroll(page_video_container))
@@ -734,6 +752,12 @@ class FrontendSettingsWidget(QWidget):
                     self.effects_perf_combo.setCurrentIndex(idx_pf)
                 self.shader_target_combo.setEnabled(perf_val != "off" and sh_val != "none")
 
+            if hasattr(self, "render_backend_combo"):
+                rb_val = normalize_render_backend(self.db.get_setting("frontend_render_backend", "auto"))
+                idx_rb = self.render_backend_combo.findData(rb_val)
+                if idx_rb >= 0:
+                    self.render_backend_combo.setCurrentIndex(idx_rb)
+
             # 4. Cargar configuración de Splash Screen
             splash_en = self.db.get_setting("frontend_splash_enabled", "false").strip().lower() in ("true", "1", "yes")
             self.chk_splash.setChecked(splash_en)
@@ -1002,6 +1026,9 @@ class FrontendSettingsWidget(QWidget):
             self.db.set_setting("frontend_particle_preset", pt_sel)
             self.db.set_setting("frontend_effects_perf", pf_sel)
             self.shader_target_combo.setEnabled(pf_sel != "off" and sh_sel != "none")
+        if hasattr(self, "render_backend_combo"):
+            rb_sel = normalize_render_backend(self.render_backend_combo.currentData())
+            self.db.set_setting("frontend_render_backend", rb_sel)
 
     def _on_splash_toggled(self, checked: bool):
         self.splash_container.setVisible(checked)

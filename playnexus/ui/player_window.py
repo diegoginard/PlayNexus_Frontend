@@ -29,6 +29,14 @@ from playnexus.ui.frontend_quick_menu import (
     FrontendQuickMenuOverlay, QuickSearchOverlay,
     filter_and_sort_runtime_games, execute_system_power_action,
 )
+from playnexus.ui.gpu_renderer import (
+    is_gpu_rendering_permitted,
+    normalize_render_backend,
+)
+from playnexus.ui.layout_studio.runtime_hook import (
+    apply_render_backend_to_layout,
+    update_studio_effects,
+)
 from playnexus.ui.layouts import LAYOUT_REGISTRY, get_available_layouts, create_layout, resolve_theme_name
 from playnexus.ui.shaders import (
     install_layout_runtime_fx_hook,
@@ -212,11 +220,14 @@ class PlayerWindow(QMainWindow):
                     return True
 
         if event.type() == QEvent.Paint:
-            now = time.perf_counter()
-            self._frame_times.append(now)
-            while self._frame_times and (now - self._frame_times[0]) > 1.0:
-                self._frame_times.popleft()
+            self._record_fps_tick()
         return super().eventFilter(watched, event)
+
+    def _record_fps_tick(self):
+        now = time.perf_counter()
+        self._frame_times.append(now)
+        while self._frame_times and (now - self._frame_times[0]) > 1.0:
+            self._frame_times.popleft()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -463,20 +474,32 @@ class PlayerWindow(QMainWindow):
         self._show_toast(f"✨ Partículas: {lbl}", "#c084fc")
 
     def _sync_visual_effects(self):
-        """Sincroniza shader GPU/software y partículas activas en el layout y overlay."""
+        """Sincroniza shader GPU/software, backend gráfico y partículas activas en el layout y overlay."""
         user_sh = normalize_shader_preset(self.db.get_setting("frontend_shader_preset", "layout"), allow_layout=True)
         raw_tg = self.db.get_setting("frontend_shader_target", "layout").strip().lower()
         user_tg = "layout" if raw_tg in ("", "layout", "auto") else normalize_shader_target(raw_tg)
         user_pt = normalize_particle_preset(self.db.get_setting("frontend_particle_preset", "layout"), allow_layout=True)
         user_perf = normalize_effects_perf(self.db.get_setting("frontend_effects_perf", "high"))
+        user_rb = normalize_render_backend(self.db.get_setting("frontend_render_backend", "auto"))
 
         cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
+        cur_gpu_active = False
         if cur is not None:
-            cur._pn_external_overlay = True
             cur._pn_shader_override = user_sh
             cur._pn_shader_target_override = user_tg
             cur._pn_particle_override = user_pt
             cur._pn_effects_perf = user_perf
+            apply_render_backend_to_layout(cur, user_rb)
+
+            vp = getattr(cur, "_gpu_viewport", None)
+            cur_gpu_active = (
+                vp is not None
+                and not getattr(vp, "_fallback_triggered", True)
+                and is_gpu_rendering_permitted(user_rb)
+            )
+            cur._pn_external_overlay = not cur_gpu_active
+            if hasattr(cur, "_studio_override_installed") and cur._studio_override_installed:
+                update_studio_effects(cur)
             sh_eff, tg_eff, pt_eff, perf_eff = resolve_widget_effect_settings(cur)
             cur.update()
         else:
@@ -486,12 +509,20 @@ class PlayerWindow(QMainWindow):
             perf_eff = user_perf
 
         if hasattr(self, "_retro_overlay") and self._retro_overlay is not None:
-            self._retro_overlay.configure(
-                shader_preset=sh_eff,
-                shader_target=tg_eff,
-                particle_preset=pt_eff,
-                perf_profile=perf_eff,
-            )
+            if cur_gpu_active:
+                self._retro_overlay.configure(
+                    shader_preset="none",
+                    shader_target="tv_rect",
+                    particle_preset="none",
+                    perf_profile=perf_eff,
+                )
+            else:
+                self._retro_overlay.configure(
+                    shader_preset=sh_eff,
+                    shader_target=tg_eff,
+                    particle_preset=pt_eff,
+                    perf_profile=perf_eff,
+                )
             if hasattr(self, "fps_label") and self.fps_label and self.fps_label.isVisible():
                 self.fps_label.raise_()
             if hasattr(self, "toast_label") and self.toast_label and self.toast_label.isVisible():
@@ -1300,7 +1331,13 @@ class PlayerWindow(QMainWindow):
 
         inst = create_layout(layout_name)
         inst.db = self.db
-        inst._pn_external_overlay = True
+        user_rb = normalize_render_backend(self.db.get_setting("frontend_render_backend", "auto"))
+        vp = getattr(inst, "_gpu_viewport", None)
+        has_gpu = vp is not None and not getattr(vp, "_fallback_triggered", True) and is_gpu_rendering_permitted(user_rb)
+        inst._pn_external_overlay = not has_gpu
+        apply_render_backend_to_layout(inst, user_rb)
+        if vp is not None:
+            vp.set_on_frame_rendered(self._record_fps_tick)
         install_layout_runtime_fx_hook(inst)
         inst.game_selected.connect(self._on_game_selected)
         inst.game_activated.connect(self._on_game_activated)

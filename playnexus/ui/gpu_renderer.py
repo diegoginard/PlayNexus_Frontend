@@ -1,0 +1,1167 @@
+"""Motor de renderizado acelerado por GPU (OpenGL vía PySide6) para PlayNexus.
+
+Características principales de Fase 1:
+  - `GpuTextureCache`: Caché LRU de texturas `QOpenGLTexture` residentes en VRAM.
+  - `GpuVideoSurface`: Carga directa de `QVideoFrame` sin pasar por `frame.toImage()`
+    (soporta NV12/NV21, YUV420P/YV12 y planos RGB/BGRA con conversión en shader GPU).
+  - `GpuSceneViewport`: Viewport `QOpenGLWidget` con homografía proyectiva de 4 puntos
+    (`corner_pins`), composición premultiplicada, shaders retro sin readback (`fbo.toImage()`),
+    escalado HiDPI exacto y respaldo automático a `QPainter` si OpenGL no está disponible.
+"""
+
+from __future__ import annotations
+
+from collections import OrderedDict
+from dataclasses import dataclass
+import math
+import os
+import struct
+from typing import Any, Callable
+
+from PySide6.QtCore import QCoreApplication, QPointF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QImage,
+    QPixmap,
+    QPolygonF,
+    QSurfaceFormat,
+    QTransform,
+)
+from PySide6.QtMultimedia import QVideoFrame, QVideoFrameFormat
+from PySide6.QtOpenGL import (
+    QOpenGLBuffer,
+    QOpenGLFramebufferObject,
+    QOpenGLFramebufferObjectFormat,
+    QOpenGLPixelTransferOptions,
+    QOpenGLShader,
+    QOpenGLShaderProgram,
+    QOpenGLTexture,
+)
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
+from PySide6.QtWidgets import QWidget
+
+from playnexus.ui.particles import _PRESET_PALETTES, _get_glow_sprite
+from playnexus.ui.shaders import (
+    _FRAGMENT_SHADERS,
+    normalize_shader_preset,
+)
+
+
+# ---------------------------------------------------------------------------
+# Perfiles de backend y detección de entorno gráfico
+# ---------------------------------------------------------------------------
+
+RENDER_BACKEND_PROFILES: list[tuple[str, str]] = [
+    ("auto", "Automático (GPU OpenGL con respaldo Software)"),
+    ("gpu", "GPU OpenGL (Máxima fluidez)"),
+    ("software", "Software (QPainter clásico)"),
+]
+
+VALID_RENDER_BACKENDS: set[str] = {key for key, _ in RENDER_BACKEND_PROFILES}
+RENDER_BACKEND_LABELS: dict[str, str] = dict(RENDER_BACKEND_PROFILES)
+
+
+def normalize_render_backend(value: Any) -> str:
+    """Normaliza el perfil de backend de renderizado ('auto', 'gpu' o 'software')."""
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return "auto"
+    if raw in VALID_RENDER_BACKENDS:
+        return raw
+    if raw in ("opengl", "gl", "hardware", "hw"):
+        return "gpu"
+    if raw in ("cpu", "qpainter", "sw", "off"):
+        return "software"
+    for key, label in RENDER_BACKEND_PROFILES:
+        if raw == label.strip().lower():
+            return key
+    return "auto"
+
+
+def is_offscreen_qt_platform() -> bool:
+    """Detecta plataformas Qt headless donde QOpenGLWidget no tiene swapchain nativo."""
+    app = QCoreApplication.instance()
+    if app is not None:
+        try:
+            pname = str(app.platformName() or "").strip().lower()
+            if pname in ("offscreen", "minimal", "vnc"):
+                return True
+        except Exception:
+            pass
+    return str(os.environ.get("QT_QPA_PLATFORM", "")).strip().lower() in (
+        "offscreen",
+        "minimal",
+        "vnc",
+    )
+
+
+def is_gpu_rendering_permitted(backend: str | None = None) -> bool:
+    """Indica si el backend actual permite intentar aceleración GPU en widget."""
+    norm = normalize_render_backend(backend)
+    if norm == "software":
+        return False
+    if is_offscreen_qt_platform():
+        return False
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Shaders GLSL del compositor (compatibles con OpenGL 2.1+ y GLES 2.0/ANGLE)
+# ---------------------------------------------------------------------------
+
+# Cuadrado unitario en orden GL_TRIANGLE_STRIP: TL -> TR -> BL -> BR
+_UNIT_QUAD_DATA = struct.pack(
+    "8f",
+    0.0, 0.0,
+    1.0, 0.0,
+    0.0, 1.0,
+    1.0, 1.0,
+)
+
+_PROJECTIVE_VERTEX_SHADER = """
+attribute vec2 a_uv;
+varying vec2 v_uv;
+uniform vec3 u_col0;
+uniform vec3 u_col1;
+uniform vec3 u_col2;
+uniform float u_flip_v;
+void main() {
+    vec3 res = u_col0 * a_uv.x + u_col1 * a_uv.y + u_col2;
+    if (res.z < 0.0) {
+        res = -res;
+    }
+    gl_Position = vec4(res.x, res.y, 0.0, max(res.z, 0.0001));
+    v_uv = vec2(a_uv.x, u_flip_v > 0.5 ? (1.0 - a_uv.y) : a_uv.y);
+}
+"""
+
+_FRAG_SOLID = """
+uniform vec4 u_color;
+void main() {
+    gl_FragColor = u_color;
+}
+"""
+
+_FRAG_SPRITE = """
+uniform sampler2D u_tex;
+uniform float u_opacity;
+varying vec2 v_uv;
+void main() {
+    vec4 c = texture2D(u_tex, v_uv);
+    gl_FragColor = c * clamp(u_opacity, 0.0, 1.0);
+}
+"""
+
+_FRAG_VIDEO_RGBA = """
+uniform sampler2D u_tex;
+uniform float u_opacity;
+uniform float u_swap_rb;
+uniform float u_force_opaque;
+varying vec2 v_uv;
+void main() {
+    vec4 c = texture2D(u_tex, v_uv);
+    vec3 rgb = u_swap_rb > 0.5 ? c.bgr : c.rgb;
+    float src_a = u_force_opaque > 0.5 ? 1.0 : c.a;
+    float out_a = src_a * clamp(u_opacity, 0.0, 1.0);
+    gl_FragColor = vec4(rgb * out_a, out_a);
+}
+"""
+
+_FRAG_VIDEO_NV12 = """
+uniform sampler2D u_tex_y;
+uniform sampler2D u_tex_uv;
+uniform float u_opacity;
+uniform float u_swap_uv;
+varying vec2 v_uv;
+void main() {
+    float y = (texture2D(u_tex_y, v_uv).r - 0.0627451) * 1.16438356;
+    vec2 uv_s = texture2D(u_tex_uv, v_uv).rg;
+    float u = (u_swap_uv > 0.5 ? uv_s.y : uv_s.x) - 0.5;
+    float v = (u_swap_uv > 0.5 ? uv_s.x : uv_s.y) - 0.5;
+    vec3 rgb = clamp(vec3(
+        y + 1.59602678 * v,
+        y - 0.39176229 * u - 0.81296765 * v,
+        y + 2.01723214 * u
+    ), 0.0, 1.0);
+    float a = clamp(u_opacity, 0.0, 1.0);
+    gl_FragColor = vec4(rgb * a, a);
+}
+"""
+
+_FRAG_VIDEO_YUV420P = """
+uniform sampler2D u_tex_y;
+uniform sampler2D u_tex_u;
+uniform sampler2D u_tex_v;
+uniform float u_opacity;
+varying vec2 v_uv;
+void main() {
+    float y = (texture2D(u_tex_y, v_uv).r - 0.0627451) * 1.16438356;
+    float u = texture2D(u_tex_u, v_uv).r - 0.5;
+    float v = texture2D(u_tex_v, v_uv).r - 0.5;
+    vec3 rgb = clamp(vec3(
+        y + 1.59602678 * v,
+        y - 0.39176229 * u - 0.81296765 * v,
+        y + 2.01723214 * u
+    ), 0.0, 1.0);
+    float a = clamp(u_opacity, 0.0, 1.0);
+    gl_FragColor = vec4(rgb * a, a);
+}
+"""
+
+# Mapeo de formatos de QVideoFrame -> descriptor compacto de subida GPU
+_PF = QVideoFrameFormat.PixelFormat
+_RGB_PIXEL_FORMATS: dict[Any, tuple[bool, bool]] = {}
+for _fmt_name, _swap_rb, _force_opaque in (
+    ("Format_RGBA8888", False, False),
+    ("Format_RGBA8888_Premultiplied", False, False),
+    ("Format_RGBX8888", False, True),
+    ("Format_BGRA8888", True, False),
+    ("Format_BGRA8888_Premultiplied", True, False),
+    ("Format_BGRX8888", True, True),
+):
+    _fmt_val = getattr(_PF, _fmt_name, None)
+    if _fmt_val is not None:
+        _RGB_PIXEL_FORMATS[_fmt_val] = (_swap_rb, _force_opaque)
+
+
+# ---------------------------------------------------------------------------
+# Utilidades geométricas de proyección
+# ---------------------------------------------------------------------------
+
+
+def _set_uniform(prog: QOpenGLShaderProgram, name: str, *values: Any) -> None:
+    """Establece un uniforme GLSL resolviendo su ubicación entera (compatible PySide6 6.x)."""
+    cache = getattr(prog, "_pn_ulocs", None)
+    if cache is None:
+        cache = {}
+        setattr(prog, "_pn_ulocs", cache)
+    loc = cache.get(name)
+    if loc is None:
+        loc = int(prog.uniformLocation(name))
+        cache[name] = loc
+    if loc < 0:
+        return
+    n = len(values)
+    if n == 1:
+        v = values[0]
+        if isinstance(v, int) and not isinstance(v, bool):
+            prog.setUniformValue1i(loc, v)
+        else:
+            prog.setUniformValue1f(loc, float(v))
+    elif n == 2:
+        prog.setUniformValue(loc, float(values[0]), float(values[1]))
+    elif n == 3:
+        prog.setUniformValue(loc, float(values[0]), float(values[1]), float(values[2]))
+    elif n == 4:
+        prog.setUniformValue(loc, float(values[0]), float(values[1]), float(values[2]), float(values[3]))
+
+
+def pixels_to_ndc(px: float, py: float, viewport_w: float, viewport_h: float) -> tuple[float, float]:
+    """Convierte píxeles lógicos (arriba-izquierda = 0,0) a NDC OpenGL (-1..+1)."""
+    vw = max(1.0, float(viewport_w))
+    vh = max(1.0, float(viewport_h))
+    return (2.0 * (float(px) / vw) - 1.0, 1.0 - 2.0 * (float(py) / vh))
+
+
+def compute_quad_homography(
+    dst_ndc_points: list[tuple[float, float]],
+) -> tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
+    """Calcula la homografía 3x3 (u,v,1)->(x',y',w') en formato 3 columnas vec3."""
+    if len(dst_ndc_points) != 4:
+        return (2.0, 0.0, 0.0), (0.0, -2.0, 0.0), (-1.0, 1.0, 1.0)
+
+    src_poly = QPolygonF([
+        QPointF(0.0, 0.0),
+        QPointF(1.0, 0.0),
+        QPointF(1.0, 1.0),
+        QPointF(0.0, 1.0),
+    ])
+    dst_poly = QPolygonF([QPointF(float(x), float(y)) for x, y in dst_ndc_points])
+    trans = QTransform()
+    if not QTransform.quadToQuad(src_poly, dst_poly, trans):
+        return (2.0, 0.0, 0.0), (0.0, -2.0, 0.0), (-1.0, 1.0, 1.0)
+
+    col0 = (float(trans.m11()), float(trans.m12()), float(trans.m13()))
+    col1 = (float(trans.m21()), float(trans.m22()), float(trans.m23()))
+    col2 = (float(trans.m31()), float(trans.m32()), float(trans.m33()))
+    return col0, col1, col2
+
+
+def build_rect_ndc_points(
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    viewport_w: float,
+    viewport_h: float,
+    rotation_deg: float = 0.0,
+) -> list[tuple[float, float]]:
+    """Genera los 4 vértices TL, TR, BR, BL en NDC aplicando rotación alrededor del centro."""
+    corners = [
+        (float(x), float(y)),
+        (float(x + w), float(y)),
+        (float(x + w), float(y + h)),
+        (float(x), float(y + h)),
+    ]
+    if abs(float(rotation_deg)) > 1e-4:
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+        t = QTransform()
+        t.translate(cx, cy)
+        t.rotate(float(rotation_deg))
+        t.translate(-cx, -cy)
+        rotated: list[tuple[float, float]] = []
+        for px, py in corners:
+            pt = t.map(QPointF(px, py))
+            rotated.append((pt.x(), pt.y()))
+        corners = rotated
+    return [pixels_to_ndc(px, py, viewport_w, viewport_h) for px, py in corners]
+
+
+# ---------------------------------------------------------------------------
+# Caché de texturas residentes en VRAM
+# ---------------------------------------------------------------------------
+
+
+def _image_to_premultiplied_rgba(src: QPixmap | QImage | None) -> QImage | None:
+    if src is None or src.isNull():
+        return None
+    img = src.toImage() if isinstance(src, QPixmap) else src
+    if img.isNull():
+        return None
+    if img.format() != QImage.Format.Format_RGBA8888_Premultiplied:
+        img = img.convertToFormat(QImage.Format.Format_RGBA8888_Premultiplied)
+    return img
+
+
+class GpuTextureCache:
+    """Caché LRU de `QOpenGLTexture` residentes en VRAM ligado a un contexto OpenGL."""
+
+    def __init__(self, max_entries: int = 128) -> None:
+        self._max_entries = max(16, int(max_entries))
+        self._textures: OrderedDict[Any, QOpenGLTexture] = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._textures)
+
+    def get_or_upload(
+        self,
+        key: Any,
+        source: QPixmap | QImage | None,
+        *,
+        linear: bool = True,
+    ) -> QOpenGLTexture | None:
+        """Devuelve la textura GL en VRAM o la sube una única vez si aún no existe."""
+        tex = self._textures.get(key)
+        if tex is not None and tex.isCreated():
+            self._textures.move_to_end(key)
+            return tex
+
+        img = _image_to_premultiplied_rgba(source)
+        if img is None or img.isNull():
+            return None
+
+        tex = QOpenGLTexture(img, QOpenGLTexture.MipMapGeneration.DontGenerateMipMaps)
+        if not tex.isCreated():
+            return None
+        filt = QOpenGLTexture.Filter.Linear if linear else QOpenGLTexture.Filter.Nearest
+        tex.setMinMagFilters(filt, filt)
+        tex.setWrapMode(QOpenGLTexture.WrapMode.ClampToEdge)
+
+        self._textures[key] = tex
+        self._textures.move_to_end(key)
+        while len(self._textures) > self._max_entries:
+            _old_key, old_tex = self._textures.popitem(last=False)
+            try:
+                if old_tex.isCreated():
+                    old_tex.destroy()
+            except Exception:
+                pass
+        return tex
+
+    def clear(self) -> None:
+        """Libera todas las texturas GL almacenadas (debe llamarse con contexto activo)."""
+        for tex in self._textures.values():
+            try:
+                if tex.isCreated():
+                    tex.destroy()
+            except Exception:
+                pass
+        self._textures.clear()
+
+
+# ---------------------------------------------------------------------------
+# Superficie de video directa (Zero-toImage para NV12 / YUV420P / BGRA)
+# ---------------------------------------------------------------------------
+
+
+def _tighten_plane_bytes(mv: memoryview, bytes_per_line: int, row_bytes: int, height: int) -> bytes:
+    """Compacta filas cuando el stride tiene relleno no divisible por bytes por píxel."""
+    if bytes_per_line == row_bytes:
+        return bytes(mv[: row_bytes * height])
+    out = bytearray(row_bytes * height)
+    for row in range(height):
+        src_off = row * bytes_per_line
+        dst_off = row * row_bytes
+        out[dst_off : dst_off + row_bytes] = mv[src_off : src_off + row_bytes]
+    return bytes(out)
+
+
+class GpuVideoSurface:
+    """Recibe `QVideoFrame` sin convertir a CPU y sube sus planos crudos a VRAM."""
+
+    def __init__(self) -> None:
+        self._pending_frame: QVideoFrame | None = None
+        self._dirty: bool = False
+        self._has_video: bool = False
+        self._mode: str = "none"  # "nv12" | "yuv420p" | "rgba"
+        self._swap_uv: bool = False
+        self._swap_rb: bool = False
+        self._force_opaque: bool = True
+        self._video_size: tuple[int, int] = (0, 0)
+        self._tex_planes: list[QOpenGLTexture] = []
+        self._plane_dims: list[tuple[int, int, Any]] = []
+        self._fallback_conversions: int = 0
+        self._direct_uploads: int = 0
+
+    @property
+    def has_video(self) -> bool:
+        return self._has_video or (self._pending_frame is not None and self._pending_frame.isValid())
+
+    @property
+    def video_size(self) -> tuple[int, int]:
+        return self._video_size
+
+    @property
+    def direct_uploads(self) -> int:
+        return self._direct_uploads
+
+    @property
+    def fallback_conversions(self) -> int:
+        return self._fallback_conversions
+
+    def set_frame(self, frame: QVideoFrame | None) -> bool:
+        """Almacena el último `QVideoFrame` sin ejecutar conversión en CPU."""
+        if frame is None or not frame.isValid():
+            return False
+        self._pending_frame = QVideoFrame(frame)
+        self._video_size = (max(0, int(frame.width())), max(0, int(frame.height())))
+        self._dirty = True
+        self._has_video = True
+        return True
+
+    def clear(self) -> None:
+        """Limpia el estado actual de video (sin destruir texturas si no hay contexto GL)."""
+        self._pending_frame = None
+        self._dirty = False
+        self._has_video = False
+
+    def destroy_gl(self) -> None:
+        """Destruye texturas OpenGL asociadas (requiere contexto GL actual)."""
+        for tex in self._tex_planes:
+            try:
+                if tex.isCreated():
+                    tex.destroy()
+            except Exception:
+                pass
+        self._tex_planes.clear()
+        self._plane_dims.clear()
+        self._has_video = False
+
+    def _ensure_plane_textures(self, specs: list[tuple[int, int, Any, Any]]) -> bool:
+        """Crea o reutiliza las texturas por plano si coinciden dimensiones y formato."""
+        dims_sig = [(w, h, tfmt) for (w, h, tfmt, _pfmt) in specs]
+        if len(self._tex_planes) == len(specs) and self._plane_dims == dims_sig:
+            if all(t.isCreated() for t in self._tex_planes):
+                return True
+
+        for tex in self._tex_planes:
+            try:
+                if tex.isCreated():
+                    tex.destroy()
+            except Exception:
+                pass
+        self._tex_planes.clear()
+        self._plane_dims.clear()
+
+        for w, h, tfmt, pfmt in specs:
+            tex = QOpenGLTexture(QOpenGLTexture.Target.Target2D)
+            tex.setSize(max(1, int(w)), max(1, int(h)))
+            tex.setFormat(tfmt)
+            tex.setMinMagFilters(QOpenGLTexture.Filter.Linear, QOpenGLTexture.Filter.Linear)
+            tex.setWrapMode(QOpenGLTexture.WrapMode.ClampToEdge)
+            tex.allocateStorage(pfmt, QOpenGLTexture.PixelType.UInt8)
+            if not tex.isCreated():
+                return False
+            self._tex_planes.append(tex)
+        self._plane_dims = dims_sig
+        return True
+
+    @staticmethod
+    def _upload_plane(
+        tex: QOpenGLTexture,
+        pixel_fmt: Any,
+        plane_bits: Any,
+        width: int,
+        height: int,
+        bytes_per_line: int,
+        bytes_per_pixel: int,
+    ) -> None:
+        row_bytes = width * bytes_per_pixel
+        pto = QOpenGLPixelTransferOptions()
+        pto.setAlignment(1)
+        if bytes_per_line >= row_bytes and bytes_per_line % bytes_per_pixel == 0:
+            pto.setRowLength(bytes_per_line // bytes_per_pixel)
+            tex.setData(pixel_fmt, QOpenGLTexture.PixelType.UInt8, plane_bits, pto)
+        else:
+            tight = _tighten_plane_bytes(memoryview(plane_bits), bytes_per_line, row_bytes, height)
+            pto.setRowLength(width)
+            tex.setData(pixel_fmt, QOpenGLTexture.PixelType.UInt8, tight, pto)
+
+    def sync_to_gpu(self) -> bool:
+        """Sube el frame pendiente a texturas OpenGL (llamar solo dentro del contexto GL activo)."""
+        if not self._dirty or self._pending_frame is None:
+            return self._has_video and bool(self._tex_planes)
+
+        frame = self._pending_frame
+        self._dirty = False
+        if not frame.isValid():
+            return False
+
+        w = int(frame.width())
+        h = int(frame.height())
+        if w <= 0 or h <= 0:
+            return False
+
+        pfmt = frame.pixelFormat()
+        mapped = frame.map(QVideoFrame.MapMode.ReadOnly)
+        if not mapped:
+            return self._has_video and bool(self._tex_planes)
+
+        try:
+            planes = int(frame.planeCount())
+            if pfmt in (_PF.Format_NV12, _PF.Format_NV21) and planes >= 2:
+                uv_w = max(1, (w + 1) // 2)
+                uv_h = max(1, (h + 1) // 2)
+                specs = [
+                    (w, h, QOpenGLTexture.TextureFormat.R8_UNorm, QOpenGLTexture.PixelFormat.Red),
+                    (uv_w, uv_h, QOpenGLTexture.TextureFormat.RG8_UNorm, QOpenGLTexture.PixelFormat.RG),
+                ]
+                if not self._ensure_plane_textures(specs):
+                    return False
+                self._upload_plane(
+                    self._tex_planes[0],
+                    QOpenGLTexture.PixelFormat.Red,
+                    frame.bits(0),
+                    w,
+                    h,
+                    int(frame.bytesPerLine(0)),
+                    1,
+                )
+                self._upload_plane(
+                    self._tex_planes[1],
+                    QOpenGLTexture.PixelFormat.RG,
+                    frame.bits(1),
+                    uv_w,
+                    uv_h,
+                    int(frame.bytesPerLine(1)),
+                    2,
+                )
+                self._mode = "nv12"
+                self._swap_uv = (pfmt == _PF.Format_NV21)
+                self._video_size = (w, h)
+                self._direct_uploads += 1
+                self._has_video = True
+                return True
+
+            if pfmt in (_PF.Format_YUV420P, _PF.Format_YV12) and planes >= 3:
+                uv_w = max(1, (w + 1) // 2)
+                uv_h = max(1, (h + 1) // 2)
+                specs = [
+                    (w, h, QOpenGLTexture.TextureFormat.R8_UNorm, QOpenGLTexture.PixelFormat.Red),
+                    (uv_w, uv_h, QOpenGLTexture.TextureFormat.R8_UNorm, QOpenGLTexture.PixelFormat.Red),
+                    (uv_w, uv_h, QOpenGLTexture.TextureFormat.R8_UNorm, QOpenGLTexture.PixelFormat.Red),
+                ]
+                if not self._ensure_plane_textures(specs):
+                    return False
+                u_idx, v_idx = (2, 1) if pfmt == _PF.Format_YV12 else (1, 2)
+                self._upload_plane(self._tex_planes[0], QOpenGLTexture.PixelFormat.Red, frame.bits(0), w, h, int(frame.bytesPerLine(0)), 1)
+                self._upload_plane(self._tex_planes[1], QOpenGLTexture.PixelFormat.Red, frame.bits(u_idx), uv_w, uv_h, int(frame.bytesPerLine(u_idx)), 1)
+                self._upload_plane(self._tex_planes[2], QOpenGLTexture.PixelFormat.Red, frame.bits(v_idx), uv_w, uv_h, int(frame.bytesPerLine(v_idx)), 1)
+                self._mode = "yuv420p"
+                self._video_size = (w, h)
+                self._direct_uploads += 1
+                self._has_video = True
+                return True
+
+            if pfmt in _RGB_PIXEL_FORMATS and planes >= 1:
+                swap_rb, force_opaque = _RGB_PIXEL_FORMATS[pfmt]
+                specs = [
+                    (w, h, QOpenGLTexture.TextureFormat.RGBA8_UNorm, QOpenGLTexture.PixelFormat.RGBA),
+                ]
+                if not self._ensure_plane_textures(specs):
+                    return False
+                self._upload_plane(
+                    self._tex_planes[0],
+                    QOpenGLTexture.PixelFormat.RGBA,
+                    frame.bits(0),
+                    w,
+                    h,
+                    int(frame.bytesPerLine(0)),
+                    4,
+                )
+                self._mode = "rgba"
+                self._swap_rb = swap_rb
+                self._force_opaque = force_opaque
+                self._video_size = (w, h)
+                self._direct_uploads += 1
+                self._has_video = True
+                return True
+        finally:
+            frame.unmap()
+
+        # Fallback seguro solo si el decodificador entrega un formato poco común
+        img = frame.toImage()
+        if img.isNull():
+            return False
+        if img.format() != QImage.Format.Format_RGBA8888:
+            img = img.convertToFormat(QImage.Format.Format_RGBA8888)
+        specs = [(img.width(), img.height(), QOpenGLTexture.TextureFormat.RGBA8_UNorm, QOpenGLTexture.PixelFormat.RGBA)]
+        if not self._ensure_plane_textures(specs):
+            return False
+        self._upload_plane(
+            self._tex_planes[0],
+            QOpenGLTexture.PixelFormat.RGBA,
+            img.constBits(),
+            img.width(),
+            img.height(),
+            img.bytesPerLine(),
+            4,
+        )
+        self._mode = "rgba"
+        self._swap_rb = False
+        self._force_opaque = True
+        self._video_size = (img.width(), img.height())
+        self._fallback_conversions += 1
+        self._has_video = True
+        return True
+
+    def bind_to_program(self, gl_funcs: Any, prog: QOpenGLShaderProgram) -> str | None:
+        """Enlaza los samplers activos en el programa shader y retorna el modo ('nv12'|'yuv420p'|'rgba')."""
+        if not self.sync_to_gpu() or not self._tex_planes:
+            return None
+
+        if self._mode == "nv12" and len(self._tex_planes) >= 2:
+            gl_funcs.glActiveTexture(0x84C0)  # GL_TEXTURE0
+            self._tex_planes[0].bind()
+            _set_uniform(prog, "u_tex_y", 0)
+            gl_funcs.glActiveTexture(0x84C1)  # GL_TEXTURE1
+            self._tex_planes[1].bind()
+            _set_uniform(prog, "u_tex_uv", 1)
+            _set_uniform(prog, "u_swap_uv", 1.0 if self._swap_uv else 0.0)
+            return "nv12"
+
+        if self._mode == "yuv420p" and len(self._tex_planes) >= 3:
+            gl_funcs.glActiveTexture(0x84C0)
+            self._tex_planes[0].bind()
+            _set_uniform(prog, "u_tex_y", 0)
+            gl_funcs.glActiveTexture(0x84C1)
+            self._tex_planes[1].bind()
+            _set_uniform(prog, "u_tex_u", 1)
+            gl_funcs.glActiveTexture(0x84C2)
+            self._tex_planes[2].bind()
+            _set_uniform(prog, "u_tex_v", 2)
+            return "yuv420p"
+
+        gl_funcs.glActiveTexture(0x84C0)
+        self._tex_planes[0].bind()
+        _set_uniform(prog, "u_tex", 0)
+        _set_uniform(prog, "u_swap_rb", 1.0 if self._swap_rb else 0.0)
+        _set_uniform(prog, "u_force_opaque", 1.0 if self._force_opaque else 0.0)
+        return "rgba"
+
+
+# ---------------------------------------------------------------------------
+# Primitiva declarativa de capa GPU y compositor OpenGL
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class GpuQuadCommand:
+    """Comando de dibujo de una capa individual para el frame actual."""
+
+    kind: str  # "pixmap" | "video" | "solid"
+    dst_ndc_pts: list[tuple[float, float]]
+    opacity: float = 1.0
+    tex_key: Any = None
+    pixmap: QPixmap | QImage | None = None
+    video_surface: GpuVideoSurface | None = None
+    color: QColor | None = None
+    shader_preset: str = "none"
+    shader_elapsed: float = 0.0
+    target_px: tuple[int, int] = (0, 0)
+    fill_color: QColor | None = None
+
+
+class GpuQuadPipeline:
+    """Motor OpenGL reutilizable (apto para `QOpenGLWidget` y `QOffscreenSurface`)."""
+
+    def __init__(self, parent_qobject: Any = None) -> None:
+        self._parent = parent_qobject
+        self._ready: bool = False
+        self._error: str = ""
+        self._programs: dict[str, QOpenGLShaderProgram] = {}
+        self._vbo: QOpenGLBuffer | None = None
+        self._fbos: dict[tuple[str, int, int], QOpenGLFramebufferObject] = {}
+        self.texture_cache = GpuTextureCache(max_entries=144)
+
+    @property
+    def ready(self) -> bool:
+        return self._ready
+
+    @property
+    def last_error(self) -> str:
+        return self._error
+
+    def _compile_prog(self, frag_src: str) -> QOpenGLShaderProgram:
+        prog = QOpenGLShaderProgram(self._parent)
+        if not prog.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, _PROJECTIVE_VERTEX_SHADER):
+            raise RuntimeError(f"VS: {prog.log()}")
+        if not prog.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, frag_src):
+            raise RuntimeError(f"FS: {prog.log()}")
+        if not prog.link():
+            raise RuntimeError(f"Link: {prog.log()}")
+        return prog
+
+    def initialize(self) -> bool:
+        if self._ready:
+            return True
+        try:
+            progs: dict[str, QOpenGLShaderProgram] = {
+                "solid": self._compile_prog(_FRAG_SOLID),
+                "sprite": self._compile_prog(_FRAG_SPRITE),
+                "video_rgba": self._compile_prog(_FRAG_VIDEO_RGBA),
+                "video_nv12": self._compile_prog(_FRAG_VIDEO_NV12),
+                "video_yuv420p": self._compile_prog(_FRAG_VIDEO_YUV420P),
+            }
+            for preset_id, frag_src in _FRAGMENT_SHADERS.items():
+                progs[f"fx:{preset_id}"] = self._compile_prog(frag_src)
+
+            vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+            if not vbo.create():
+                raise RuntimeError("No se pudo crear VBO GPU")
+            vbo.bind()
+            vbo.allocate(_UNIT_QUAD_DATA, len(_UNIT_QUAD_DATA))
+            vbo.release()
+
+            self._programs = progs
+            self._vbo = vbo
+            self._ready = True
+            self._error = ""
+            return True
+        except Exception as exc:
+            self._ready = False
+            self._error = str(exc)
+            return False
+
+    def cleanup(self) -> None:
+        self.texture_cache.clear()
+        self._fbos.clear()
+        if self._vbo is not None:
+            try:
+                self._vbo.destroy()
+            except Exception:
+                pass
+            self._vbo = None
+        for prog in self._programs.values():
+            try:
+                prog.removeAllShaders()
+            except Exception:
+                pass
+        self._programs.clear()
+        self._ready = False
+
+    def _get_fbo(self, slot_key: str, w: int, h: int) -> QOpenGLFramebufferObject:
+        rw = max(16, min(4096, int(w)))
+        rh = max(16, min(4096, int(h)))
+        key = (slot_key, rw, rh)
+        fbo = self._fbos.get(key)
+        if fbo is None or not fbo.isValid():
+            # Mantener acotada la cantidad de FBOs por slot
+            stale = [k for k in self._fbos if k[0] == slot_key]
+            for sk in stale:
+                self._fbos.pop(sk, None)
+            fmt = QOpenGLFramebufferObjectFormat()
+            fmt.setAttachment(QOpenGLFramebufferObject.Attachment.NoAttachment)
+            fbo = QOpenGLFramebufferObject(rw, rh, fmt)
+            self._fbos[key] = fbo
+        return fbo
+
+    def _bind_quad_geometry(
+        self,
+        prog: QOpenGLShaderProgram,
+        col0: tuple[float, float, float],
+        col1: tuple[float, float, float],
+        col2: tuple[float, float, float],
+        *,
+        flip_v: bool = False,
+    ) -> int:
+        assert self._vbo is not None
+        self._vbo.bind()
+        uv_loc = prog.attributeLocation("a_uv")
+        prog.enableAttributeArray(uv_loc)
+        prog.setAttributeBuffer(uv_loc, 0x1406, 0, 2, 8)  # GL_FLOAT
+        _set_uniform(prog, "u_col0", col0[0], col0[1], col0[2])
+        _set_uniform(prog, "u_col1", col1[0], col1[1], col1[2])
+        _set_uniform(prog, "u_col2", col2[0], col2[1], col2[2])
+        _set_uniform(prog, "u_flip_v", 1.0 if flip_v else 0.0)
+        return uv_loc
+
+    def _draw_bound_quad(self, gl_funcs: Any, prog: QOpenGLShaderProgram, uv_loc: int) -> None:
+        gl_funcs.glDrawArrays(0x0005, 0, 4)  # GL_TRIANGLE_STRIP
+        prog.disableAttributeArray(uv_loc)
+        if self._vbo is not None:
+            self._vbo.release()
+        prog.release()
+
+    def draw_solid(
+        self,
+        gl_funcs: Any,
+        dst_ndc_pts: list[tuple[float, float]],
+        color: QColor,
+        opacity: float = 1.0,
+    ) -> None:
+        prog = self._programs.get("solid")
+        if prog is None or self._vbo is None:
+            return
+        a = color.alphaF() * max(0.0, min(1.0, float(opacity)))
+        col0, col1, col2 = compute_quad_homography(dst_ndc_pts)
+        prog.bind()
+        uv_loc = self._bind_quad_geometry(prog, col0, col1, col2)
+        _set_uniform(prog, "u_color", color.redF() * a, color.greenF() * a, color.blueF() * a, a)
+        self._draw_bound_quad(gl_funcs, prog, uv_loc)
+
+    def draw_texture(
+        self,
+        gl_funcs: Any,
+        tex_id: int,
+        dst_ndc_pts: list[tuple[float, float]],
+        opacity: float = 1.0,
+        *,
+        flip_v: bool = False,
+        shader_preset: str = "none",
+        resolution_px: tuple[int, int] = (0, 0),
+        elapsed: float = 0.0,
+    ) -> None:
+        norm_fx = normalize_shader_preset(shader_preset)
+        prog = self._programs.get(f"fx:{norm_fx}") if norm_fx != "none" else self._programs.get("sprite")
+        if prog is None or self._vbo is None:
+            prog = self._programs.get("sprite")
+        if prog is None:
+            return
+
+        col0, col1, col2 = compute_quad_homography(dst_ndc_pts)
+        prog.bind()
+        uv_loc = self._bind_quad_geometry(prog, col0, col1, col2, flip_v=flip_v)
+        gl_funcs.glActiveTexture(0x84C0)
+        gl_funcs.glBindTexture(0x0DE1, int(tex_id))  # GL_TEXTURE_2D
+        _set_uniform(prog, "u_tex", 0)
+        if norm_fx != "none":
+            _set_uniform(prog, "u_resolution", max(1, resolution_px[0]), max(1, resolution_px[1]))
+            _set_uniform(prog, "u_time", elapsed)
+            _set_uniform(prog, "u_intensity", 1.0)
+        else:
+            _set_uniform(prog, "u_opacity", max(0.0, min(1.0, float(opacity))))
+        self._draw_bound_quad(gl_funcs, prog, uv_loc)
+
+    def draw_pixmap_cmd(self, gl_funcs: Any, cmd: GpuQuadCommand) -> None:
+        tex = self.texture_cache.get_or_upload(cmd.tex_key, cmd.pixmap)
+        if tex is None:
+            return
+        self.draw_texture(
+            gl_funcs,
+            tex.textureId(),
+            cmd.dst_ndc_pts,
+            opacity=cmd.opacity,
+        )
+
+    def draw_video_cmd(
+        self,
+        gl_funcs: Any,
+        cmd: GpuQuadCommand,
+        *,
+        outer_fbo_id: int = 0,
+        outer_viewport: tuple[int, int] = (1, 1),
+    ) -> None:
+        if cmd.fill_color is not None:
+            self.draw_solid(gl_funcs, cmd.dst_ndc_pts, cmd.fill_color, opacity=cmd.opacity)
+
+        surf = cmd.video_surface
+        if surf is None or not surf.sync_to_gpu():
+            return
+
+        norm_fx = normalize_shader_preset(cmd.shader_preset)
+        use_fx_fbo = norm_fx != "none" and f"fx:{norm_fx}" in self._programs
+
+        if use_fx_fbo:
+            tw, th = cmd.target_px
+            if tw <= 0 or th <= 0:
+                vw, vh = surf.video_size
+                tw, th = max(64, vw), max(64, vh)
+            tv_fbo = self._get_fbo("tv_fx", tw, th)
+            tv_fbo.bind()
+            gl_funcs.glViewport(0, 0, tv_fbo.width(), tv_fbo.height())
+            gl_funcs.glClearColor(0.0, 0.0, 0.0, 1.0)
+            gl_funcs.glClear(0x00004000)
+
+            full_pts = [(-1.0, 1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)]
+            self._draw_video_raw(gl_funcs, surf, full_pts, opacity=1.0)
+            tv_fbo.release()
+
+            gl_funcs.glBindFramebuffer(0x8D40, int(outer_fbo_id))  # GL_FRAMEBUFFER
+            gl_funcs.glViewport(0, 0, max(1, outer_viewport[0]), max(1, outer_viewport[1]))
+            self.draw_texture(
+                gl_funcs,
+                tv_fbo.texture(),
+                cmd.dst_ndc_pts,
+                opacity=cmd.opacity,
+                flip_v=True,
+                shader_preset=norm_fx,
+                resolution_px=(tv_fbo.width(), tv_fbo.height()),
+                elapsed=cmd.shader_elapsed,
+            )
+            return
+
+        self._draw_video_raw(gl_funcs, surf, cmd.dst_ndc_pts, opacity=cmd.opacity)
+
+    def _draw_video_raw(
+        self,
+        gl_funcs: Any,
+        surf: GpuVideoSurface,
+        dst_ndc_pts: list[tuple[float, float]],
+        opacity: float,
+    ) -> None:
+        if self._vbo is None or not surf.sync_to_gpu():
+            return
+        # Determinar shader acorde al formato actual tras sync_to_gpu()
+        prog_key = {
+            "nv12": "video_nv12",
+            "yuv420p": "video_yuv420p",
+        }.get(surf._mode, "video_rgba")
+        prog = self._programs.get(prog_key)
+        if prog is None:
+            return
+
+        col0, col1, col2 = compute_quad_homography(dst_ndc_pts)
+        prog.bind()
+        mode = surf.bind_to_program(gl_funcs, prog)
+        if mode is None:
+            prog.release()
+            return
+        uv_loc = self._bind_quad_geometry(prog, col0, col1, col2, flip_v=False)
+        _set_uniform(prog, "u_opacity", max(0.0, min(1.0, float(opacity))))
+        self._draw_bound_quad(gl_funcs, prog, uv_loc)
+
+
+# ---------------------------------------------------------------------------
+# Widget Viewport OpenGL de escena en tiempo real
+# ---------------------------------------------------------------------------
+
+
+def build_particle_quad_commands(
+    particles: Any,
+    viewport_w: int,
+    viewport_h: int,
+    scale: float = 1.0,
+) -> list[GpuQuadCommand]:
+    """Convierte las partículas activas en quads GPU con sprites cacheados en VRAM."""
+    if particles is None:
+        return []
+    count = int(getattr(particles, "active_count", 0) or 0)
+    if count <= 0 or viewport_w < 4 or viewport_h < 4:
+        return []
+
+    preset = str(getattr(particles, "_preset", "neon_dust") or "neon_dust")
+    palette = _PRESET_PALETTES.get(preset, _PRESET_PALETTES["neon_dust"])
+    sc = max(0.35, min(2.0, float(scale)))
+    cur_t = float(getattr(particles, "_time", 0.0) or 0.0)
+
+    cmds: list[GpuQuadCommand] = []
+    xs = particles._x
+    ys = particles._y
+    sizes = particles._size
+    alphas = particles._alpha
+    phases = particles._phase
+    cidxs = particles._color_idx
+
+    for i in range(count):
+        px = float(xs[i]) * viewport_w
+        py = float(ys[i]) * viewport_h
+        diam = max(4, min(28, int(round(float(sizes[i]) * sc))))
+        col = palette[int(cidxs[i]) % len(palette)]
+        sprite = _get_glow_sprite(col, diam)
+        twinkle = 0.85 + 0.15 * math.sin(cur_t * 2.6 + float(phases[i]))
+        op = max(0.08, min(1.0, float(alphas[i]) * twinkle))
+        half = diam * 0.5
+        cmds.append(
+            GpuQuadCommand(
+                kind="pixmap",
+                dst_ndc_pts=build_rect_ndc_points(px - half, py - half, float(diam), float(diam), viewport_w, viewport_h),
+                opacity=op,
+                tex_key=("particle_glow", col.red(), col.green(), col.blue(), diam),
+                pixmap=sprite,
+            )
+        )
+    return cmds
+
+
+class GpuSceneViewport(QOpenGLWidget):
+    """Viewport OpenGL transparente a entrada que dibuja escenas de PlayNexus en GPU."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        fmt = QSurfaceFormat()
+        fmt.setRenderableType(QSurfaceFormat.RenderableType.OpenGL)
+        fmt.setAlphaBufferSize(8)
+        super().__init__(parent)
+        self.setFormat(fmt)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        self.pipeline = GpuQuadPipeline(self)
+        self._scene_builder: Callable[[int, int], tuple[list[GpuQuadCommand], dict[str, Any]]] | None = None
+        self._fallback_triggered: bool = False
+        self._frame_counter: int = 0
+        self._on_frame_rendered: Callable[[], None] | None = None
+
+    @property
+    def gl_ready(self) -> bool:
+        return self.pipeline.ready and not self._fallback_triggered
+
+    @property
+    def frame_counter(self) -> int:
+        return self._frame_counter
+
+    def set_scene_builder(
+        self,
+        builder: Callable[[int, int], tuple[list[GpuQuadCommand], dict[str, Any]]] | None,
+    ) -> None:
+        self._scene_builder = builder
+
+    def set_on_frame_rendered(self, cb: Callable[[], None] | None) -> None:
+        self._on_frame_rendered = cb
+
+    def initializeGL(self) -> None:  # noqa: N802
+        ok = self.pipeline.initialize()
+        self._fallback_triggered = not ok
+        ctx = self.context()
+        if ctx is not None:
+            try:
+                ctx.aboutToBeDestroyed.connect(self._on_context_destroyed)
+            except Exception:
+                pass
+
+    def _on_context_destroyed(self) -> None:
+        try:
+            self.makeCurrent()
+            self.pipeline.cleanup()
+        except Exception:
+            pass
+        finally:
+            try:
+                self.doneCurrent()
+            except Exception:
+                pass
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self._on_context_destroyed()
+        super().closeEvent(event)
+
+    def paintGL(self) -> None:  # noqa: N802
+        ctx = self.context()
+        if ctx is None or not self.gl_ready:
+            return
+        gl_funcs = ctx.functions()
+
+        log_w = max(1, int(self.width()))
+        log_h = max(1, int(self.height()))
+        dpr = max(1.0, float(self.devicePixelRatioF() or 1.0))
+        fb_w = max(1, int(round(log_w * dpr)))
+        fb_h = max(1, int(round(log_h * dpr)))
+
+        commands: list[GpuQuadCommand] = []
+        meta: dict[str, Any] = {}
+        if self._scene_builder is not None:
+            try:
+                commands, meta = self._scene_builder(log_w, log_h)
+            except Exception:
+                commands, meta = [], {}
+
+        global_fx = normalize_shader_preset(meta.get("global_shader", "none"))
+        elapsed = float(meta.get("elapsed", 0.0) or 0.0)
+        particles = meta.get("particles")
+        particle_scale = float(meta.get("particle_scale", 1.0) or 1.0)
+        if particles is not None:
+            commands.extend(build_particle_quad_commands(particles, log_w, log_h, scale=particle_scale))
+
+        default_fbo = int(self.defaultFramebufferObject())
+        use_global_fbo = global_fx != "none" and f"fx:{global_fx}" in self.pipeline._programs
+
+        active_fbo = default_fbo
+        active_w, active_h = fb_w, fb_h
+        scene_fbo = None
+        if use_global_fbo:
+            scene_fbo = self.pipeline._get_fbo("global_scene", fb_w, fb_h)
+            scene_fbo.bind()
+            active_fbo = int(scene_fbo.handle())
+            active_w, active_h = scene_fbo.width(), scene_fbo.height()
+
+        gl_funcs.glViewport(0, 0, active_w, active_h)
+        gl_funcs.glDisable(0x0B71)  # GL_DEPTH_TEST
+        gl_funcs.glEnable(0x0BE2)   # GL_BLEND
+        gl_funcs.glBlendFunc(1, 0x0303)  # GL_ONE, GL_ONE_MINUS_SRC_ALPHA
+        gl_funcs.glClearColor(0.0, 0.0, 0.0, 1.0)
+        gl_funcs.glClear(0x00004000)
+
+        for cmd in commands:
+            if cmd.kind == "solid" and cmd.color is not None:
+                self.pipeline.draw_solid(gl_funcs, cmd.dst_ndc_pts, cmd.color, opacity=cmd.opacity)
+            elif cmd.kind == "pixmap":
+                self.pipeline.draw_pixmap_cmd(gl_funcs, cmd)
+            elif cmd.kind == "video":
+                self.pipeline.draw_video_cmd(
+                    gl_funcs,
+                    cmd,
+                    outer_fbo_id=active_fbo,
+                    outer_viewport=(active_w, active_h),
+                )
+
+        if use_global_fbo and scene_fbo is not None:
+            if scene_fbo.isBound():
+                scene_fbo.release()
+            gl_funcs.glBindFramebuffer(0x8D40, default_fbo)
+            gl_funcs.glViewport(0, 0, fb_w, fb_h)
+            gl_funcs.glEnable(0x0BE2)
+            gl_funcs.glBlendFunc(1, 0x0303)
+            gl_funcs.glClearColor(0.0, 0.0, 0.0, 1.0)
+            gl_funcs.glClear(0x00004000)
+            full_pts = [(-1.0, 1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)]
+            self.pipeline.draw_texture(
+                gl_funcs,
+                scene_fbo.texture(),
+                full_pts,
+                opacity=1.0,
+                flip_v=True,
+                shader_preset=global_fx,
+                resolution_px=(fb_w, fb_h),
+                elapsed=elapsed,
+            )
+
+        gl_funcs.glActiveTexture(0x84C0)
+        gl_funcs.glBindTexture(0x0DE1, 0)
+
+        self._frame_counter += 1
+        if self._on_frame_rendered is not None:
+            try:
+                self._on_frame_rendered()
+            except Exception:
+                pass

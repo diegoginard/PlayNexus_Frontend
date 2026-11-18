@@ -39,6 +39,14 @@ from playnexus.services.media import resolve_game_media
 from playnexus.services.controls import (
     matches_action, ACTION_SELECT, ACTION_NAV_BACK, ACTION_CLOSE_FRONTEND
 )
+from playnexus.ui.gpu_renderer import (
+    GpuQuadCommand,
+    GpuSceneViewport,
+    GpuVideoSurface,
+    build_rect_ndc_points,
+    is_gpu_rendering_permitted,
+    normalize_render_backend,
+)
 
 
 class ArtOverlay:
@@ -164,15 +172,127 @@ class ArtOverlay:
 
         painter.setOpacity(old_opacity)
 
+    def gpu_commands(
+        self,
+        slot_key: str,
+        target_rect: QRect,
+        viewport_w: int,
+        viewport_h: int,
+        shadow_offset: int = 4,
+    ) -> list[GpuQuadCommand]:
+        """Emite quads GPU cacheados en VRAM para el logotipo y su sombra sin escalar en CPU."""
+        if not self.visible or not self.pixmap or self.pixmap.isNull() or self.alpha <= 0.01:
+            return []
+        pw = max(1, self.pixmap.width())
+        ph = max(1, self.pixmap.height())
+        tw = max(1, target_rect.width())
+        th = max(1, target_rect.height())
+        s = min(tw / float(pw), th / float(ph))
+        dw = max(1, int(round(pw * s)))
+        dh = max(1, int(round(ph * s)))
+        draw_x = float(target_rect.right() - dw)
+        draw_y = float(target_rect.bottom() - dh)
+        op = max(0.0, min(1.0, self.alpha * 0.96))
+
+        cmds: list[GpuQuadCommand] = []
+        if self.shadow_pixmap and not self.shadow_pixmap.isNull():
+            cmds.append(
+                GpuQuadCommand(
+                    kind="pixmap",
+                    dst_ndc_pts=build_rect_ndc_points(
+                        draw_x + shadow_offset, draw_y + shadow_offset, float(dw), float(dh), viewport_w, viewport_h
+                    ),
+                    opacity=op,
+                    tex_key=("ss_ov_shadow", slot_key, self.shadow_pixmap.cacheKey()),
+                    pixmap=self.shadow_pixmap,
+                )
+            )
+        cmds.append(
+            GpuQuadCommand(
+                kind="pixmap",
+                dst_ndc_pts=build_rect_ndc_points(draw_x, draw_y, float(dw), float(dh), viewport_w, viewport_h),
+                opacity=op,
+                tex_key=("ss_ov_logo", slot_key, self.pixmap.cacheKey()),
+                pixmap=self.pixmap,
+            )
+        )
+        return cmds
+
+
+def _ss_aspect_fit_rect(src_w: int, src_h: int, box: QRect) -> QRect:
+    if src_w <= 0 or src_h <= 0 or box.width() <= 0 or box.height() <= 0:
+        return box
+    s = min(box.width() / float(src_w), box.height() / float(src_h))
+    dw = max(1, int(src_w * s))
+    dh = max(1, int(src_h * s))
+    dx = box.x() + (box.width() - dw) // 2
+    dy = box.y() + (box.height() - dh) // 2
+    return QRect(dx, dy, dw, dh)
+
+
+def _ss_attach_gpu_viewport(widget: QWidget, render_backend: str, scene_builder) -> GpuSceneViewport | None:
+    norm_rb = normalize_render_backend(render_backend)
+    widget._render_backend = norm_rb  # type: ignore[attr-defined]
+    if not is_gpu_rendering_permitted(norm_rb):
+        widget._gpu_vp = None  # type: ignore[attr-defined]
+        return None
+    try:
+        vp = GpuSceneViewport(widget)
+        vp.set_scene_builder(scene_builder)
+        vp.setGeometry(0, 0, max(1, widget.width()), max(1, widget.height()))
+        vp.lower()
+        vp.show()
+        widget._gpu_vp = vp  # type: ignore[attr-defined]
+        return vp
+    except Exception:
+        widget._gpu_vp = None  # type: ignore[attr-defined]
+        return None
+
+
+def _ss_gpu_active(widget: QWidget) -> bool:
+    vp = getattr(widget, "_gpu_vp", None)
+    return (
+        vp is not None
+        and not getattr(vp, "_fallback_triggered", True)
+        and is_gpu_rendering_permitted(getattr(widget, "_render_backend", "auto"))
+    )
+
+
+def _ss_request_repaint(widget: QWidget, orig_update) -> None:
+    vp = getattr(widget, "_gpu_vp", None)
+    if vp is not None and is_gpu_rendering_permitted(getattr(widget, "_render_backend", "auto")):
+        if getattr(vp, "_fallback_triggered", False):
+            if vp.isVisible():
+                vp.hide()
+            orig_update()
+            return
+        if not vp.isVisible():
+            vp.show()
+        if vp.width() != widget.width() or vp.height() != widget.height():
+            vp.setGeometry(0, 0, max(1, widget.width()), max(1, widget.height()))
+        if vp.gl_ready:
+            vp.update()
+            return
+        vp.update()
+    orig_update()
+
 
 class BasicMovieWidget(QWidget):
     """
     Modo 1: Video snap a pantalla completa con su logo wheel en la parte inferior derecha.
-    Utiliza QVideoSink para renderizado directo en paintEvent sin capas nativas que lo ocluyan.
+    Soporta subida directa GPU (`QVideoFrame` -> VRAM) con respaldo automático a `QPainter`.
     """
     mode_finished = Signal()
 
-    def __init__(self, overlay_type: str = "wheel", sound: bool = True, preserve_ar: bool = False, parent=None):
+    def __init__(
+        self,
+        overlay_type: str = "wheel",
+        sound: bool = True,
+        preserve_ar: bool = False,
+        parent=None,
+        *,
+        render_backend: str = "auto",
+    ):
         super().__init__(parent)
         self.overlay_type = overlay_type
         self.sound = sound
@@ -184,6 +304,7 @@ class BasicMovieWidget(QWidget):
 
         self._current_frame: QImage | None = None
         self._fallback_pixmap: QPixmap | None = None
+        self._gpu_surface = GpuVideoSurface()
 
         self.setStyleSheet("background-color: #000000;")
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
@@ -204,15 +325,24 @@ class BasicMovieWidget(QWidget):
         self.tick_timer.setInterval(33)
         self.tick_timer.timeout.connect(self._on_tick)
 
+        self._gpu_vp = _ss_attach_gpu_viewport(self, render_backend, self._build_gpu_scene)
+
     def _on_video_frame(self, frame):
-        if frame.isValid():
-            self._current_frame = frame.toImage()
-            self.update()
+        if not frame.isValid():
+            return
+        if _ss_gpu_active(self):
+            self._gpu_surface.set_frame(frame)
+            self._current_frame = None
+            _ss_request_repaint(self, super().update)
+            return
+        self._current_frame = frame.toImage()
+        self.update()
 
     def start_game(self, game: dict, overlay_img: str | None, video_path: str | None, fallback_img: str | None = None):
         self.current_game = game
         self.start_time = time.time()
         self._current_frame = None
+        self._gpu_surface.clear()
         title = game.get("title", "") if game else ""
 
         dur = 12.0
@@ -230,7 +360,7 @@ class BasicMovieWidget(QWidget):
 
         self.overlay.setup(overlay_img, self.start_time, duration=dur, title=title)
         self.tick_timer.start()
-        self.update()
+        _ss_request_repaint(self, super().update)
 
     def _on_media_status(self, status):
         if status in (QMediaPlayer.MediaStatus.EndOfMedia, QMediaPlayer.MediaStatus.InvalidMedia):
@@ -249,13 +379,62 @@ class BasicMovieWidget(QWidget):
     def _on_tick(self):
         now = time.time()
         self.overlay.update_alpha(now)
-        self.update()
+        _ss_request_repaint(self, super().update)
 
         if self.player.playbackState() == QMediaPlayer.PlaybackState.StoppedState:
             if now - self.start_time >= self.min_duration:
                 self.mode_finished.emit()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._gpu_vp is not None:
+            self._gpu_vp.setGeometry(0, 0, max(1, self.width()), max(1, self.height()))
+
+    def _build_gpu_scene(self, w: int, h: int) -> tuple[list[GpuQuadCommand], dict]:
+        cmds: list[GpuQuadCommand] = []
+        full_box = QRect(0, 0, w, h)
+        video_rect = full_box
+
+        if self._gpu_surface.has_video:
+            vw, vh = self._gpu_surface.video_size
+            video_rect = _ss_aspect_fit_rect(vw, vh, full_box) if self.preserve_ar else full_box
+            cmds.append(
+                GpuQuadCommand(
+                    kind="video",
+                    dst_ndc_pts=build_rect_ndc_points(
+                        video_rect.x(), video_rect.y(), video_rect.width(), video_rect.height(), w, h
+                    ),
+                    video_surface=self._gpu_surface,
+                )
+            )
+        elif self._fallback_pixmap and not self._fallback_pixmap.isNull():
+            video_rect = _ss_aspect_fit_rect(self._fallback_pixmap.width(), self._fallback_pixmap.height(), full_box)
+            cmds.append(
+                GpuQuadCommand(
+                    kind="pixmap",
+                    dst_ndc_pts=build_rect_ndc_points(
+                        video_rect.x(), video_rect.y(), video_rect.width(), video_rect.height(), w, h
+                    ),
+                    tex_key=("ss_basic_fb", self._fallback_pixmap.cacheKey()),
+                    pixmap=self._fallback_pixmap,
+                )
+            )
+
+        if self.overlay and self.overlay.visible:
+            overlay_w = min(540, int(video_rect.width() * 0.32))
+            overlay_h = min(260, int(video_rect.height() * 0.26))
+            target_rect = QRect(
+                video_rect.right() - overlay_w - 36,
+                video_rect.bottom() - overlay_h - 36,
+                overlay_w,
+                overlay_h,
+            )
+            cmds.extend(self.overlay.gpu_commands("basic", target_rect, w, h, shadow_offset=4))
+        return cmds, {}
+
     def paintEvent(self, event):
+        if _ss_gpu_active(self) and self._gpu_vp is not None and self._gpu_vp.gl_ready:
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -313,16 +492,25 @@ class BasicMovieWidget(QWidget):
             self.player.setSource(QUrl())
         self._current_frame = None
         self._fallback_pixmap = None
+        self._gpu_surface.clear()
 
 
 class MovieCollageWidget(QWidget):
     """
     Modo 2: Cuadrícula 2x2 de videos simultáneos mediante QVideoSink.
-    Cada celda cuenta con su respectivo logo wheel en la esquina inferior derecha.
+    Acelerado por GPU (`4× GpuVideoSurface`) para evitar decodificación YUV->RGB en CPU.
     """
     mode_finished = Signal()
 
-    def __init__(self, overlay_type: str = "wheel", sound: bool = True, preserve_ar: bool = False, parent=None):
+    def __init__(
+        self,
+        overlay_type: str = "wheel",
+        sound: bool = True,
+        preserve_ar: bool = False,
+        parent=None,
+        *,
+        render_backend: str = "auto",
+    ):
         super().__init__(parent)
         self.overlay_type = overlay_type
         self.sound = sound
@@ -331,6 +519,7 @@ class MovieCollageWidget(QWidget):
         self.start_times = [0.0, 0.0, 0.0, 0.0]
         self.overlays = [ArtOverlay(overlay_type) for _ in range(4)]
         self.current_frames: list[QImage | None] = [None, None, None, None]
+        self._gpu_surfaces: list[GpuVideoSurface] = [GpuVideoSurface() for _ in range(4)]
         self.get_next_game_callback = None
 
         self.setStyleSheet("background-color: #000000;")
@@ -363,10 +552,18 @@ class MovieCollageWidget(QWidget):
         self.tick_timer.setInterval(33)
         self.tick_timer.timeout.connect(self._on_tick)
 
+        self._gpu_vp = _ss_attach_gpu_viewport(self, render_backend, self._build_gpu_scene)
+
     def _on_cell_frame(self, idx: int, frame):
-        if frame.isValid():
-            self.current_frames[idx] = frame.toImage()
-            self.update()
+        if not frame.isValid():
+            return
+        if _ss_gpu_active(self):
+            self._gpu_surfaces[idx].set_frame(frame)
+            self.current_frames[idx] = None
+            _ss_request_repaint(self, super().update)
+            return
+        self.current_frames[idx] = frame.toImage()
+        self.update()
 
     def start_collage(self, get_next_game_callback):
         self.get_next_game_callback = get_next_game_callback
@@ -382,6 +579,7 @@ class MovieCollageWidget(QWidget):
         self.current_games[idx] = game
         self.start_times[idx] = time.time()
         self.current_frames[idx] = None
+        self._gpu_surfaces[idx].clear()
         title = game.get("title", "") if game else ""
 
         dur = 12.0
@@ -393,7 +591,7 @@ class MovieCollageWidget(QWidget):
             dur = 6.0
 
         self.overlays[idx].setup(overlay_img, self.start_times[idx], duration=dur, title=title)
-        self.update()
+        _ss_request_repaint(self, super().update)
 
     def _on_cell_status(self, idx: int, status):
         if status in (QMediaPlayer.MediaStatus.EndOfMedia, QMediaPlayer.MediaStatus.InvalidMedia):
@@ -412,9 +610,78 @@ class MovieCollageWidget(QWidget):
             if self.players[i].playbackState() == QMediaPlayer.PlaybackState.StoppedState:
                 if now - self.start_times[i] >= 6.0:
                     self._start_cell(i)
-        self.update()
+        _ss_request_repaint(self, super().update)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._gpu_vp is not None:
+            self._gpu_vp.setGeometry(0, 0, max(1, self.width()), max(1, self.height()))
+
+    def _build_gpu_scene(self, w: int, h: int) -> tuple[list[GpuQuadCommand], dict]:
+        cmds: list[GpuQuadCommand] = []
+        gap = 4
+        cell_w = (w - gap) / 2.0
+        cell_h = (h - gap) / 2.0
+        coords = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        border_col = QColor(30, 30, 40)
+        bg_col = QColor(10, 10, 15)
+
+        for i in range(4):
+            r, c = coords[i]
+            cx = int(c * (cell_w + gap))
+            cy = int(r * (cell_h + gap))
+            cw = max(1, int(cell_w))
+            ch = max(1, int(cell_h))
+            cell_rect = QRect(cx, cy, cw, ch)
+
+            cmds.append(
+                GpuQuadCommand(
+                    kind="solid",
+                    dst_ndc_pts=build_rect_ndc_points(cx, cy, cw, ch, w, h),
+                    color=border_col,
+                )
+            )
+            inner = cell_rect.adjusted(1, 1, -1, -1)
+            surf = self._gpu_surfaces[i]
+            if surf.has_video:
+                vw, vh = surf.video_size
+                vrect = _ss_aspect_fit_rect(vw, vh, inner) if self.preserve_ar else inner
+                cmds.append(
+                    GpuQuadCommand(
+                        kind="video",
+                        dst_ndc_pts=build_rect_ndc_points(
+                            vrect.x(), vrect.y(), vrect.width(), vrect.height(), w, h
+                        ),
+                        video_surface=surf,
+                        fill_color=bg_col if self.preserve_ar else None,
+                    )
+                )
+            else:
+                cmds.append(
+                    GpuQuadCommand(
+                        kind="solid",
+                        dst_ndc_pts=build_rect_ndc_points(inner.x(), inner.y(), inner.width(), inner.height(), w, h),
+                        color=bg_col,
+                    )
+                )
+
+            ov = self.overlays[i]
+            if ov.visible:
+                overlay_w = min(280, int(cw * 0.46))
+                overlay_h = min(130, int(ch * 0.35))
+                target_rect = QRect(
+                    cell_rect.right() - overlay_w - 16,
+                    cell_rect.bottom() - overlay_h - 16,
+                    overlay_w,
+                    overlay_h,
+                )
+                cmds.extend(ov.gpu_commands(f"collage_{i}", target_rect, w, h, shadow_offset=3))
+
+        return cmds, {}
 
     def paintEvent(self, event):
+        if _ss_gpu_active(self) and self._gpu_vp is not None and self._gpu_vp.gl_ready:
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -486,6 +753,8 @@ class MovieCollageWidget(QWidget):
             p.stop()
             p.setSource(QUrl())
         self.current_frames = [None, None, None, None]
+        for surf in self._gpu_surfaces:
+            surf.clear()
 
 
 class ImageCollageWidget(QWidget):
@@ -588,11 +857,19 @@ class ImageCollageWidget(QWidget):
 class RGBMovieWidget(QWidget):
     """
     Modo 4: Video en la columna central mediante QVideoSink, con paneles laterales
-    y modulación de color RGB interactiva, con el logo wheel en la esquina inferior derecha.
+    y modulación de color RGB interactiva, acelerado por GPU con respaldo QPainter.
     """
     mode_finished = Signal()
 
-    def __init__(self, overlay_type: str = "wheel", sound: bool = True, preserve_ar: bool = False, parent=None):
+    def __init__(
+        self,
+        overlay_type: str = "wheel",
+        sound: bool = True,
+        preserve_ar: bool = False,
+        parent=None,
+        *,
+        render_backend: str = "auto",
+    ):
         super().__init__(parent)
         self.overlay_type = overlay_type
         self.sound = sound
@@ -605,6 +882,8 @@ class RGBMovieWidget(QWidget):
         self.rgb_phase = 0.0
         self._current_frame: QImage | None = None
         self._side_pixmap: QPixmap | None = None
+        self._side_cover_cache: tuple[tuple[int, int, int], QPixmap] | None = None
+        self._gpu_surface = GpuVideoSurface()
 
         self.setStyleSheet("background-color: #000000;")
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
@@ -625,16 +904,26 @@ class RGBMovieWidget(QWidget):
         self.tick_timer.setInterval(33)
         self.tick_timer.timeout.connect(self._on_tick)
 
+        self._gpu_vp = _ss_attach_gpu_viewport(self, render_backend, self._build_gpu_scene)
+
     def _on_video_frame(self, frame):
-        if frame.isValid():
-            self._current_frame = frame.toImage()
-            self.update()
+        if not frame.isValid():
+            return
+        if _ss_gpu_active(self):
+            self._gpu_surface.set_frame(frame)
+            self._current_frame = None
+            _ss_request_repaint(self, super().update)
+            return
+        self._current_frame = frame.toImage()
+        self.update()
 
     def start_game(self, game: dict, overlay_img: str | None, video_path: str | None, side_art: str | None = None):
         self.current_game = game
         self.start_time = time.time()
         self.rgb_phase = 0.0
         self._current_frame = None
+        self._gpu_surface.clear()
+        self._side_cover_cache = None
         title = game.get("title", "") if game else ""
 
         dur = 12.0
@@ -652,7 +941,7 @@ class RGBMovieWidget(QWidget):
 
         self.overlay.setup(overlay_img, self.start_time, duration=dur, title=title)
         self.tick_timer.start()
-        self.update()
+        _ss_request_repaint(self, super().update)
 
     def _on_media_status(self, status):
         if status in (QMediaPlayer.MediaStatus.EndOfMedia, QMediaPlayer.MediaStatus.InvalidMedia):
@@ -670,9 +959,108 @@ class RGBMovieWidget(QWidget):
         now = time.time()
         self.overlay.update_alpha(now)
         self.rgb_phase += 0.04
-        self.update()
+        _ss_request_repaint(self, super().update)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._gpu_vp is not None:
+            self._gpu_vp.setGeometry(0, 0, max(1, self.width()), max(1, self.height()))
+
+    def _get_side_cover_pixmap(self, target_w: int, target_h: int) -> QPixmap | None:
+        if not self._side_pixmap or self._side_pixmap.isNull() or target_w <= 0 or target_h <= 0:
+            return None
+        key = (self._side_pixmap.cacheKey(), target_w, target_h)
+        if self._side_cover_cache is not None and self._side_cover_cache[0] == key:
+            return self._side_cover_cache[1]
+        pw, ph = max(1, self._side_pixmap.width()), max(1, self._side_pixmap.height())
+        s = max(target_w / float(pw), target_h / float(ph))
+        dw = max(target_w, int(round(pw * s)))
+        dh = max(target_h, int(round(ph * s)))
+        scaled = self._side_pixmap.scaled(dw, dh, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        cx = max(0, (scaled.width() - target_w) // 2)
+        cy = max(0, (scaled.height() - target_h) // 2)
+        cropped = scaled.copy(cx, cy, target_w, target_h)
+        self._side_cover_cache = (key, cropped)
+        return cropped
+
+    def _build_gpu_scene(self, w: int, h: int) -> tuple[list[GpuQuadCommand], dict]:
+        cmds: list[GpuQuadCommand] = []
+        side_w = max(1, int(w * 0.25))
+        center_w = max(1, w - (side_w * 2))
+        left_rect = QRect(0, 0, side_w, h)
+        center_rect = QRect(side_w, 0, center_w, h)
+        right_rect = QRect(side_w + center_w, 0, side_w, h)
+
+        side_cov = self._get_side_cover_pixmap(side_w, h)
+        if side_cov is not None and not side_cov.isNull():
+            shade = QColor(0, 0, 0, 140)
+            for idx_s, s_rect in enumerate((left_rect, right_rect)):
+                pts = build_rect_ndc_points(s_rect.x(), s_rect.y(), s_rect.width(), s_rect.height(), w, h)
+                cmds.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=pts,
+                        tex_key=("ss_rgb_side", side_cov.cacheKey(), s_rect.width(), s_rect.height()),
+                        pixmap=side_cov,
+                    )
+                )
+                cmds.append(GpuQuadCommand(kind="solid", dst_ndc_pts=pts, color=shade))
+                _ = idx_s
+        else:
+            side_bg = QColor(10, 10, 16)
+            for s_rect in (left_rect, right_rect):
+                cmds.append(
+                    GpuQuadCommand(
+                        kind="solid",
+                        dst_ndc_pts=build_rect_ndc_points(s_rect.x(), s_rect.y(), s_rect.width(), s_rect.height(), w, h),
+                        color=side_bg,
+                    )
+                )
+
+        video_rect = center_rect
+        if self._gpu_surface.has_video:
+            vw, vh = self._gpu_surface.video_size
+            video_rect = _ss_aspect_fit_rect(vw, vh, center_rect) if self.preserve_ar else center_rect
+            cmds.append(
+                GpuQuadCommand(
+                    kind="video",
+                    dst_ndc_pts=build_rect_ndc_points(
+                        video_rect.x(), video_rect.y(), video_rect.width(), video_rect.height(), w, h
+                    ),
+                    video_surface=self._gpu_surface,
+                )
+            )
+
+        red = int(128 + 127 * (0.5 + 0.5 * (self.rgb_phase % 3.1415)))
+        green = int(128 + 127 * (0.5 + 0.5 * ((self.rgb_phase + 2.0) % 3.1415)))
+        blue = int(128 + 127 * (0.5 + 0.5 * ((self.rgb_phase + 4.0) % 3.1415)))
+        cmds.append(
+            GpuQuadCommand(
+                kind="solid",
+                dst_ndc_pts=build_rect_ndc_points(video_rect.x(), video_rect.y(), video_rect.width(), video_rect.height(), w, h),
+                color=QColor(red, green, blue, 35),
+            )
+        )
+
+        div_col = QColor(25, 25, 35)
+        for dx in (side_w, side_w + center_w):
+            cmds.append(GpuQuadCommand(kind="solid", dst_ndc_pts=build_rect_ndc_points(dx, 0, 1, h, w, h), color=div_col))
+
+        if self.overlay and self.overlay.visible:
+            overlay_w = min(420, int(video_rect.width() * 0.44))
+            overlay_h = min(200, int(video_rect.height() * 0.26))
+            target_rect = QRect(
+                video_rect.right() - overlay_w - 24,
+                video_rect.bottom() - overlay_h - 24,
+                overlay_w,
+                overlay_h,
+            )
+            cmds.extend(self.overlay.gpu_commands("rgb", target_rect, w, h, shadow_offset=4))
+        return cmds, {}
 
     def paintEvent(self, event):
+        if _ss_gpu_active(self) and self._gpu_vp is not None and self._gpu_vp.gl_ready:
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -760,6 +1148,8 @@ class RGBMovieWidget(QWidget):
             self.player.setSource(QUrl())
         self._current_frame = None
         self._side_pixmap = None
+        self._side_cover_cache = None
+        self._gpu_surface.clear()
 
 
 class ScreensaverWidget(QWidget):
@@ -786,6 +1176,7 @@ class ScreensaverWidget(QWidget):
         self.overlay_art = self.db.get_setting("screensaver_overlay_art", "wheel")
         self.sound = self.db.get_setting("screensaver_sound", "true").lower() == "true"
         self.preserve_ar = self.db.get_setting("screensaver_preserve_ar", "false").lower() == "true"
+        self.render_backend = normalize_render_backend(self.db.get_setting("frontend_render_backend", "auto"))
 
         # Tiempo para pantalla negra profunda (minutos)
         try:
@@ -834,16 +1225,22 @@ class ScreensaverWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.stack)
 
-        self.view_basic = BasicMovieWidget(self.overlay_art, self.sound, self.preserve_ar, self)
+        self.view_basic = BasicMovieWidget(
+            self.overlay_art, self.sound, self.preserve_ar, self, render_backend=self.render_backend
+        )
         self.view_basic.mode_finished.connect(self._switch_to_next_mode)
 
-        self.view_movie_collage = MovieCollageWidget(self.overlay_art, self.sound, self.preserve_ar, self)
+        self.view_movie_collage = MovieCollageWidget(
+            self.overlay_art, self.sound, self.preserve_ar, self, render_backend=self.render_backend
+        )
         self.view_movie_collage.mode_finished.connect(self._switch_to_next_mode)
 
         self.view_image_collage = ImageCollageWidget(self.preserve_ar, self)
         self.view_image_collage.mode_finished.connect(self._switch_to_next_mode)
 
-        self.view_rgb = RGBMovieWidget(self.overlay_art, self.sound, self.preserve_ar, self)
+        self.view_rgb = RGBMovieWidget(
+            self.overlay_art, self.sound, self.preserve_ar, self, render_backend=self.render_backend
+        )
         self.view_rgb.mode_finished.connect(self._switch_to_next_mode)
 
         self.view_blank = QWidget(self)

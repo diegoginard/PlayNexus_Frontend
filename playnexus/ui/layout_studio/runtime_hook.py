@@ -13,6 +13,14 @@ from PySide6.QtGui import (
     QPolygonF, QImage, QPixmap
 )
 
+from playnexus.ui.gpu_renderer import (
+    GpuQuadCommand,
+    GpuSceneViewport,
+    GpuVideoSurface,
+    is_gpu_rendering_permitted,
+    normalize_render_backend,
+    pixels_to_ndc,
+)
 from playnexus.ui.layout_studio.models import LayoutElement, CANONICAL_W, CANONICAL_H
 from playnexus.ui.shaders import (
     apply_shader_to_image,
@@ -1408,6 +1416,642 @@ def update_studio_effects(
     layout_widget.update()
 
 
+def apply_render_backend_to_layout(layout_widget, render_backend: str | None) -> bool:
+    """Aplica dinámicamente el backend de renderizado ('auto', 'gpu' o 'software') sobre un layout."""
+    if layout_widget is None:
+        return False
+    norm = normalize_render_backend(render_backend)
+    layout_widget._pn_render_backend = norm
+    vp = getattr(layout_widget, "_gpu_viewport", None)
+    permitted = is_gpu_rendering_permitted(norm)
+    if vp is not None:
+        if permitted and not getattr(vp, "_fallback_triggered", True):
+            if vp.width() != layout_widget.width() or vp.height() != layout_widget.height():
+                vp.setGeometry(0, 0, max(1, layout_widget.width()), max(1, layout_widget.height()))
+            if not vp.isVisible():
+                vp.show()
+                vp.lower()
+            vp.update()
+            return bool(vp.gl_ready)
+        if vp.isVisible():
+            vp.hide()
+        for vid_attr in ("_current_video_image", "_game_video_image", "_bg_video_image"):
+            val = getattr(layout_widget, vid_attr, None)
+            if isinstance(val, _GpuVideoFrameMarker):
+                conv = val.to_qimage()
+                setattr(layout_widget, vid_attr, conv if (conv and not conv.isNull()) else None)
+    layout_widget.update()
+    return False
+
+
+class _GpuVideoFrameMarker:
+    """Marcador liviano que satisface los watchdogs de ThemeLayout sin ejecutar `toImage()` en CPU."""
+
+    def __init__(self, frame) -> None:
+        self._frame = frame
+        self._w = max(1, int(frame.width())) if frame is not None else 1
+        self._h = max(1, int(frame.height())) if frame is not None else 1
+        self._fallback_img: QImage | None = None
+
+    def isNull(self) -> bool:  # noqa: N802
+        return False
+
+    def width(self) -> int:
+        return self._w
+
+    def height(self) -> int:
+        return self._h
+
+    def to_qimage(self) -> QImage | None:
+        if self._fallback_img is None and self._frame is not None and self._frame.isValid():
+            self._fallback_img = self._frame.toImage()
+        return self._fallback_img
+
+
+def _get_cropped_native_pixmap(
+    inst,
+    cache_key: tuple,
+    src_pix: QPixmap | None,
+    crop_canonical: tuple[float, float, float, float] | None,
+) -> QPixmap | None:
+    """Recorta opcionalmente un QPixmap a su región visible en 1920x1080 sin reescalar en CPU."""
+    if src_pix is None or src_pix.isNull():
+        return None
+    cache = getattr(inst, "_gpu_crop_pix_cache", None)
+    if cache is None:
+        cache = {}
+        inst._gpu_crop_pix_cache = cache
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    work_pix = src_pix
+    if crop_canonical is not None:
+        ox, oy, ow, oh = crop_canonical
+        pw, ph = src_pix.width(), src_pix.height()
+        if pw > 0 and ph > 0 and (ox > 0 or oy > 0 or ow < CANONICAL_W or oh < CANONICAL_H):
+            rx = max(0, int(round((ox / float(CANONICAL_W)) * pw)))
+            ry = max(0, int(round((oy / float(CANONICAL_H)) * ph)))
+            rw = max(1, min(pw - rx, int(round((ow / float(CANONICAL_W)) * pw))))
+            rh = max(1, min(ph - ry, int(round((oh / float(CANONICAL_H)) * ph))))
+            work_pix = src_pix.copy(rx, ry, rw, rh)
+    cache[cache_key] = work_pix
+    return work_pix
+
+
+def _compute_layer_quad_ndc(
+    sx: float,
+    sy: float,
+    sw: float,
+    sh: float,
+    viewport_w: float,
+    viewport_h: float,
+    elem: LayoutElement,
+    *,
+    anim_dx: float = 0.0,
+    anim_dy: float = 0.0,
+    anim_rot: float = 0.0,
+    sub_norm: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    canonical_offset: tuple[float, float] = (0.0, 0.0),
+) -> list[tuple[float, float]]:
+    """Proyecta un elemento (y opcional sub-rectángulo normalizado 0..1) a los 4 vértices NDC."""
+    scale_x = sw / float(CANONICAL_W)
+    scale_y = sh / float(CANONICAL_H)
+    ox, oy, ow, oh = (
+        elem.orig_rect
+        if (elem.orig_rect and len(elem.orig_rect) == 4)
+        else (elem.x, elem.y, elem.w, elem.h)
+    )
+    ow = max(1.0, float(ow))
+    oh = max(1.0, float(oh))
+    u0, v0, u1, v1 = sub_norm
+    tot_rot = float(getattr(elem, "rotation", 0.0) or 0.0) + float(anim_rot or 0.0)
+    cdx, cdy = canonical_offset
+
+    pins = elem.corner_pins
+    if pins and len(pins) == 4:
+        src_poly = QPolygonF([
+            QPointF(ox, oy),
+            QPointF(ox + ow, oy),
+            QPointF(ox + ow, oy + oh),
+            QPointF(ox, oy + oh),
+        ])
+        dst_poly = QPolygonF([QPointF(p[0] + anim_dx, p[1] + anim_dy) for p in pins])
+        proj = QTransform()
+        if not QTransform.quadToQuad(src_poly, dst_poly, proj):
+            proj = QTransform()
+
+        rot_t = QTransform()
+        if abs(tot_rot) > 1e-4:
+            rcx = ox + ow / 2.0
+            rcy = oy + oh / 2.0
+            rot_t.translate(rcx, rcy)
+            rot_t.rotate(tot_rot)
+            rot_t.translate(-rcx, -rcy)
+
+        sub_pts = [
+            QPointF(ox + u0 * ow + cdx, oy + v0 * oh + cdy),
+            QPointF(ox + u1 * ow + cdx, oy + v0 * oh + cdy),
+            QPointF(ox + u1 * ow + cdx, oy + v1 * oh + cdy),
+            QPointF(ox + u0 * ow + cdx, oy + v1 * oh + cdy),
+        ]
+        ndc_pts: list[tuple[float, float]] = []
+        for pt in sub_pts:
+            p_proj = proj.map(pt)
+            p_fin = rot_t.map(p_proj)
+            px = sx + p_fin.x() * scale_x
+            py = sy + p_fin.y() * scale_y
+            ndc_pts.append(pixels_to_ndc(px, py, viewport_w, viewport_h))
+        return ndc_pts
+
+    tx = float(elem.x) + anim_dx
+    ty = float(elem.y) + anim_dy
+    tw = max(1.0, float(elem.w))
+    th = max(1.0, float(elem.h))
+
+    dst_x = sx + tx * scale_x
+    dst_y = sy + ty * scale_y
+    dst_w = max(1.0, tw * scale_x)
+    dst_h = max(1.0, th * scale_y)
+    rel_sx = tw / ow
+    rel_sy = th / oh
+
+    sub_x = dst_x + u0 * dst_w + cdx * rel_sx * scale_x
+    sub_y = dst_y + v0 * dst_h + cdy * rel_sy * scale_y
+    sub_r = dst_x + u1 * dst_w + cdx * rel_sx * scale_x
+    sub_b = dst_y + v1 * dst_h + cdy * rel_sy * scale_y
+    corners = [(sub_x, sub_y), (sub_r, sub_y), (sub_r, sub_b), (sub_x, sub_b)]
+
+    if abs(tot_rot) > 1e-4:
+        rcx = dst_x + dst_w / 2.0
+        rcy = dst_y + dst_h / 2.0
+        rot_t = QTransform()
+        rot_t.translate(rcx, rcy)
+        rot_t.rotate(tot_rot)
+        rot_t.translate(-rcx, -rcy)
+        rotated: list[tuple[float, float]] = []
+        for px, py in corners:
+            mp = rot_t.map(QPointF(px, py))
+            rotated.append((mp.x(), mp.y()))
+        corners = rotated
+
+    return [pixels_to_ndc(px, py, viewport_w, viewport_h) for px, py in corners]
+
+
+def _aspect_fit_sub_norm(src_w: float, src_h: float, box_w: float, box_h: float) -> tuple[float, float, float, float]:
+    """Devuelve el sub-rectángulo normalizado (u0, v0, u1, v1) centrado manteniendo relación de aspecto."""
+    if src_w <= 0 or src_h <= 0 or box_w <= 0 or box_h <= 0:
+        return (0.0, 0.0, 1.0, 1.0)
+    s = min(box_w / src_w, box_h / src_h)
+    dw = src_w * s
+    dh = src_h * s
+    u0 = max(0.0, (box_w - dw) * 0.5 / box_w)
+    v0 = max(0.0, (box_h - dh) * 0.5 / box_h)
+    return (u0, v0, min(1.0, 1.0 - u0), min(1.0, 1.0 - v0))
+
+
+def _dynamic_layer_fingerprint(inst, elem: LayoutElement, cap_w: int, cap_h: int, anim_tick: int = 0) -> Any:
+    """Calcula una huella liviana para invalidar la textura de capas dinámicas solo cuando cambian."""
+    eid = elem.id.lower()
+    if eid == "wheel_list":
+        games = getattr(inst, "games", None) or []
+        sel = int(getattr(inst, "selected_index", 0) or 0)
+        wmap = getattr(inst, "_wheel_pixmaps", None) or {}
+        vis = tuple(
+            id(wmap.get(games[(sel + off) % len(games)].get("id")))
+            for off in range(-5, 6)
+        ) if games else ()
+        return (
+            "wheel_list",
+            sel,
+            len(games),
+            round(float(getattr(inst, "_wheel_offset", 0.0) or 0.0), 3),
+            round(float(getattr(inst, "_wheel_alpha", 255.0) or 255.0), 1),
+            getattr(inst, "current_game_id", None),
+            vis,
+            cap_w,
+            cap_h,
+        )
+    if eid == "flyer":
+        fpix = getattr(inst, "_current_flyer_pixmap", getattr(inst, "_pix_flyer", None))
+        return (
+            "flyer",
+            getattr(inst, "current_game_id", None),
+            bool(getattr(inst, "_flyer_ready", False)),
+            round(float(getattr(inst, "_flyer_slide", 0.0) or 0.0), 2),
+            fpix.cacheKey() if fpix and not fpix.isNull() else 0,
+            cap_w,
+            cap_h,
+        )
+    if eid in ("footer_frame", "title_text", "counter_text"):
+        games = getattr(inst, "games", None) or []
+        sel = int(getattr(inst, "selected_index", -1) or -1)
+        cur_title = games[sel].get("title", "") if (0 <= sel < len(games)) else ""
+        return (eid, getattr(inst, "current_game_id", None), sel, len(games), cur_title, cap_w, cap_h)
+    if elem.type == "effect":
+        return (eid, "effect", elem.effect_type, round(float(elem.effect_intensity), 2), anim_tick, cap_w, cap_h)
+    return (
+        eid,
+        elem.type,
+        elem.text_content,
+        elem.resource_path,
+        getattr(inst, "current_game_id", None),
+        cap_w,
+        cap_h,
+    )
+
+
+def _get_cached_dynamic_layer_image(
+    inst,
+    elem: LayoutElement,
+    sx: float,
+    sy: float,
+    sw: float,
+    sh: float,
+    t_sec: float,
+) -> tuple[QImage | None, int]:
+    """Renderiza una capa compuesta dinámica (`wheel_list`, `flyer`, `footer_*`) solo si cambió."""
+    eid = elem.id.lower()
+    has_pins = bool(elem.corner_pins and len(elem.corner_pins) == 4)
+    ox, oy, ow, oh = (
+        elem.orig_rect
+        if (elem.orig_rect and len(elem.orig_rect) == 4)
+        else (elem.x, elem.y, elem.w, elem.h)
+    )
+    ow = max(1.0, float(ow))
+    oh = max(1.0, float(oh))
+
+    if has_pins:
+        cap_x, cap_y = int(round(ox)), int(round(oy))
+        cap_w, cap_h = max(1, int(round(ow))), max(1, int(round(oh)))
+        sr_draw = QRect(0, 0, CANONICAL_W, CANONICAL_H)
+    else:
+        scale_x = sw / float(CANONICAL_W)
+        scale_y = sh / float(CANONICAL_H)
+        cap_x = int(round(sx + float(elem.x) * scale_x))
+        cap_y = int(round(sy + float(elem.y) * scale_y))
+        cap_w = max(1, int(round(max(1.0, float(elem.w)) * scale_x)))
+        cap_h = max(1, int(round(max(1.0, float(elem.h)) * scale_y)))
+        rel_sx = max(1.0, float(elem.w)) / ow
+        rel_sy = max(1.0, float(elem.h)) / oh
+        mw = max(1, int(round(sw * rel_sx)))
+        mh = max(1, int(round(sh * rel_sy)))
+        mx = cap_x - int(round((ox / float(CANONICAL_W)) * mw))
+        my = cap_y - int(round((oy / float(CANONICAL_H)) * mh))
+        sr_draw = QRect(mx, my, mw, mh)
+
+    # Cuantizar tick solo para capas efecto animadas (ej. vhs_arcade)
+    anim_tick = int(t_sec * 30.0) if elem.type == "effect" else 0
+    fp = _dynamic_layer_fingerprint(inst, elem, cap_w, cap_h, anim_tick=anim_tick)
+
+    cache = getattr(inst, "_gpu_dynamic_cache", None)
+    if cache is None:
+        cache = {}
+        inst._gpu_dynamic_cache = cache
+
+    prev = cache.get(eid)
+    if prev is not None and prev[0] == fp:
+        return prev[1], int(prev[2])
+
+    rev = (int(prev[2]) + 1) if prev is not None else 1
+    img = QImage(cap_w, cap_h, QImage.Format.Format_RGBA8888_Premultiplied)
+    img.fill(Qt.GlobalColor.transparent)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+    try:
+        p.translate(-cap_x, -cap_y)
+        if eid == "wheel_list" and not has_pins and not hasattr(inst, "_draw_wheel_conveyor") and hasattr(inst, "_draw_wheel"):
+            p.translate(sr_draw.x(), sr_draw.y())
+            render_native_layer(p, inst, eid, QRect(0, 0, sr_draw.width(), sr_draw.height()), elem=elem)
+        elif eid == "flyer" and not has_pins:
+            p.translate(sr_draw.x(), sr_draw.y())
+            render_native_layer(p, inst, eid, QRect(0, 0, sr_draw.width(), sr_draw.height()), elem=elem)
+        elif eid in ("footer_frame", "title_text", "counter_text") and not has_pins and not hasattr(inst, "_draw_bottom_bar"):
+            p.translate(sr_draw.x(), sr_draw.y())
+            render_native_layer(p, inst, eid, QRect(0, 0, sr_draw.width(), sr_draw.height()), elem=elem)
+        else:
+            render_native_layer(p, inst, eid, sr_draw, elem=elem)
+    finally:
+        p.end()
+
+    cache[eid] = (fp, img, rev)
+    return img, rev
+
+
+def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[GpuQuadCommand], dict[str, Any]]:
+    """Traduce las capas declarativas y videos de `layout_widget` a comandos GPU OpenGL."""
+    if log_w <= 0 or log_h <= 0:
+        return [], {}
+
+    sr = layout_widget._get_target_rect() if hasattr(layout_widget, "_get_target_rect") else QRect(0, 0, log_w, log_h)
+    sx, sy = float(sr.x()), float(sr.y())
+    sw, sh = max(1.0, float(sr.width())), max(1.0, float(sr.height()))
+    scale_x = sw / float(CANONICAL_W)
+    scale_y = sh / float(CANONICAL_H)
+
+    if getattr(layout_widget, "_studio_is_paused", False) and getattr(layout_widget, "_studio_paused_elapsed", None) is not None:
+        t = float(layout_widget._studio_paused_elapsed)
+    else:
+        t = max(0.0, time.time() - float(getattr(layout_widget, "_studio_anim_start_time", 0.0) or 0.0))
+
+    sh_p, sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
+    tv_shader = sh_p if (fx_perf != "off" and sh_p != "none" and sh_t == "tv_rect") else "none"
+    external_ov = bool(getattr(layout_widget, "_pn_external_overlay", False))
+    global_shader = sh_p if (not external_ov and fx_perf != "off" and sh_p != "none" and sh_t == "global") else "none"
+    particles = (
+        getattr(layout_widget, "_studio_particles", None)
+        if (not external_ov and fx_perf != "off" and pt_p != "none")
+        else None
+    )
+
+    commands: list[GpuQuadCommand] = []
+    elems: list[LayoutElement] = getattr(layout_widget, "_studio_elements", [])
+
+    for elem in elems:
+        if not elem.visible:
+            continue
+        adx, ady, aop, arot = compute_element_animation(elem, t)
+        layer_op = max(0.0, min(1.0, float(elem.opacity) * float(aop)))
+        if layer_op <= 0.001:
+            continue
+
+        ox, oy, ow, oh = (
+            elem.orig_rect
+            if (elem.orig_rect and len(elem.orig_rect) == 4)
+            else (elem.x, elem.y, elem.w, elem.h)
+        )
+        ow = max(1.0, float(ow))
+        oh = max(1.0, float(oh))
+        eid = elem.id.lower()
+
+        def _quad(sub_norm=(0.0, 0.0, 1.0, 1.0), can_off=(0.0, 0.0)) -> list[tuple[float, float]]:
+            return _compute_layer_quad_ndc(
+                sx,
+                sy,
+                sw,
+                sh,
+                float(log_w),
+                float(log_h),
+                elem,
+                anim_dx=adx,
+                anim_dy=ady,
+                anim_rot=arot,
+                sub_norm=sub_norm,
+                canonical_offset=can_off,
+            )
+
+        if eid == "bg_image":
+            bg_surf = getattr(layout_widget, "_gpu_bg_video_surface", None)
+            bg_state = getattr(layout_widget, "_bg_video_image", None)
+            if bg_surf is not None and bg_surf.has_video and bg_state is not None:
+                commands.append(GpuQuadCommand(kind="video", dst_ndc_pts=_quad(), opacity=layer_op, video_surface=bg_surf))
+                continue
+            if isinstance(bg_state, QImage) and not bg_state.isNull():
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(),
+                        opacity=layer_op,
+                        tex_key=("bg_vid_qimg", bg_state.cacheKey()),
+                        pixmap=bg_state,
+                    )
+                )
+                continue
+            pix_bg = (
+                getattr(layout_widget, "_pix_bg_fallback", None)
+                or getattr(layout_widget, "_pix_bkg", None)
+                or getattr(layout_widget, "_current_artwork_pixmap", None)
+            )
+            if pix_bg and not pix_bg.isNull():
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(),
+                        opacity=layer_op,
+                        tex_key=("bg_image", pix_bg.cacheKey()),
+                        pixmap=pix_bg,
+                    )
+                )
+            else:
+                commands.append(GpuQuadCommand(kind="solid", dst_ndc_pts=_quad(), opacity=layer_op, color=QColor(10, 8, 16)))
+            continue
+
+        if eid == "video_snap":
+            dst_w = max(1, int(round(max(1.0, float(elem.w)) * scale_x)))
+            dst_h = max(1, int(round(max(1.0, float(elem.h)) * scale_y)))
+            commands.append(GpuQuadCommand(kind="solid", dst_ndc_pts=_quad(), opacity=layer_op, color=QColor(0, 0, 0)))
+
+            game_surf = getattr(layout_widget, "_gpu_game_video_surface", None)
+            vid_state = getattr(layout_widget, "_game_video_image", None)
+            if vid_state is None:
+                vid_state = getattr(layout_widget, "_current_video_image", None)
+
+            if game_surf is not None and game_surf.has_video and vid_state is not None:
+                vw, vh = game_surf.video_size
+                sub = _aspect_fit_sub_norm(vw, vh, dst_w, dst_h) if hasattr(layout_widget, "SNAP_LOCAL_RECT") else (0.0, 0.0, 1.0, 1.0)
+                commands.append(
+                    GpuQuadCommand(
+                        kind="video",
+                        dst_ndc_pts=_quad(sub),
+                        opacity=layer_op,
+                        video_surface=game_surf,
+                        shader_preset=tv_shader,
+                        shader_elapsed=t,
+                        target_px=(dst_w, dst_h),
+                    )
+                )
+            elif isinstance(vid_state, QImage) and not vid_state.isNull():
+                sub = (
+                    _aspect_fit_sub_norm(vid_state.width(), vid_state.height(), dst_w, dst_h)
+                    if hasattr(layout_widget, "SNAP_LOCAL_RECT")
+                    else (0.0, 0.0, 1.0, 1.0)
+                )
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(sub),
+                        opacity=layer_op,
+                        tex_key=("vid_qimg", vid_state.cacheKey()),
+                        pixmap=vid_state,
+                    )
+                )
+            continue
+
+        if eid == "scanlines_crt":
+            if not getattr(layout_widget, "_pix_scanlines", None):
+                scan_const = getattr(layout_widget, "SCANLINES_IMAGE", None)
+                if scan_const and Path(scan_const).is_file() and hasattr(layout_widget, "_load_pixmap"):
+                    layout_widget._pix_scanlines = layout_widget._load_pixmap(str(scan_const))
+                elif hasattr(layout_widget, "layout_dir"):
+                    scan_path = Path(layout_widget.layout_dir).parent / "gtc-common" / "art" / "scanlines_1920.png"
+                    if scan_path.is_file() and hasattr(layout_widget, "_load_pixmap"):
+                        layout_widget._pix_scanlines = layout_widget._load_pixmap(str(scan_path))
+            pix_scan = getattr(layout_widget, "_pix_scanlines", None)
+            if pix_scan and not pix_scan.isNull():
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(),
+                        opacity=layer_op * 0.35,
+                        tex_key=("scanlines", pix_scan.cacheKey()),
+                        pixmap=pix_scan,
+                    )
+                )
+            continue
+
+        if eid == "scratches":
+            pix_scr = getattr(layout_widget, "_pix_scratches", None)
+            if pix_scr and not pix_scr.isNull():
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(),
+                        opacity=layer_op * 0.40,
+                        tex_key=("scratches", pix_scr.cacheKey()),
+                        pixmap=pix_scr,
+                    )
+                )
+            continue
+
+        if eid in ("bezel", "marquee", "cabinet"):
+            attr_pairs = {
+                "bezel": ("_current_bezel_pix", "_pix_bezel"),
+                "marquee": ("_current_marquee_pix", "_pix_marquee"),
+                "cabinet": ("_current_cabinet_pix", "_pix_cabinet"),
+            }[eid]
+            pix_m = getattr(layout_widget, attr_pairs[0], None) or getattr(layout_widget, attr_pairs[1], None)
+            if pix_m and not pix_m.isNull():
+                qpts = _quad()
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=qpts,
+                        opacity=layer_op,
+                        tex_key=(eid, pix_m.cacheKey()),
+                        pixmap=pix_m,
+                    )
+                )
+                if eid == "marquee":
+                    commands.append(GpuQuadCommand(kind="solid", dst_ndc_pts=qpts, opacity=layer_op, color=QColor(255, 255, 255, 25)))
+            continue
+
+        if eid in ("tv_bezel", "console", "console_cover", "joystick", "wheel_shadow"):
+            attr_map = {
+                "tv_bezel": "_pix_tv",
+                "console": "_pix_console",
+                "console_cover": "_pix_console_cover",
+                "joystick": "_pix_joystick",
+                "wheel_shadow": "_pix_wheel_shadow",
+            }
+            pix = getattr(layout_widget, attr_map[eid], None)
+            if pix and not pix.isNull():
+                crop_pix = _get_cropped_native_pixmap(
+                    layout_widget,
+                    ("native_crop", eid, pix.cacheKey(), round(ox, 1), round(oy, 1), round(ow, 1), round(oh, 1)),
+                    pix,
+                    (ox, oy, ow, oh),
+                )
+                if crop_pix is not None:
+                    commands.append(
+                        GpuQuadCommand(
+                            kind="pixmap",
+                            dst_ndc_pts=_quad(),
+                            opacity=layer_op,
+                            tex_key=("native_crop", eid, crop_pix.cacheKey()),
+                            pixmap=crop_pix,
+                        )
+                    )
+            elif eid == "wheel_shadow" and getattr(layout_widget, "_pix_wheel_art", None):
+                w_art = layout_widget._pix_wheel_art
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(),
+                        opacity=layer_op,
+                        tex_key=("wheel_art", w_art.cacheKey()),
+                        pixmap=w_art,
+                    )
+                )
+            continue
+
+        if eid in ("avatar", "logo", "pointer"):
+            cw = max(1, int(round(ow)))
+            ch = max(1, int(round(oh)))
+            spix = _get_cached_rest_layer_pixmap(layout_widget, eid, (ox, oy, ow, oh), cw, ch)
+            if spix and not spix.isNull():
+                can_off = (0.0, 0.0)
+                final_op = layer_op
+                if eid == "avatar":
+                    can_off = (
+                        float(getattr(layout_widget, "_avatar_offset_x", 0.0) or 0.0),
+                        float(getattr(layout_widget, "_avatar_offset_y", 0.0) or 0.0),
+                    )
+                elif eid == "logo":
+                    can_off = (0.0, float(CANONICAL_H) * float(getattr(layout_widget, "_logo_current_y_offset_ratio", 0.0) or 0.0))
+                elif eid == "pointer":
+                    rest_r = float(getattr(layout_widget, "_pointer_rest_x_ratio", 0.0) or 0.0)
+                    cur_r = float(getattr(layout_widget, "_pointer_current_x_ratio", rest_r) or rest_r)
+                    tick = float(getattr(layout_widget, "_pointer_anim_tick", 0) or 0)
+                    pulse = float(CANONICAL_W) * (rest_r - cur_r)
+                    osc = float(CANONICAL_W) * (math.sin(tick * (8.0 / 60.0)) * 0.009375)
+                    can_off = (-pulse + osc, 0.0)
+                    if hasattr(layout_widget, "_wheel_alpha"):
+                        final_op *= float(getattr(layout_widget, "_wheel_alpha", 255.0)) / 255.0
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(can_off=can_off),
+                        opacity=final_op,
+                        tex_key=("rest_1080", eid, spix.cacheKey()),
+                        pixmap=spix,
+                    )
+                )
+            continue
+
+        if eid in ("cartart", "boxart"):
+            if eid == "cartart":
+                art_pix = getattr(layout_widget, "_current_cart_pixmap", None) or getattr(layout_widget, "_pix_cartart_frame", None)
+            else:
+                art_pix = getattr(layout_widget, "_current_box_pixmap", None) or getattr(layout_widget, "_pix_boxart_frame", None)
+            if art_pix and not art_pix.isNull():
+                sub = _aspect_fit_sub_norm(art_pix.width(), art_pix.height(), float(elem.w), float(elem.h))
+                commands.append(
+                    GpuQuadCommand(
+                        kind="pixmap",
+                        dst_ndc_pts=_quad(sub),
+                        opacity=layer_op,
+                        tex_key=(eid, art_pix.cacheKey()),
+                        pixmap=art_pix,
+                    )
+                )
+            continue
+
+        # Capas compuestas dinámicas (wheel_list, flyer, footer_frame, title_text, counter_text, etc.)
+        dyn_img, rev = _get_cached_dynamic_layer_image(layout_widget, elem, sx, sy, sw, sh, t)
+        if dyn_img is not None and not dyn_img.isNull():
+            final_op = layer_op
+            if eid == "wheel_list" and hasattr(layout_widget, "_wheel_alpha"):
+                final_op *= float(getattr(layout_widget, "_wheel_alpha", 255.0)) / 255.0
+            commands.append(
+                GpuQuadCommand(
+                    kind="pixmap",
+                    dst_ndc_pts=_quad(),
+                    opacity=final_op,
+                    tex_key=("dyn_layer", eid, rev, dyn_img.width(), dyn_img.height()),
+                    pixmap=dyn_img,
+                )
+            )
+
+    meta = {
+        "global_shader": global_shader,
+        "elapsed": t,
+        "particles": particles,
+        "particle_scale": max(0.45, min(1.5, log_w / float(CANONICAL_W))),
+    }
+    return commands, meta
+
+
 def install_studio_overrides(
     layout_widget,
     elements_list: list[LayoutElement | dict[str, Any]],
@@ -1416,12 +2060,137 @@ def install_studio_overrides(
     particle_preset: str | None = None,
 ):
     """
-    Instala el motor de renderizado de alta velocidad (1:1 pre-escalado) sobre `layout_widget`
-    (Sandbox o Layout guardado), respetando el 100% del tamaño real y animaciones del layout.
+    Instala el motor de renderizado de alta velocidad (GPU OpenGL / fallback 1:1 pre-escalado)
+    sobre `layout_widget`, respetando el 100% del tamaño real y animaciones del layout.
     """
-    from PySide6.QtCore import QTimer
+    from PySide6.QtCore import QTimer, QUrl
 
     update_studio_overrides(layout_widget, elements_list)
+
+    # Superficies y viewport OpenGL hardware (con fallback transparente a QPainter)
+    game_surface = getattr(layout_widget, "_gpu_game_video_surface", None)
+    if game_surface is None:
+        game_surface = GpuVideoSurface()
+        layout_widget._gpu_game_video_surface = game_surface
+    bg_surface = getattr(layout_widget, "_gpu_bg_video_surface", None)
+    if bg_surface is None:
+        bg_surface = GpuVideoSurface()
+        layout_widget._gpu_bg_video_surface = bg_surface
+
+    gpu_vp: GpuSceneViewport | None = getattr(layout_widget, "_gpu_viewport", None)
+    if gpu_vp is None and is_gpu_rendering_permitted(getattr(layout_widget, "_pn_render_backend", None)):
+        try:
+            gpu_vp = GpuSceneViewport(layout_widget)
+            gpu_vp.set_scene_builder(lambda w, h: build_studio_gpu_scene(layout_widget, w, h))
+            gpu_vp.setGeometry(0, 0, max(1, layout_widget.width()), max(1, layout_widget.height()))
+            gpu_vp.lower()
+            gpu_vp.show()
+            layout_widget._gpu_viewport = gpu_vp
+        except Exception:
+            gpu_vp = None
+            layout_widget._gpu_viewport = None
+
+    def _is_gpu_active() -> bool:
+        vp = getattr(layout_widget, "_gpu_viewport", None)
+        return (
+            vp is not None
+            and not getattr(vp, "_fallback_triggered", True)
+            and is_gpu_rendering_permitted(getattr(layout_widget, "_pn_render_backend", None))
+        )
+
+    # Envolver handlers de frames de video para evitar `frame.toImage()` en el camino GPU
+    if hasattr(layout_widget, "_on_video_frame_changed"):
+        orig_vf = layout_widget._on_video_frame_changed
+        if not getattr(orig_vf, "_is_gpu_video_wrapped", False):
+            def _gpu_vf_wrapper(frame, _orig=orig_vf):
+                if _is_gpu_active():
+                    if (
+                        not getattr(layout_widget, "_want_video_playing", False)
+                        or not layout_widget.isVisible()
+                        or getattr(layout_widget, "_is_emulator_running", False)
+                    ):
+                        return
+                    if frame is not None and frame.isValid():
+                        game_surface.set_frame(frame)
+                        layout_widget._current_video_image = _GpuVideoFrameMarker(frame)
+                        layout_widget.update()
+                    return
+                _orig(frame)
+            _gpu_vf_wrapper._is_gpu_video_wrapped = True
+            layout_widget._on_video_frame_changed = _gpu_vf_wrapper
+
+    if hasattr(layout_widget, "_on_game_frame"):
+        orig_gf = layout_widget._on_game_frame
+        if not getattr(orig_gf, "_is_gpu_video_wrapped", False):
+            def _gpu_gf_wrapper(frame, _orig=orig_gf):
+                if _is_gpu_active():
+                    gp = getattr(layout_widget, "game_player", None)
+                    if frame is None or not frame.isValid() or gp is None:
+                        return
+                    if (
+                        not getattr(layout_widget, "_want_game_video_playing", False)
+                        and not getattr(layout_widget, "_is_emulator_running", False)
+                    ):
+                        return
+                    pending = getattr(layout_widget, "_pending_video_path", None)
+                    if pending and gp.source() != QUrl.fromLocalFile(pending):
+                        return
+                    game_surface.set_frame(frame)
+                    layout_widget._game_video_image = _GpuVideoFrameMarker(frame)
+                    layout_widget.update()
+                    return
+                _orig(frame)
+            _gpu_gf_wrapper._is_gpu_video_wrapped = True
+            layout_widget._on_game_frame = _gpu_gf_wrapper
+
+    if hasattr(layout_widget, "_on_bg_frame"):
+        orig_bf = layout_widget._on_bg_frame
+        if not getattr(orig_bf, "_is_gpu_video_wrapped", False):
+            def _gpu_bf_wrapper(frame, _orig=orig_bf):
+                if _is_gpu_active():
+                    if frame is not None and frame.isValid():
+                        bg_surface.set_frame(frame)
+                        layout_widget._bg_video_image = _GpuVideoFrameMarker(frame)
+                        layout_widget.update()
+                    return
+                _orig(frame)
+            _gpu_bf_wrapper._is_gpu_video_wrapped = True
+            layout_widget._on_bg_frame = _gpu_bf_wrapper
+
+    if gpu_vp is not None and not getattr(layout_widget, "_gpu_events_wrapped", False):
+        layout_widget._gpu_events_wrapped = True
+        orig_resize = getattr(layout_widget, "resizeEvent", None)
+        def _gpu_resize_event(event, _orig=orig_resize):
+            if _orig is not None:
+                _orig(event)
+            vp = getattr(layout_widget, "_gpu_viewport", None)
+            if vp is not None:
+                vp.setGeometry(0, 0, max(1, layout_widget.width()), max(1, layout_widget.height()))
+                if not getattr(vp, "_fallback_triggered", True):
+                    vp.update()
+        layout_widget.resizeEvent = _gpu_resize_event
+
+        orig_update = layout_widget.update
+        def _gpu_update(*args, _orig=orig_update):
+            vp = getattr(layout_widget, "_gpu_viewport", None)
+            if vp is not None and is_gpu_rendering_permitted(getattr(layout_widget, "_pn_render_backend", None)):
+                if getattr(vp, "_fallback_triggered", False):
+                    if vp.isVisible():
+                        vp.hide()
+                    _orig(*args)
+                    return
+                if not vp.isVisible():
+                    vp.show()
+                if vp.width() != layout_widget.width() or vp.height() != layout_widget.height():
+                    vp.setGeometry(0, 0, max(1, layout_widget.width()), max(1, layout_widget.height()))
+                if vp.gl_ready:
+                    vp.update()
+                    return
+                vp.update()
+            elif vp is not None and vp.isVisible():
+                vp.hide()
+            _orig(*args)
+        layout_widget.update = _gpu_update
 
     init_sh = shader_preset if shader_preset is not None else getattr(layout_widget, "SHADER_PRESET", None)
     init_tg = shader_target if shader_target is not None else getattr(layout_widget, "SHADER_TARGET", "tv_rect")
@@ -1554,6 +2323,25 @@ def install_studio_overrides(
     _trigger_studio_animations()
 
     def _studio_paint_event(event):
+        vp = getattr(layout_widget, "_gpu_viewport", None)
+        if vp is not None and is_gpu_rendering_permitted(getattr(layout_widget, "_pn_render_backend", None)):
+            if getattr(vp, "_fallback_triggered", False):
+                if vp.isVisible():
+                    vp.hide()
+            else:
+                if vp.width() != layout_widget.width() or vp.height() != layout_widget.height():
+                    vp.setGeometry(0, 0, max(1, layout_widget.width()), max(1, layout_widget.height()))
+                if vp.gl_ready:
+                    vp.update()
+                    return
+
+        # Conversión diferida solo si alguna vez se cae al respaldo CPU tras haber recibido GPU frames
+        for vid_attr in ("_current_video_image", "_game_video_image", "_bg_video_image"):
+            val = getattr(layout_widget, vid_attr, None)
+            if isinstance(val, _GpuVideoFrameMarker):
+                conv = val.to_qimage()
+                setattr(layout_widget, vid_attr, conv if (conv and not conv.isNull()) else None)
+
         painter = QPainter(layout_widget)
         painter.setRenderHint(QPainter.Antialiasing, True)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
