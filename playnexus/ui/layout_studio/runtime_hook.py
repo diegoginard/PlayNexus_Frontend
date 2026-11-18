@@ -1437,10 +1437,26 @@ def install_studio_overrides(
 
     # Motor cinemático de animaciones de entrada en tiempo de ejecución (~60 FPS)
     layout_widget._studio_anim_start_time = time.time()
+    layout_widget._studio_is_paused = False
+    layout_widget._studio_paused_elapsed = None
     anim_timer = QTimer(layout_widget)
     anim_timer.setInterval(16)
 
+    def _studio_needs_running() -> tuple[bool, float]:
+        sh_p, _sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
+        elems = getattr(layout_widget, "_studio_elements", [])
+        has_continuous = any(
+            any(k in getattr(e, "anim_type", "") for k in ("pointer_pulse", "avatar_float", "disc_spin"))
+            for e in elems
+        )
+        has_live_fx = fx_perf != "off" and (pt_p != "none" or sh_p == "vhs_arcade")
+        elapsed = time.time() - float(getattr(layout_widget, "_studio_anim_start_time", 0.0) or 0.0)
+        return (elapsed < 1.5 or has_continuous or has_live_fx), elapsed
+
     def _on_studio_anim_tick():
+        if getattr(layout_widget, "_studio_is_paused", False):
+            anim_timer.stop()
+            return
         now_m = time.monotonic()
         dt = max(0.004, min(0.08, now_m - float(getattr(layout_widget, "_studio_last_fx_tick", now_m))))
         layout_widget._studio_last_fx_tick = now_m
@@ -1452,24 +1468,46 @@ def install_studio_overrides(
             ps.set_preset(pt_p)
             ps.step(dt)
 
-        elapsed = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
+        should_run, _elapsed = _studio_needs_running()
         layout_widget.update()
-        elems = getattr(layout_widget, "_studio_elements", [])
-        has_continuous = any(
-            any(k in getattr(e, "anim_type", "") for k in ("pointer_pulse", "avatar_float", "disc_spin"))
-            for e in elems
-        )
-        has_live_fx = fx_perf != "off" and (pt_p != "none" or sh_p == "vhs_arcade")
-        if elapsed >= 1.5 and not has_continuous and not has_live_fx:
+        if not should_run:
             anim_timer.stop()
 
     anim_timer.timeout.connect(_on_studio_anim_tick)
     layout_widget._studio_anim_timer = anim_timer
 
     def _trigger_studio_animations(*args, **kwargs):
+        layout_widget._studio_is_paused = False
+        layout_widget._studio_paused_elapsed = None
         layout_widget._studio_anim_start_time = time.time()
+        layout_widget._studio_last_fx_tick = time.monotonic()
         if not anim_timer.isActive():
             anim_timer.start()
+
+    def _pause_studio_animations():
+        if not getattr(layout_widget, "_studio_is_paused", False):
+            layout_widget._studio_is_paused = True
+            layout_widget._studio_paused_elapsed = max(
+                0.0,
+                time.time() - float(getattr(layout_widget, "_studio_anim_start_time", time.time()) or time.time()),
+            )
+        if anim_timer.isActive():
+            anim_timer.stop()
+
+    def _resume_studio_animations():
+        was_paused = bool(getattr(layout_widget, "_studio_is_paused", False))
+        paused_elapsed = getattr(layout_widget, "_studio_paused_elapsed", None)
+        layout_widget._studio_is_paused = False
+        layout_widget._studio_paused_elapsed = None
+        if was_paused and paused_elapsed is not None:
+            layout_widget._studio_anim_start_time = time.time() - float(paused_elapsed)
+        layout_widget._studio_last_fx_tick = time.monotonic()
+        should_run, _ = _studio_needs_running()
+        if should_run and not anim_timer.isActive():
+            anim_timer.start()
+        layout_widget.update()
+
+    layout_widget._resume_studio_animations = _resume_studio_animations
 
     # Enlazar inicio de animaciones ante navegación o cambio de selección de juego
     for hook_name in ("_load_pending_art", "_update_current_selection", "_commit_selection"):
@@ -1491,6 +1529,28 @@ def install_studio_overrides(
             return res
         layout_widget.select_game_by_id = _sel_wrapper
 
+    if hasattr(layout_widget, "pause_media"):
+        orig_pause = layout_widget.pause_media
+        if not getattr(orig_pause, "_is_studio_anim_wrapped", False):
+            def _pause_wrapper(*a, **k):
+                _pause_studio_animations()
+                res = orig_pause(*a, **k)
+                if anim_timer.isActive():
+                    anim_timer.stop()
+                return res
+            _pause_wrapper._is_studio_anim_wrapped = True
+            layout_widget.pause_media = _pause_wrapper
+
+    if hasattr(layout_widget, "resume_media"):
+        orig_resume = layout_widget.resume_media
+        if not getattr(orig_resume, "_is_studio_anim_wrapped", False):
+            def _resume_wrapper(*a, **k):
+                res = orig_resume(*a, **k)
+                _resume_studio_animations()
+                return res
+            _resume_wrapper._is_studio_anim_wrapped = True
+            layout_widget.resume_media = _resume_wrapper
+
     _trigger_studio_animations()
 
     def _studio_paint_event(event):
@@ -1510,7 +1570,10 @@ def install_studio_overrides(
         else:
             sr = QRect(0, 0, w, h)
 
-        t = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
+        if getattr(layout_widget, "_studio_is_paused", False) and getattr(layout_widget, "_studio_paused_elapsed", None) is not None:
+            t = float(layout_widget._studio_paused_elapsed)
+        else:
+            t = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
         elems: list[LayoutElement] = getattr(layout_widget, "_studio_elements", [])
         for elem in elems:
             if not elem.visible:

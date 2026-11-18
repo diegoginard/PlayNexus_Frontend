@@ -122,8 +122,16 @@ class EmulatorManager(QObject):
         self._current_emulator = emulator
         self._current_game = game
         self._session_start_mono = time.monotonic()
+        self._tick_counter = 0
         self._exit_locked = True
         self._target_emu_hwnd = None
+
+        if sys.platform == "win32" and proc is not None:
+            try:
+                ctypes.windll.user32.AllowSetForegroundWindow(-1)
+                ctypes.windll.user32.AllowSetForegroundWindow(proc.pid)
+            except Exception:
+                pass
 
         if db and game and game.get("id") and not game.get("is_menu_target"):
             try:
@@ -367,20 +375,22 @@ class EmulatorManager(QObject):
             return
 
         self._tick_counter += 1
+        # Localizar el HWND del emulador aunque no haya bezel activo (para foco fiable al arrancar)
+        if sys.platform == "win32" and not self._target_emu_hwnd and (self._tick_counter <= 10 or self._tick_counter % 4 == 0) and self._tick_counter <= 120:
+            self._target_emu_hwnd = self._find_emulator_hwnd()
+            if self._target_emu_hwnd:
+                if self.bezel_overlay and self.bezel_overlay.isVisible():
+                    self.bezel_overlay.attach_to_target_hwnd(self._target_emu_hwnd)
+                self.refocus_emulator()
+
         # Reafirmar prioridad TOPMOST y asociación como Owned Window ante emuladores (SDL2/SDL3/DirectX)
         if self.bezel_overlay and self.bezel_overlay.isVisible():
-            if not self._target_emu_hwnd:
-                self._target_emu_hwnd = self._find_emulator_hwnd()
-                if self._target_emu_hwnd:
-                    self.bezel_overlay.attach_to_target_hwnd(self._target_emu_hwnd)
-                    self.refocus_emulator()
-
             check_interval = 4 if self._tick_counter < 100 else 15
             if self._tick_counter % check_interval == 0:
                 self.bezel_overlay.bring_to_top()
 
-        # Durante los primeros segundos del emulador, asegurar que no haya perdido el foco frente al frontend
-        if sys.platform == "win32" and self._target_emu_hwnd and self._tick_counter in (2, 6, 12, 24):
+        # Durante los primeros segundos del emulador, asegurar que no haya perdido el foco frente al frontend/configurador
+        if sys.platform == "win32" and self._target_emu_hwnd and self._tick_counter in (2, 6, 12, 24, 40):
             try:
                 fore = ctypes.windll.user32.GetForegroundWindow()
                 if fore != self._target_emu_hwnd:
@@ -718,6 +728,14 @@ class EmulatorManager(QObject):
                 except Exception:
                     pass
 
+        # 0. Revalidar endpoints de audio WASAPI/HDMI antes y después de restaurar medios
+        try:
+            from playnexus.services.audio_guard import refresh_audio_devices, schedule_audio_recovery
+            refresh_audio_devices(force_rebind=True)
+            schedule_audio_recovery(delay_ms=350, force_rebind=True)
+        except Exception:
+            pass
+
         # 1. Reanudar video y audio en el layout activo y liberar bloqueos de clic
         if self.active_layout:
             try:
@@ -741,6 +759,15 @@ class EmulatorManager(QObject):
                     self.parent_window._last_activation_time = 0.0
                 if hasattr(self.parent_window, "releaseMouse"):
                     self.parent_window.releaseMouse()
+                if getattr(self.parent_window, "_restore_after_emulator", False):
+                    was_max = bool(getattr(self.parent_window, "_was_maximized_before_emu", False))
+                    self.parent_window._restore_after_emulator = False
+                    if was_max:
+                        self.parent_window.showMaximized()
+                    else:
+                        self.parent_window.showNormal()
+                elif hasattr(self.parent_window, "isMinimized") and self.parent_window.isMinimized():
+                    self.parent_window.showNormal()
                 if hasattr(self.parent_window, "resume_active_media"):
                     self.parent_window.resume_active_media()
                 self.parent_window.show()

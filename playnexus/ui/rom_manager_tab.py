@@ -8,6 +8,7 @@ y asignar, renombrar o eliminar archivos de media directamente.
 """
 from __future__ import annotations
 
+import html
 import os
 import subprocess
 import sys
@@ -24,13 +25,15 @@ from PySide6.QtWidgets import (
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QSplitter,
     QFrame, QStackedWidget, QSlider, QCheckBox, QFileDialog, QMessageBox,
     QAbstractItemView, QProgressBar, QScrollArea, QSizePolicy, QListWidget,
-    QListWidgetItem, QApplication, QMenu, QLayout, QLayoutItem
+    QListWidgetItem, QApplication, QMenu, QLayout, QLayoutItem, QDialog,
+    QToolButton, QRadioButton, QStyle, QStyleOptionSlider
 )
 
 from playnexus.db import Database
 from playnexus.services.media import clear_media_cache, IMAGE_EXTS, VIDEO_EXTS
 from playnexus.services.rom_manager import (
     AuditSummary,
+    GameDeletionPlan,
     MediaRequirementSpec,
     OrphanMediaFile,
     RomAuditResult,
@@ -38,11 +41,14 @@ from playnexus.services.rom_manager import (
     assign_media_file,
     audit_list_media,
     build_requirement_specs,
+    collect_game_deletion_targets,
+    delete_game_and_assets,
     delete_media_file,
     export_audit_csv,
     find_fuzzy_media_candidates,
     format_file_size,
     rename_orphan_media_file,
+    replace_game_rom_file,
 )
 from playnexus.services.themes import get_layout_media_spec
 from playnexus.ui.layouts import get_available_layouts
@@ -331,12 +337,71 @@ class MediaCanvasWidget(QWidget):
             event.ignore()
 
 
+class _VideoSeekSlider(QSlider):
+    """Slider horizontal de línea de tiempo con salto directo al hacer clic sobre la barra."""
+
+    def __init__(self, parent=None):
+        super().__init__(Qt.Horizontal, parent)
+        self._direct_drag = False
+        self.setCursor(Qt.PointingHandCursor)
+
+    def _value_from_x(self, x: int) -> int:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        groove = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
+        handle = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self)
+        if groove.width() <= 0:
+            span = max(1, self.width())
+            pos = max(0, min(span, x))
+        else:
+            half_handle = handle.width() // 2
+            span = max(1, groove.width() - handle.width())
+            pos = max(0, min(span, x - groove.x() - half_handle))
+        return QStyle.sliderValueFromPosition(self.minimum(), self.maximum(), pos, span, opt.upsideDown)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.maximum() > self.minimum():
+            opt = QStyleOptionSlider()
+            self.initStyleOption(opt)
+            handle = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self)
+            if not handle.contains(event.position().toPoint()):
+                self._direct_drag = True
+                val = self._value_from_x(int(event.position().x()))
+                self.setSliderDown(True)
+                self.sliderPressed.emit()
+                self.setValue(val)
+                self.sliderMoved.emit(val)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._direct_drag:
+            val = self._value_from_x(int(event.position().x()))
+            self.setValue(val)
+            self.sliderMoved.emit(val)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._direct_drag and event.button() == Qt.LeftButton:
+            self._direct_drag = False
+            val = self._value_from_x(int(event.position().x()))
+            self.setValue(val)
+            self.setSliderDown(False)
+            self.sliderReleased.emit()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
 class MediaPreviewWidget(QWidget):
     """
     Previsualizador dual completo para el Rom Manager:
     - Imágenes estáticas y transparentes (.png/.webp/.jpg) con dimensiones y peso.
-    - Videos (.mp4/.mkv/.avi/.webm) con Play/Pausa/Stop, barra de búsqueda, tiempo, mute y volumen.
-    - Acciones directas: Asignar/Reemplazar (archivo o Drag & Drop), Sugerencias difusas, Abrir carpeta, Eliminar.
+    - Videos (.mp4/.mkv/.avi/.webm) con Play/Pausa/Stop, línea de tiempo, mute y volumen.
+    - Interacciones directas: Drag & Drop sobre el visor, sugerencias difusas y asignación de carpeta faltante.
     """
 
     assign_file_requested = Signal(str)       # source_path ("" = abrir diálogo)
@@ -393,65 +458,114 @@ class MediaPreviewWidget(QWidget):
 
         # Barra de controles de video (oculta cuando es imagen o vacío)
         self.video_controls_frame = QFrame()
+        self.video_controls_frame.setObjectName("rmVideoControls")
         self.video_controls_frame.setStyleSheet(
-            "QFrame { background-color: #191d28; border: 1px solid #2a3144; border-radius: 6px; padding: 6px; }"
+            "#rmVideoControls { background-color: #161a24; border: 1px solid #2b3348; border-radius: 8px; }"
         )
         vc_layout = QVBoxLayout(self.video_controls_frame)
-        vc_layout.setContentsMargins(8, 6, 8, 6)
+        vc_layout.setContentsMargins(10, 8, 10, 8)
         vc_layout.setSpacing(6)
 
+        # Fila 1: Línea de tiempo dedicada a todo lo ancho + indicador temporal fijo
         seek_row = QHBoxLayout()
-        seek_row.setSpacing(8)
-        self.btn_play_pause = QPushButton("▶")
-        self.btn_play_pause.setFixedWidth(36)
-        self.btn_play_pause.setToolTip("Reproducir / Pausar video")
-        self.btn_play_pause.clicked.connect(self.toggle_play_pause)
+        seek_row.setContentsMargins(0, 0, 0, 0)
+        seek_row.setSpacing(10)
 
-        self.btn_stop = QPushButton("⏹")
-        self.btn_stop.setFixedWidth(36)
-        self.btn_stop.setToolTip("Detener video")
-        self.btn_stop.clicked.connect(self.stop_video)
-
-        self.seek_slider = QSlider(Qt.Horizontal)
+        self.seek_slider = _VideoSeekSlider(self.video_controls_frame)
         self.seek_slider.setRange(0, 0)
+        self.seek_slider.setToolTip("Línea de tiempo del video (clic o arrastrar para buscar)")
+        self.seek_slider.setStyleSheet(
+            "QSlider { min-height: 22px; background: transparent; }"
+            "QSlider::groove:horizontal { height: 6px; background: #262e42; border-radius: 3px; }"
+            "QSlider::sub-page:horizontal { background: #7c69ef; border-radius: 3px; }"
+            "QSlider::add-page:horizontal { background: #262e42; border-radius: 3px; }"
+            "QSlider::handle:horizontal { background: #c4b5fd; border: 2px solid #7c69ef; "
+            "width: 12px; height: 12px; margin: -5px 0; border-radius: 8px; }"
+            "QSlider::handle:horizontal:hover { background: #ede9fe; border-color: #a78bfa; }"
+            "QSlider::handle:horizontal:disabled { background: #475569; border-color: #334155; }"
+        )
         self.seek_slider.sliderPressed.connect(self._on_seek_pressed)
         self.seek_slider.sliderReleased.connect(self._on_seek_released)
         self.seek_slider.sliderMoved.connect(self._on_seek_moved)
 
         self.time_lbl = QLabel("00:00 / 00:00")
-        self.time_lbl.setStyleSheet("color: #cbd5e1; font-size: 8.5pt; font-family: Consolas, monospace;")
+        self.time_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.time_lbl.setMinimumWidth(92)
+        self.time_lbl.setStyleSheet(
+            "color: #cbd5e1; font-size: 8.5pt; font-family: Consolas, monospace; background: transparent;"
+        )
 
-        seek_row.addWidget(self.btn_play_pause)
-        seek_row.addWidget(self.btn_stop)
         seek_row.addWidget(self.seek_slider, 1)
         seek_row.addWidget(self.time_lbl)
         vc_layout.addLayout(seek_row)
 
+        # Fila 2: Controles de reproducción, volumen y opciones
         audio_row = QHBoxLayout()
-        audio_row.setSpacing(8)
+        audio_row.setContentsMargins(0, 0, 0, 0)
+        audio_row.setSpacing(6)
+
+        transport_btn_css = (
+            "QPushButton { background-color: #212737; border: 1px solid #323b52; border-radius: 6px; "
+            "color: #e2e8f0; font-size: 9.5pt; padding: 0px; }"
+            "QPushButton:hover { background-color: #2c354c; border-color: #7c69ef; }"
+            "QPushButton:pressed { background-color: #1b2030; }"
+        )
+
+        self.btn_play_pause = QPushButton("▶")
+        self.btn_play_pause.setFixedSize(28, 26)
+        self.btn_play_pause.setCursor(Qt.PointingHandCursor)
+        self.btn_play_pause.setStyleSheet(transport_btn_css)
+        self.btn_play_pause.setToolTip("Reproducir / Pausar video")
+        self.btn_play_pause.clicked.connect(self.toggle_play_pause)
+
+        self.btn_stop = QPushButton("⏹")
+        self.btn_stop.setFixedSize(28, 26)
+        self.btn_stop.setCursor(Qt.PointingHandCursor)
+        self.btn_stop.setStyleSheet(transport_btn_css)
+        self.btn_stop.setToolTip("Detener video")
+        self.btn_stop.clicked.connect(self.stop_video)
+
         self.btn_mute = QPushButton("🔊")
-        self.btn_mute.setFixedWidth(36)
+        self.btn_mute.setFixedSize(28, 26)
+        self.btn_mute.setCursor(Qt.PointingHandCursor)
+        self.btn_mute.setStyleSheet(transport_btn_css)
         self.btn_mute.setToolTip("Silenciar / Activar sonido del previsualizador")
         self.btn_mute.clicked.connect(self._toggle_mute)
 
         self.vol_slider = QSlider(Qt.Horizontal)
         self.vol_slider.setRange(0, 100)
         self.vol_slider.setValue(70)
-        self.vol_slider.setMaximumWidth(110)
+        self.vol_slider.setMinimumWidth(58)
+        self.vol_slider.setMaximumWidth(94)
+        self.vol_slider.setCursor(Qt.PointingHandCursor)
         self.vol_slider.setToolTip("Volumen de previsualización")
+        self.vol_slider.setStyleSheet(
+            "QSlider { min-height: 20px; background: transparent; }"
+            "QSlider::groove:horizontal { height: 4px; background: #262e42; border-radius: 2px; }"
+            "QSlider::sub-page:horizontal { background: #64748b; border-radius: 2px; }"
+            "QSlider::add-page:horizontal { background: #262e42; border-radius: 2px; }"
+            "QSlider::handle:horizontal { background: #e2e8f0; border: 1px solid #64748b; "
+            "width: 10px; height: 10px; margin: -4px 0; border-radius: 6px; }"
+            "QSlider::handle:horizontal:hover { background: #ffffff; border-color: #7c69ef; }"
+        )
         self.vol_slider.valueChanged.connect(self._on_volume_changed)
 
         self.chk_loop = QCheckBox("Bucle")
         self.chk_loop.setChecked(True)
+        self.chk_loop.setStyleSheet("font-size: 8.5pt; color: #cbd5e1;")
         self.chk_loop.toggled.connect(lambda c: setattr(self, "_loop_video", bool(c)))
 
         self.chk_autoplay = QCheckBox("Auto-reproducir")
         self.chk_autoplay.setChecked(True)
+        self.chk_autoplay.setStyleSheet("font-size: 8.5pt; color: #cbd5e1;")
         self.chk_autoplay.toggled.connect(lambda c: setattr(self, "_auto_play", bool(c)))
 
+        audio_row.addWidget(self.btn_play_pause)
+        audio_row.addWidget(self.btn_stop)
+        audio_row.addSpacing(4)
         audio_row.addWidget(self.btn_mute)
         audio_row.addWidget(self.vol_slider)
-        audio_row.addStretch()
+        audio_row.addStretch(1)
         audio_row.addWidget(self.chk_loop)
         audio_row.addWidget(self.chk_autoplay)
         vc_layout.addLayout(audio_row)
@@ -470,30 +584,11 @@ class MediaPreviewWidget(QWidget):
         self.suggestions_frame.setVisible(False)
         layout.addWidget(self.suggestions_frame)
 
-        # Botones de acción sobre el archivo del slot
-        actions_row = QHBoxLayout()
-        actions_row.setSpacing(6)
-
-        self.btn_assign = QPushButton("📥 Asignar archivo…")
-        self.btn_assign.setObjectName("primary")
-        self.btn_assign.clicked.connect(lambda: self.assign_file_requested.emit(""))
-
+        # Botón para asignar carpeta de media faltante (visible solo si falta configurar carpeta)
         self.btn_set_folder = QPushButton("📁 Asignar carpeta…")
         self.btn_set_folder.clicked.connect(self._on_assign_folder_clicked)
         self.btn_set_folder.setVisible(False)
-
-        self.btn_open_loc = QPushButton("📂 Abrir carpeta")
-        self.btn_open_loc.clicked.connect(self._on_open_location_clicked)
-
-        self.btn_delete = QPushButton("🗑 Eliminar")
-        self.btn_delete.setObjectName("danger")
-        self.btn_delete.clicked.connect(self._on_delete_clicked)
-
-        actions_row.addWidget(self.btn_assign, 1)
-        actions_row.addWidget(self.btn_set_folder, 1)
-        actions_row.addWidget(self.btn_open_loc)
-        actions_row.addWidget(self.btn_delete)
-        layout.addLayout(actions_row)
+        layout.addWidget(self.btn_set_folder)
 
     def _setup_player(self):
         self.player = QMediaPlayer(self)
@@ -527,16 +622,6 @@ class MediaPreviewWidget(QWidget):
             self.toggle_play_pause()
         elif self._current_slot and self._current_slot.file_path:
             _open_in_file_explorer(self._current_slot.file_path, is_dir=False)
-
-    def _on_open_location_clicked(self):
-        if self._current_slot and self._current_slot.file_path and os.path.isfile(self._current_slot.file_path):
-            _open_in_file_explorer(self._current_slot.file_path, is_dir=False)
-        elif self._current_spec and self._current_spec.folder_exists:
-            _open_in_file_explorer(self._current_spec.folder_path, is_dir=True)
-
-    def _on_delete_clicked(self):
-        if self._current_slot and self._current_slot.file_path:
-            self.delete_file_requested.emit(self._current_slot.file_path)
 
     def stop_and_release(self, flush_events: bool = True):
         """Detiene el reproductor y libera el handle de archivo en Windows/Media Foundation."""
@@ -692,10 +777,7 @@ class MediaPreviewWidget(QWidget):
         self.video_controls_frame.setVisible(False)
         self.btn_checkerboard.setVisible(False)
         self.suggestions_frame.setVisible(False)
-        self.btn_assign.setVisible(False)
         self.btn_set_folder.setVisible(False)
-        self.btn_open_loc.setVisible(False)
-        self.btn_delete.setVisible(False)
         self._set_pdf_button_path("")
         self.canvas.set_drop_config(False)
         self.canvas.show_empty("Sin selección", message)
@@ -725,15 +807,11 @@ class MediaPreviewWidget(QWidget):
         self.canvas.set_drop_config(can_drop, allowed_drop)
 
         self.btn_set_folder.setVisible(not spec.folder_exists)
-        self.btn_assign.setVisible(spec.folder_exists and bool(rom.stem))
-        self.btn_open_loc.setVisible(spec.folder_exists or bool(slot.file_path))
         self._set_pdf_button_path(slot.file_path if (slot.media_kind == "pdf" and slot.file_path and os.path.isfile(slot.file_path)) else "")
 
         # Hay archivo existente para previsualizar
         if slot.file_path and os.path.isfile(slot.file_path):
             self.suggestions_frame.setVisible(False)
-            self.btn_assign.setText("📥 Reemplazar archivo…")
-            self.btn_delete.setVisible(True)
 
             if slot.media_kind == "video":
                 self.btn_checkerboard.setVisible(False)
@@ -774,8 +852,6 @@ class MediaPreviewWidget(QWidget):
         # Archivo faltante o sin carpeta
         self.video_controls_frame.setVisible(False)
         self.btn_checkerboard.setVisible(False)
-        self.btn_delete.setVisible(False)
-        self.btn_assign.setText("📥 Asignar archivo…")
 
         ext_list = ", ".join(spec.extensions)
         if not spec.folder_exists:
@@ -929,6 +1005,240 @@ class _FlowLayout(QLayout):
             line_h = max(line_h, hint.height())
 
         return (y + line_h - rect.y()) + m.bottom()
+
+
+class _DeleteGameConfirmDialog(QDialog):
+    """Confirmación explícita para eliminar un juego del disco (ROM + todas sus artes) y de la lista."""
+
+    def __init__(self, plan: GameDeletionPlan, list_name: str, parent=None):
+        super().__init__(parent)
+        self.plan = plan
+        self.setWindowTitle(f"Eliminar juego del disco — {plan.title}")
+        self.resize(700, 480)
+        self.setMinimumSize(540, 380)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(10)
+
+        safe_title = html.escape(plan.title)
+        safe_list = html.escape(list_name)
+        warn_lbl = QLabel(
+            f"<b>¿Eliminar permanentemente '{safe_title}'?</b><br>"
+            f"<span style='color:#fca5a5;'>Esta acción borrará del disco de forma irreversible los archivos marcados "
+            f"y quitará el juego de la lista <b>{safe_list}</b>.</span>"
+        )
+        warn_lbl.setWordWrap(True)
+        root.addWidget(warn_lbl)
+
+        if plan.rom_target is None and plan.rom_path:
+            missing_lbl = QLabel(
+                f"<i>Nota: el archivo ROM ya no se encuentra en disco (<code>{html.escape(plan.rom_path)}</code>); "
+                f"se eliminarán las artes encontradas y el registro de la lista.</i>"
+            )
+            missing_lbl.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
+            missing_lbl.setWordWrap(True)
+            root.addWidget(missing_lbl)
+
+        if plan.other_list_refs:
+            other_names = ", ".join(dict.fromkeys(ref[2] for ref in plan.other_list_refs))
+            refs_lbl = QLabel(
+                f"⚠ Esta misma ROM también figura en <b>{len(plan.other_list_refs)}</b> entrada(s) de otras listas "
+                f"(<b>{html.escape(other_names)}</b>). Si eliminás el archivo ROM físico, también se limpiarán esas referencias huérfanas."
+            )
+            refs_lbl.setStyleSheet(
+                "background-color: #2b2114; border: 1px solid #8a5a19; border-radius: 6px; "
+                "padding: 6px 10px; color: #fcd34d; font-size: 8.5pt;"
+            )
+            refs_lbl.setWordWrap(True)
+            root.addWidget(refs_lbl)
+
+        self.files_list = QListWidget()
+        self.files_list.setStyleSheet(
+            "QListWidget { background-color: #141720; border: 1px solid #2b3144; border-radius: 6px; }"
+            "QListWidget::item { padding: 4px 6px; }"
+        )
+        for tgt in plan.all_targets:
+            prefix = "🎮" if tgt.is_rom else "🖼"
+            txt = f"{prefix}  [{tgt.label}]  {tgt.file_path}  ({format_file_size(tgt.size_bytes)})"
+            it = QListWidgetItem(txt)
+            it.setFlags(it.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            it.setCheckState(Qt.Checked)
+            it.setData(Qt.UserRole, tgt.file_path)
+            it.setData(Qt.UserRole + 1, int(tgt.size_bytes or 0))
+            it.setData(Qt.UserRole + 2, bool(tgt.is_rom))
+            if tgt.is_rom:
+                it.setForeground(QColor("#fca5a5"))
+            self.files_list.addItem(it)
+        if self.files_list.count() == 0:
+            empty_it = QListWidgetItem("No se encontraron archivos de ROM ni artes en disco (solo se quitará de la lista).")
+            empty_it.setFlags(Qt.ItemIsEnabled)
+            empty_it.setForeground(QColor("#94a3b8"))
+            self.files_list.addItem(empty_it)
+        self.files_list.itemChanged.connect(lambda _it: self._update_totals())
+        root.addWidget(self.files_list, 1)
+
+        tools_row = QHBoxLayout()
+        tools_row.setSpacing(8)
+        self.btn_check_all = QPushButton("Marcar todo")
+        self.btn_check_all.clicked.connect(lambda: self._set_media_checked(True, include_rom=True))
+        self.btn_only_rom = QPushButton("Solo ROM + lista (conservar artes)")
+        self.btn_only_rom.clicked.connect(lambda: self._set_media_checked(False, include_rom=True))
+        if not plan.all_targets:
+            self.btn_check_all.setEnabled(False)
+            self.btn_only_rom.setEnabled(False)
+        elif not plan.media_targets:
+            self.btn_only_rom.setEnabled(False)
+
+        self.totals_lbl = QLabel("")
+        self.totals_lbl.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
+        tools_row.addWidget(self.btn_check_all)
+        tools_row.addWidget(self.btn_only_rom)
+        tools_row.addStretch(1)
+        tools_row.addWidget(self.totals_lbl)
+        root.addLayout(tools_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        self.btn_cancel = QPushButton("Cancelar")
+        self.btn_cancel.clicked.connect(self.reject)
+        self.btn_confirm = QPushButton("🗑 Eliminar definitivamente")
+        self.btn_confirm.setObjectName("danger")
+        self.btn_confirm.clicked.connect(self.accept)
+        btn_row.addWidget(self.btn_cancel)
+        btn_row.addWidget(self.btn_confirm)
+        root.addLayout(btn_row)
+
+        self.btn_cancel.setDefault(True)
+        self.btn_cancel.setFocus()
+        self._update_totals()
+
+    def _set_media_checked(self, checked: bool, include_rom: bool = True):
+        state_media = Qt.Checked if checked else Qt.Unchecked
+        self.files_list.blockSignals(True)
+        for i in range(self.files_list.count()):
+            it = self.files_list.item(i)
+            if not (it.flags() & Qt.ItemIsUserCheckable):
+                continue
+            is_rom = bool(it.data(Qt.UserRole + 2))
+            if is_rom:
+                if include_rom:
+                    it.setCheckState(Qt.Checked)
+            else:
+                it.setCheckState(state_media)
+        self.files_list.blockSignals(False)
+        self._update_totals()
+
+    def _update_totals(self):
+        count = 0
+        total_b = 0
+        for i in range(self.files_list.count()):
+            it = self.files_list.item(i)
+            if (it.flags() & Qt.ItemIsUserCheckable) and it.checkState() == Qt.Checked:
+                count += 1
+                total_b += int(it.data(Qt.UserRole + 1) or 0)
+        self.totals_lbl.setText(f"Seleccionados: <b>{count}</b> archivo(s) · <b>{format_file_size(total_b)}</b>")
+
+    def selected_paths(self) -> list[str]:
+        out: list[str] = []
+        for i in range(self.files_list.count()):
+            it = self.files_list.item(i)
+            if (it.flags() & Qt.ItemIsUserCheckable) and it.checkState() == Qt.Checked:
+                fp = str(it.data(Qt.UserRole) or "").strip()
+                if fp:
+                    out.append(fp)
+        return out
+
+
+class _ReplaceRomDialog(QDialog):
+    """Opciones claras al reemplazar el archivo ROM de un juego en Rom Manager."""
+
+    def __init__(self, rom: RomAuditResult, new_source_path: str, has_list_rom_dir: bool, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Reemplazar ROM — {rom.title}")
+        self.resize(620, 310)
+        self.setMinimumWidth(500)
+
+        new_p = Path(new_source_path)
+        old_stem = rom.stem or (Path(rom.rom_path).stem if rom.rom_path else "")
+        new_stem = new_p.stem
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(10)
+
+        info_lbl = QLabel(
+            f"<b>Juego:</b> {html.escape(rom.title)}<br>"
+            f"<b>ROM actual:</b> <code>{html.escape(rom.rom_path or 'No definida')}</code><br>"
+            f"<b>Nueva ROM:</b> <code>{html.escape(str(new_p).replace(chr(92), '/'))}</code>"
+        )
+        info_lbl.setWordWrap(True)
+        root.addWidget(info_lbl)
+
+        self.rb_keep_stem = QRadioButton(
+            f"Conservar el nombre base actual ('{old_stem}{new_p.suffix}') — mantiene todas sus artes intactas"
+            if old_stem
+            else "Copiar a la carpeta de ROMs conservando el nombre actual"
+        )
+        self.rb_use_new = QRadioButton(
+            f"Usar el nuevo nombre '{new_p.name}' y actualizar la lista"
+        )
+        if old_stem:
+            self.rb_keep_stem.setChecked(True)
+        else:
+            self.rb_keep_stem.setEnabled(False)
+            self.rb_use_new.setChecked(True)
+
+        self.chk_copy_dir = QCheckBox("Copiar la nueva ROM dentro de la carpeta de ROMs de la lista")
+        self.chk_copy_dir.setChecked(has_list_rom_dir)
+        self.chk_copy_dir.setEnabled(has_list_rom_dir)
+
+        self.chk_rename_media = QCheckBox(
+            f"Renombrar las artes/medios existentes de '{old_stem}' a '{new_stem}'"
+            if old_stem
+            else "Renombrar artes existentes al nuevo nombre"
+        )
+        self.chk_rename_media.setChecked(bool(old_stem) and new_stem.lower() != old_stem.lower())
+
+        self.chk_remove_old = QCheckBox("Eliminar del disco el archivo ROM anterior tras completar el reemplazo")
+        old_exists = bool(rom.rom_path and os.path.isfile(rom.rom_path))
+        self.chk_remove_old.setChecked(old_exists)
+        self.chk_remove_old.setEnabled(old_exists)
+
+        def _sync_mode():
+            use_new = self.rb_use_new.isChecked()
+            self.chk_copy_dir.setVisible(use_new and has_list_rom_dir)
+            self.chk_rename_media.setVisible(use_new and bool(old_stem) and new_stem.lower() != old_stem.lower())
+
+        self.rb_keep_stem.toggled.connect(_sync_mode)
+        self.rb_use_new.toggled.connect(_sync_mode)
+
+        root.addWidget(self.rb_keep_stem)
+        root.addWidget(self.rb_use_new)
+        root.addWidget(self.chk_copy_dir)
+        root.addWidget(self.chk_rename_media)
+        root.addWidget(self.chk_remove_old)
+        _sync_mode()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.clicked.connect(self.reject)
+        btn_ok = QPushButton("🔁 Reemplazar ROM")
+        btn_ok.setObjectName("primary")
+        btn_ok.clicked.connect(self.accept)
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_ok)
+        root.addLayout(btn_row)
+
+        btn_ok.setDefault(True)
+
+    def values(self) -> tuple[bool, bool, bool, bool]:
+        keep_stem = self.rb_keep_stem.isChecked()
+        copy_dir = True if keep_stem else self.chk_copy_dir.isChecked()
+        remove_old = self.chk_remove_old.isChecked()
+        rename_media = False if keep_stem else self.chk_rename_media.isChecked()
+        return keep_stem, copy_dir, remove_old, rename_media
 
 
 class RomManagerWidget(QWidget):
@@ -1140,6 +1450,8 @@ class RomManagerWidget(QWidget):
             alternating_rows=True,
             apply_columns=False,
         )
+        self.table.verticalHeader().setMinimumSectionSize(32)
+        self.table.verticalHeader().setDefaultSectionSize(34)
         self.table.setStyleSheet(
             "QTableWidget { alternate-background-color: #191d29; gridline-color: #252b3d; }"
             "QTableWidget::item { padding: 5px 8px; }"
@@ -1179,6 +1491,15 @@ class RomManagerWidget(QWidget):
         self.btn_scrape_single.setEnabled(False)
         self.btn_scrape_single.clicked.connect(lambda: self._open_single_rom_scrape())
         info_head_row.addWidget(self.btn_scrape_single)
+
+        self.btn_delete_game = QPushButton("🗑 Eliminar juego…")
+        self.btn_delete_game.setObjectName("danger")
+        self.btn_delete_game.setToolTip(
+            "Eliminar literalmente este juego del disco (archivo ROM + todas sus artes) y quitarlo de la lista"
+        )
+        self.btn_delete_game.setEnabled(False)
+        self.btn_delete_game.clicked.connect(lambda: self._confirm_and_delete_game())
+        info_head_row.addWidget(self.btn_delete_game)
         right_vbox.addLayout(info_head_row)
 
         self.rom_info_sub = QLabel("—")
@@ -1215,6 +1536,36 @@ class RomManagerWidget(QWidget):
     # -----------------------------------------------------------------
     # CARGA Y SINCRONIZACIÓN DE LISTAS Y LAYOUTS
     # -----------------------------------------------------------------
+    def _format_list_combo_label(self, rd: dict[str, Any]) -> str:
+        lid = int(rd["id"])
+        ltype = rd.get("list_type", "games")
+        if ltype == "menu":
+            icon = "🧭"
+            count_txt = f"{len(self.db.get_menu_items(lid))} sistemas"
+        elif ltype == "filtered":
+            icon = "⚡"
+            count_txt = f"{rd.get('game_count', 0)} juegos"
+        else:
+            icon = "🎮"
+            count_txt = f"{rd.get('game_count', 0)} ROMs"
+        return f"{icon}  {rd['name']}  ({count_txt})"
+
+    def _refresh_list_combo_counts(self):
+        """Actualiza textos/contadores del selector de listas sin reiniciar la auditoría visible."""
+        rows_by_id = {int(r["id"]): dict(r) for r in self.db.get_lists(with_counts=True)}
+        self.list_combo.blockSignals(True)
+        try:
+            for idx in range(self.list_combo.count()):
+                lid = self.list_combo.itemData(idx)
+                if lid is None:
+                    continue
+                rd = rows_by_id.get(int(lid))
+                if rd:
+                    self._lists_by_id[int(lid)] = rd
+                    self.list_combo.setItemText(idx, self._format_list_combo_label(rd))
+        finally:
+            self.list_combo.blockSignals(False)
+
     def refresh_sources(self, select_list_id: int | None = None, auto_scan: bool = False):
         """Recarga la lista de listas de la DB y los layouts disponibles."""
         prev_list_id = select_list_id if select_list_id is not None else self.list_combo.currentData()
@@ -1237,17 +1588,7 @@ class RomManagerWidget(QWidget):
                 rd = dict(r)
                 lid = int(rd["id"])
                 self._lists_by_id[lid] = rd
-                ltype = rd.get("list_type", "games")
-                if ltype == "menu":
-                    icon = "🧭"
-                    count_txt = f"{len(self.db.get_menu_items(lid))} sistemas"
-                elif ltype == "filtered":
-                    icon = "⚡"
-                    count_txt = f"{rd.get('game_count', 0)} juegos"
-                else:
-                    icon = "🎮"
-                    count_txt = f"{rd.get('game_count', 0)} ROMs"
-                self.list_combo.addItem(f"{icon}  {rd['name']}  ({count_txt})", lid)
+                self.list_combo.addItem(self._format_list_combo_label(rd), lid)
 
             if prev_list_id is not None:
                 idx = self.list_combo.findData(int(prev_list_id))
@@ -1415,6 +1756,7 @@ class RomManagerWidget(QWidget):
         self.btn_export.setEnabled(False)
         self.btn_scrape.setEnabled(False)
         self.btn_scrape_single.setEnabled(False)
+        self.btn_delete_game.setEnabled(False)
         self.table.setRowCount(0)
         self.table.setColumnCount(0)
         self.slots_list.clear()
@@ -1627,10 +1969,94 @@ class RomManagerWidget(QWidget):
         ra_cell.setData(Qt.UserRole, (item.game_id, None))
         self.table.setItem(row_idx, ra_col, ra_cell)
 
+        # Columna de Opciones por fila (Abrir carpeta, Reemplazar ROM, Eliminar juego)
+        opts_col = ra_col + 1
+        opts_item = SortableTableItem("—" if item.is_menu_target else "")
+        opts_item.setTextAlignment(Qt.AlignCenter)
+        opts_item.setData(Qt.UserRole, (item.game_id, None))
+        opts_item.setData(SortableTableItem.SORT_ROLE, -1 if item.is_menu_target else 0)
+        if item.is_menu_target:
+            opts_item.setForeground(QColor("#64748b"))
+        self.table.setItem(row_idx, opts_col, opts_item)
+        if not item.is_menu_target:
+            self.table.setCellWidget(row_idx, opts_col, self._build_rom_options_widget(item))
+
+    def _build_rom_options_widget(self, item: RomAuditResult) -> QWidget:
+        """Construye los botones de acción rápida (Abrir carpeta, Reemplazar ROM, Eliminar) para una fila."""
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        hbox = QHBoxLayout(container)
+        hbox.setContentsMargins(4, 2, 4, 2)
+        hbox.setSpacing(4)
+        hbox.setAlignment(Qt.AlignCenter)
+
+        base_btn_css = (
+            "QToolButton { background-color: #202534; border: 1px solid #323a50; border-radius: 5px; "
+            "color: #e2e8f0; font-size: 10.5pt; padding: 0px; }"
+            "QToolButton:hover { background-color: #2b3348; border-color: #7c69ef; }"
+            "QToolButton:disabled { background-color: #161922; color: #475569; border-color: #232838; }"
+        )
+        danger_btn_css = (
+            "QToolButton { background-color: #2b1a22; border: 1px solid #6b2937; border-radius: 5px; "
+            "color: #fca5a5; font-size: 10.5pt; padding: 0px; }"
+            "QToolButton:hover { background-color: #5b1e29; border-color: #f87171; color: #ffffff; }"
+            "QToolButton:disabled { background-color: #161922; color: #475569; border-color: #232838; }"
+        )
+
+        gid = int(item.game_id)
+
+        btn_open = QToolButton(container)
+        btn_open.setText("📂")
+        btn_open.setFixedSize(26, 24)
+        btn_open.setCursor(Qt.PointingHandCursor)
+        btn_open.setFocusPolicy(Qt.NoFocus)
+        btn_open.setStyleSheet(base_btn_css)
+        has_open_dir = item.rom_exists or (bool(item.rom_path) and os.path.isdir(os.path.dirname(item.rom_path)))
+        btn_open.setEnabled(has_open_dir or bool(getattr(self, "_list_has_rom_dir", False)))
+        btn_open.setToolTip(
+            "Abrir carpeta donde está la ROM"
+            if btn_open.isEnabled()
+            else "No se encontró una carpeta válida para esta ROM"
+        )
+        btn_open.setAccessibleName("Abrir carpeta donde está la ROM")
+        btn_open.clicked.connect(lambda _chk=False, target_gid=gid: self._open_rom_folder(target_gid))
+
+        btn_replace = QToolButton(container)
+        btn_replace.setText("🔁")
+        btn_replace.setFixedSize(26, 24)
+        btn_replace.setCursor(Qt.PointingHandCursor)
+        btn_replace.setFocusPolicy(Qt.NoFocus)
+        btn_replace.setStyleSheet(base_btn_css)
+        btn_replace.setToolTip("Reemplazar archivo ROM…")
+        btn_replace.setAccessibleName("Reemplazar ROM")
+        btn_replace.clicked.connect(lambda _chk=False, target_gid=gid: self._confirm_and_replace_rom(target_gid))
+
+        btn_delete = QToolButton(container)
+        btn_delete.setText("🗑")
+        btn_delete.setFixedSize(26, 24)
+        btn_delete.setCursor(Qt.PointingHandCursor)
+        btn_delete.setFocusPolicy(Qt.NoFocus)
+        btn_delete.setStyleSheet(danger_btn_css)
+        btn_delete.setToolTip("Eliminar juego del disco (ROM + todas sus artes)…")
+        btn_delete.setAccessibleName("Eliminar ROM y artes")
+        btn_delete.clicked.connect(lambda _chk=False, target_gid=gid: self._confirm_and_delete_game(target_gid))
+
+        hbox.addWidget(btn_open)
+        hbox.addWidget(btn_replace)
+        hbox.addWidget(btn_delete)
+        return container
+
     def _populate_table(self):
         s = self._summary
         if not s:
             return
+
+        row_cur = self._lists_by_id.get(int(s.list_id)) or self._current_list_row() or {}
+        self._list_has_rom_dir = any(
+            os.path.isdir(c.strip())
+            for c in str(row_cur.get("roms_path") or "").split(";")
+            if c.strip()
+        )
 
         term = self.search_edit.text().strip().lower()
         mode = self.filter_combo.currentData() or "all"
@@ -1646,13 +2072,14 @@ class RomManagerWidget(QWidget):
             star = "★ " if spec.required else ""
             col_headers.append(f"{star}{spec.label}")
         col_headers.append("🏆 Logros RA")
+        col_headers.append("Opciones")
 
         schema_key = tuple(col_headers)
         schema_changed = (schema_key != self._applied_table_headers)
         if schema_changed:
             self.table.setColumnCount(len(col_headers))
             self.table.setHorizontalHeaderLabels(col_headers)
-            init_widths = [95, 240, 175] + [115] * max(0, len(col_headers) - 3)
+            init_widths = [95, 240, 175] + [115] * len(s.specs) + [115, 118]
             configure_details_table(
                 self.table,
                 col_widths=init_widths,
@@ -1695,6 +2122,7 @@ class RomManagerWidget(QWidget):
         else:
             self._selected_game_id = None
             self.btn_scrape_single.setEnabled(False)
+            self.btn_delete_game.setEnabled(False)
             self.slots_list.clear()
             self.rom_info_title.setText("Ninguna ROM coincide con el filtro")
             self.rom_info_sub.setText("—")
@@ -1768,8 +2196,15 @@ class RomManagerWidget(QWidget):
                 act_manual = menu.addAction("📖 Abrir Manual PDF…")
 
         act_open_rom = None
-        if rom.rom_path and os.path.exists(rom.rom_path):
+        if rom.rom_path and (os.path.exists(rom.rom_path) or os.path.isdir(os.path.dirname(rom.rom_path))):
             act_open_rom = menu.addAction("📂 Abrir ubicación de la ROM")
+
+        act_replace_rom = None
+        act_delete_game = None
+        if not rom.is_menu_target:
+            menu.addSeparator()
+            act_replace_rom = menu.addAction("🔁 Reemplazar archivo ROM…")
+            act_delete_game = menu.addAction(f"🗑 Eliminar '{rom.title}' del disco (ROM + artes)…")
 
         chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
         if chosen is None:
@@ -1786,8 +2221,12 @@ class RomManagerWidget(QWidget):
             self._open_ra_single(rom.game_id)
         elif act_manual and chosen == act_manual:
             self._open_manual_for_rom(rom.game_id)
-        elif chosen == act_open_rom:
-            _open_in_file_explorer(rom.rom_path, is_dir=False)
+        elif act_open_rom and chosen == act_open_rom:
+            self._open_rom_folder(rom.game_id)
+        elif act_replace_rom and chosen == act_replace_rom:
+            self._confirm_and_replace_rom(rom.game_id)
+        elif act_delete_game and chosen == act_delete_game:
+            self._confirm_and_delete_game(rom.game_id)
 
     def _get_spec(self, key: str | None) -> MediaRequirementSpec | None:
         if not self._summary or not key:
@@ -1801,6 +2240,7 @@ class RomManagerWidget(QWidget):
 
         self._selected_game_id = game_id
         self.btn_scrape_single.setEnabled(not rom.is_menu_target and bool(rom.stem))
+        self.btn_delete_game.setEnabled(not rom.is_menu_target)
         self.rom_info_title.setText(rom.title)
         if rom.is_menu_target:
             self.rom_info_sub.setText(f"Ítem de Menú de Sistemas  ·  Nombre base: {rom.stem}")
@@ -2005,6 +2445,208 @@ class RomManagerWidget(QWidget):
             return
 
         self._update_single_slot_after_file_change(rom, spec, None)
+
+    def _open_rom_folder(self, game_id: int | None = None):
+        gid = game_id if game_id is not None else self._selected_game_id
+        rom = self._find_rom_result(gid)
+        if not rom:
+            return
+        if rom.rom_path:
+            parent_dir = os.path.dirname(rom.rom_path)
+            if os.path.exists(rom.rom_path) or (parent_dir and os.path.isdir(parent_dir)):
+                _open_in_file_explorer(rom.rom_path, is_dir=False)
+                return
+        list_row = self._current_list_row()
+        if list_row:
+            for chunk in str(list_row.get("roms_path") or "").split(";"):
+                c = chunk.strip()
+                if c and os.path.isdir(c):
+                    _open_in_file_explorer(c, is_dir=True)
+                    return
+        QMessageBox.information(
+            self,
+            "Carpeta no encontrada",
+            f"No se encontró la ubicación en disco para:\n{rom.rom_path or rom.title}",
+        )
+
+    def _confirm_and_replace_rom(self, game_id: int | None = None):
+        if not self._summary:
+            return
+        gid = game_id if game_id is not None else self._selected_game_id
+        rom = self._find_rom_result(gid)
+        list_row = self._current_list_row()
+        if not rom or not list_row or rom.is_menu_target:
+            return
+
+        exts_raw = str(list_row.get("allowed_extensions") or "").strip()
+        ext_tokens: list[str] = []
+        for raw_t in exts_raw.replace(",", " ").replace(";", " ").split():
+            tok = raw_t.strip().lower().lstrip("*")
+            if not tok:
+                continue
+            if not tok.startswith("."):
+                tok = f".{tok}"
+            pat = f"*{tok}"
+            if pat not in ext_tokens:
+                ext_tokens.append(pat)
+        if ext_tokens:
+            dlg_filter = f"ROMs compatibles ({' '.join(ext_tokens)});;Todos los archivos (*.*)"
+        else:
+            dlg_filter = "Todos los archivos (*.*)"
+
+        start_dir = ""
+        if rom.rom_path and os.path.isdir(os.path.dirname(rom.rom_path)):
+            start_dir = os.path.dirname(rom.rom_path)
+        else:
+            for chunk in str(list_row.get("roms_path") or "").split(";"):
+                c = chunk.strip()
+                if c and os.path.isdir(c):
+                    start_dir = c
+                    break
+
+        chosen_path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Seleccionar nueva ROM para '{rom.title}'",
+            start_dir,
+            dlg_filter,
+        )
+        if not chosen_path:
+            return
+
+        has_list_rom_dir = bool(rom.rom_path and os.path.isdir(os.path.dirname(rom.rom_path))) or any(
+            os.path.isdir(c.strip())
+            for c in str(list_row.get("roms_path") or "").split(";")
+            if c.strip()
+        )
+        dlg = _ReplaceRomDialog(rom, chosen_path, has_list_rom_dir, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        keep_stem, copy_dir, remove_old, rename_media = dlg.values()
+        self.previewer.stop_and_release(flush_events=True)
+        clear_media_cache()
+
+        try:
+            res = replace_game_rom_file(
+                self.db,
+                list_row,
+                rom,
+                chosen_path,
+                keep_existing_stem=keep_stem,
+                copy_to_list_folder=copy_dir,
+                remove_old_rom=remove_old,
+                rename_media_on_new_stem=rename_media,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al reemplazar ROM", str(exc))
+            self._show_selected_slot_preview()
+            return
+
+        updated_game = self.db.get_game(int(rom.game_id))
+        s = self._summary
+        if updated_game:
+            raw_spec = get_layout_media_spec(s.layout_name)
+            fresh_audit = audit_list_media(dict(list_row), [dict(updated_game)], raw_spec, s.layout_name)
+            if fresh_audit.results:
+                fresh_rom = fresh_audit.results[0]
+                for i, existing in enumerate(s.results):
+                    if existing.game_id == rom.game_id:
+                        s.results[i] = fresh_rom
+                        break
+        s.roms_missing_on_disk = sum(1 for r in s.results if (not r.is_menu_target) and (not r.rom_exists))
+
+        self._selected_game_id = int(rom.game_id)
+        self._recompute_summary_counts()
+        self._refresh_requirements_bar()
+        self._update_summary_banner()
+        self._populate_table()
+        self._refresh_list_combo_counts()
+        self.games_metadata_updated.emit(int(list_row["id"]))
+
+        warns = res.get("warnings") or []
+        if warns:
+            QMessageBox.warning(
+                self,
+                "Reemplazo completado con avisos",
+                "La ROM se actualizó correctamente, con las siguientes observaciones:\n\n• "
+                + "\n• ".join(str(w) for w in warns[:10]),
+            )
+
+    def _confirm_and_delete_game(self, game_id: int | None = None):
+        if not self._summary:
+            return
+        gid = game_id if game_id is not None else self._selected_game_id
+        rom = self._find_rom_result(gid)
+        list_row = self._current_list_row()
+        if not rom or not list_row or rom.is_menu_target:
+            return
+
+        plan = collect_game_deletion_targets(
+            self.db,
+            list_row,
+            rom,
+            specs=self._summary.specs,
+        )
+        dlg = _DeleteGameConfirmDialog(plan, list_row.get("name") or "Lista", self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        selected_paths = dlg.selected_paths()
+
+        # Determinar la fila vecina visible antes de quitar la ROM de la tabla
+        next_gid: int | None = None
+        vis_row = self.table.currentRow()
+        if 0 <= vis_row < self.table.rowCount():
+            cur_it = self.table.item(vis_row, 0)
+            cur_data = cur_it.data(Qt.UserRole) if cur_it else None
+            if cur_data and cur_data[0] == rom.game_id:
+                for nr in (vis_row + 1, vis_row - 1):
+                    if 0 <= nr < self.table.rowCount():
+                        nit = self.table.item(nr, 0)
+                        ndata = nit.data(Qt.UserRole) if nit else None
+                        if ndata and ndata[0] != rom.game_id:
+                            next_gid = int(ndata[0])
+                            break
+        if next_gid is None and self._visible_filtered_roms:
+            for idx_r, item_r in enumerate(self._visible_filtered_roms):
+                if item_r.game_id == rom.game_id:
+                    if idx_r + 1 < len(self._visible_filtered_roms):
+                        next_gid = self._visible_filtered_roms[idx_r + 1].game_id
+                    elif idx_r > 0:
+                        next_gid = self._visible_filtered_roms[idx_r - 1].game_id
+                    break
+
+        self.previewer.stop_and_release(flush_events=True)
+        self.previewer.clear_preview("Eliminando juego y archivos…")
+        clear_media_cache()
+
+        res = delete_game_and_assets(self.db, plan, selected_paths=selected_paths)
+
+        removed_set = set(res.get("removed_game_ids") or [rom.game_id])
+        s = self._summary
+        s.results = [r for r in s.results if r.game_id not in removed_set]
+        s.total_roms = len(s.results)
+        s.roms_missing_on_disk = sum(1 for r in s.results if (not r.is_menu_target) and (not r.rom_exists))
+
+        self._selected_game_id = next_gid
+        self.btn_export.setEnabled(s.total_roms > 0)
+        self.btn_scrape.setEnabled(s.total_roms > 0 and s.list_type != "menu")
+        self._recompute_summary_counts()
+        self._refresh_requirements_bar()
+        self._update_summary_banner()
+        self._populate_table()
+        self._refresh_list_combo_counts()
+
+        self.games_metadata_updated.emit(int(list_row["id"]))
+
+        errs = res.get("errors") or []
+        if errs:
+            QMessageBox.warning(
+                self,
+                "Eliminación parcial",
+                "El juego fue quitado de la lista, pero algunos archivos no pudieron borrarse:\n\n• "
+                + "\n• ".join(str(e) for e in errs[:12]),
+            )
 
     def _recompute_summary_counts(self):
         s = self._summary

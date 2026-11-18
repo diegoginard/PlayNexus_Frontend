@@ -710,6 +710,557 @@ def delete_media_file(file_path: str) -> None:
     clear_media_cache()
 
 
+_PROTECTED_SHARED_STEMS: frozenset[str] = frozenset({
+    "default",
+    "default_v",
+    "default_i",
+    "default_in",
+    "default_o",
+    "default_out",
+    "base",
+    "generic",
+    "bezel",
+    "loading",
+    "loading_i",
+    "loading_in",
+    "loading_o",
+    "loading_out",
+    "exit",
+    "splash",
+    "outro",
+})
+
+_ALL_LIST_MEDIA_FOLDERS: tuple[tuple[str, str, bool], ...] = (
+    ("boxart_path", "Box Art", False),
+    ("flyer_path", "Flyer", False),
+    ("wheel_path", "Wheel / Logo", False),
+    ("video_path", "Video / Snap", False),
+    ("cartart_path", "Cart Art / Disc Art", False),
+    ("discart_path", "Disc Art", False),
+    ("cabinet_path", "Cabinet", False),
+    ("marquee_path", "Marquee", False),
+    ("bezel_path", "Bezel", False),
+    ("manual_path", "Manual PDF", False),
+    ("bezel_hud_path", "Bezel HUD", False),
+    ("loading_path", "Pantalla de carga", True),
+    ("loading_in_path", "Carga (entrada)", True),
+    ("loading_out_path", "Carga (salida)", True),
+)
+
+_KNOWN_MEDIA_SUBFOLDERS: tuple[tuple[str, str], ...] = (
+    ("boxart", "Box Art"),
+    ("boxarts", "Box Art"),
+    ("flyer", "Flyer"),
+    ("flyers", "Flyer"),
+    ("wheel", "Wheel / Logo"),
+    ("wheels", "Wheel / Logo"),
+    ("video", "Video / Snap"),
+    ("videos", "Video / Snap"),
+    ("snap", "Video / Snap"),
+    ("snaps", "Video / Snap"),
+    ("cartart", "Cart Art / Disc Art"),
+    ("cartarts", "Cart Art / Disc Art"),
+    ("discart", "Disc Art"),
+    ("discarts", "Disc Art"),
+    ("cabinet", "Cabinet"),
+    ("cabinets", "Cabinet"),
+    ("marquee", "Marquee"),
+    ("marquees", "Marquee"),
+    ("bezel", "Bezel"),
+    ("bezels", "Bezel"),
+    ("manual", "Manual PDF"),
+    ("manuals", "Manual PDF"),
+    ("fanart", "Fanart"),
+    ("fanarts", "Fanart"),
+)
+
+
+@dataclass
+class DeletionFileTarget:
+    """Archivo en disco candidato a eliminarse junto con un juego."""
+
+    category: str  # "rom" | "media"
+    label: str
+    file_path: str
+    size_bytes: int
+    slot_key: str = ""
+    is_rom: bool = False
+
+
+@dataclass
+class GameDeletionPlan:
+    """Plan completo de archivos físicos y referencias en listas asociados a un juego."""
+
+    game_id: int
+    list_id: int
+    title: str
+    stem: str
+    rom_path: str
+    rom_target: DeletionFileTarget | None = None
+    media_targets: list[DeletionFileTarget] = field(default_factory=list)
+    empty_dirs_to_cleanup: list[str] = field(default_factory=list)
+    other_list_refs: list[tuple[int, int, str, str]] = field(default_factory=list)
+
+    @property
+    def all_targets(self) -> list[DeletionFileTarget]:
+        out: list[DeletionFileTarget] = []
+        if self.rom_target is not None:
+            out.append(self.rom_target)
+        out.extend(self.media_targets)
+        return out
+
+    @property
+    def total_bytes(self) -> int:
+        return sum(max(0, int(t.size_bytes or 0)) for t in self.all_targets)
+
+
+def _norm_fs_key(path: str | Path) -> str:
+    try:
+        return os.path.normcase(str(Path(path).resolve()))
+    except OSError:
+        return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _matches_game_stem(filename: str, candidate_stems: set[str], allow_loading_suffix: bool = False) -> bool:
+    name_low = filename.lower()
+    if name_low.endswith(".bak"):
+        name_low = name_low[:-4]
+    f_stem = os.path.splitext(name_low)[0]
+    if f_stem in _PROTECTED_SHARED_STEMS:
+        return False
+    if f_stem in candidate_stems:
+        return True
+    if allow_loading_suffix:
+        for st in candidate_stems:
+            if f_stem in (f"{st}_i", f"{st}_o", f"{st}_in", f"{st}_out"):
+                return True
+    return False
+
+
+def collect_game_deletion_targets(
+    db: Any,
+    list_row: dict[str, Any] | None,
+    rom: RomAuditResult,
+    game_row: dict[str, Any] | None = None,
+    specs: list[MediaRequirementSpec] | None = None,
+) -> GameDeletionPlan:
+    """
+    Reúne el archivo ROM en disco, todas las artes/manuales/videos del juego en las carpetas
+    configuradas (sin tocar archivos genéricos compartidos) y referencias en otras listas.
+    """
+    if rom.is_menu_target:
+        raise ValueError("Los ítems de menú de sistemas no se pueden eliminar desde disco.")
+
+    if game_row is None and db is not None and hasattr(db, "get_game"):
+        try:
+            g_db = db.get_game(int(rom.game_id))
+            if g_db:
+                game_row = dict(g_db)
+        except Exception:
+            game_row = None
+
+    list_id = int((list_row or {}).get("id") or (game_row or {}).get("list_id") or 0)
+    rom_path = str((game_row or {}).get("rom_path") or rom.rom_path or "").strip()
+    primary_stem = (rom.stem or (Path(rom_path).stem if rom_path else "") or str((game_row or {}).get("rom_name") or "")).strip()
+
+    candidate_stems: set[str] = set()
+    for raw_st in (rom.stem, Path(rom_path).stem if rom_path else "", str((game_row or {}).get("rom_name") or "").strip()):
+        s = str(raw_st or "").strip().lower()
+        if s:
+            candidate_stems.add(s)
+
+    plan = GameDeletionPlan(
+        game_id=int(rom.game_id),
+        list_id=list_id,
+        title=rom.title or primary_stem or "Juego",
+        stem=primary_stem,
+        rom_path=rom_path,
+    )
+
+    seen_files: set[str] = set()
+
+    if rom_path and os.path.isfile(rom_path):
+        try:
+            r_size = int(os.path.getsize(rom_path))
+        except OSError:
+            r_size = 0
+        seen_files.add(_norm_fs_key(rom_path))
+        plan.rom_target = DeletionFileTarget(
+            category="rom",
+            label="Archivo ROM",
+            file_path=rom_path.replace("\\", "/"),
+            size_bytes=r_size,
+            is_rom=True,
+        )
+
+    def _add_media_file(path_str: str, label: str, slot_key: str = "") -> None:
+        if not path_str or not os.path.isfile(path_str):
+            return
+        fk = _norm_fs_key(path_str)
+        if fk in seen_files:
+            return
+        seen_files.add(fk)
+        try:
+            sz = int(os.path.getsize(path_str))
+        except OSError:
+            sz = 0
+        final_label = f"{label} (respaldo .bak)" if path_str.lower().endswith(".bak") else label
+        plan.media_targets.append(
+            DeletionFileTarget(
+                category="media",
+                label=final_label,
+                file_path=str(path_str).replace("\\", "/"),
+                size_bytes=sz,
+                slot_key=slot_key,
+                is_rom=False,
+            )
+        )
+
+    # 1. Archivos ya detectados en los slots del layout actual (solo si pertenecen al stem del juego)
+    for sp_key, slot in (rom.slots or {}).items():
+        fp = str(slot.file_path or "").strip()
+        if not fp or not os.path.isfile(fp):
+            continue
+        fname = os.path.basename(fp)
+        f_stem = os.path.splitext(fname.lower())[0]
+        if f_stem in _PROTECTED_SHARED_STEMS:
+            continue
+        if candidate_stems and not _matches_game_stem(fname, candidate_stems, allow_loading_suffix=True):
+            continue
+        _add_media_file(fp, slot.label or sp_key, slot_key=sp_key)
+
+    # 2. Barrido de todas las carpetas de medios configuradas en la lista + media_path + specs
+    scanned_dirs: set[str] = set()
+
+    def _scan_dir_for_stem(folder_str: str, label: str, slot_key: str = "", is_loading: bool = False) -> None:
+        if not folder_str or not candidate_stems or not os.path.isdir(folder_str):
+            return
+        dk = _norm_fs_key(folder_str)
+        if dk in scanned_dirs:
+            return
+        scanned_dirs.add(dk)
+        try:
+            for entry in os.scandir(folder_str):
+                if entry.is_file():
+                    if _matches_game_stem(entry.name, candidate_stems, allow_loading_suffix=is_loading):
+                        _add_media_file(entry.path, label, slot_key=slot_key)
+                elif is_loading and entry.is_dir():
+                    if entry.name.lower() in candidate_stems and entry.name.lower() not in _PROTECTED_SHARED_STEMS:
+                        plan.empty_dirs_to_cleanup.append(str(entry.path).replace("\\", "/"))
+                        try:
+                            for sub_entry in os.scandir(entry.path):
+                                if sub_entry.is_file():
+                                    _add_media_file(sub_entry.path, label, slot_key=slot_key)
+                        except OSError:
+                            pass
+        except OSError:
+            pass
+
+    if specs:
+        for sp in specs:
+            if sp.folder_path:
+                _scan_dir_for_stem(sp.folder_path, sp.label, slot_key=sp.key, is_loading=(sp.key == "loading"))
+
+    if list_row:
+        for field_key, lbl, is_load in _ALL_LIST_MEDIA_FOLDERS:
+            folder_val = str(list_row.get(field_key) or "").strip()
+            if folder_val:
+                _scan_dir_for_stem(folder_val, lbl, slot_key=field_key.removesuffix("_path"), is_loading=is_load)
+
+        media_root = str(list_row.get("media_path") or "").strip()
+        if media_root and os.path.isdir(media_root):
+            mr_path = Path(media_root)
+            for sub_name, lbl in _KNOWN_MEDIA_SUBFOLDERS:
+                cand_sub = mr_path / sub_name
+                if cand_sub.is_dir():
+                    _scan_dir_for_stem(str(cand_sub), lbl, slot_key=sub_name.rstrip("s"))
+
+    # 3. Rutas individuales del juego (cover_path / manual_file_path)
+    if game_row:
+        for g_field, lbl, s_key in (("cover_path", "Carátula asignada", "boxart"), ("manual_file_path", "Manual PDF asignado", "manual")):
+            fp = str(game_row.get(g_field) or "").strip()
+            if not fp or not os.path.isfile(fp):
+                continue
+            f_stem = os.path.splitext(os.path.basename(fp).lower())[0]
+            if f_stem in _PROTECTED_SHARED_STEMS:
+                continue
+            _add_media_file(fp, lbl, slot_key=s_key)
+
+    # 4. Detectar referencias de la misma ROM en otras listas (incluyendo listas filtradas o hermanas)
+    if db is not None and rom_path and hasattr(db, "get_lists") and hasattr(db, "get_games"):
+        target_rom_key = _norm_fs_key(rom_path)
+        try:
+            for lst in db.get_lists(with_counts=False):
+                if lst.get("list_type") == "menu":
+                    continue
+                other_lid = int(lst["id"])
+                for og in db.get_games(other_lid, enriched=False):
+                    og_id = int(og["id"])
+                    if og_id == plan.game_id:
+                        continue
+                    og_rom = str(og.get("rom_path") or "").strip()
+                    if og_rom and _norm_fs_key(og_rom) == target_rom_key:
+                        plan.other_list_refs.append((
+                            og_id,
+                            other_lid,
+                            str(lst.get("name") or f"Lista {other_lid}"),
+                            str(lst.get("list_type") or "games"),
+                        ))
+        except Exception:
+            pass
+
+    return plan
+
+
+def delete_game_and_assets(
+    db: Any,
+    plan: GameDeletionPlan,
+    selected_paths: list[str] | set[str] | None = None,
+    *,
+    delete_rom: bool = True,
+    delete_media: bool = True,
+    remove_other_list_refs: bool = True,
+) -> dict[str, Any]:
+    """
+    Elimina físicamente del disco los archivos confirmados (ROM + artes) y borra el registro de la lista.
+    Si el archivo ROM fue eliminado o ya no existe, opcionalmente limpia entradas huérfanas en otras listas.
+    """
+    allowed_keys: set[str] | None = None
+    if selected_paths is not None:
+        allowed_keys = {_norm_fs_key(p) for p in selected_paths if str(p).strip()}
+
+    targets_to_delete: list[DeletionFileTarget] = []
+    if allowed_keys is not None:
+        for t in plan.all_targets:
+            if _norm_fs_key(t.file_path) in allowed_keys:
+                targets_to_delete.append(t)
+    else:
+        if delete_rom and plan.rom_target is not None:
+            targets_to_delete.append(plan.rom_target)
+        if delete_media:
+            targets_to_delete.extend(plan.media_targets)
+
+    deleted_files: list[str] = []
+    deleted_rom = False
+    deleted_media_count = 0
+    errors: list[str] = []
+
+    for tgt in targets_to_delete:
+        p = Path(tgt.file_path)
+        if not p.is_file():
+            continue
+        try:
+            _unlink_with_retry(p)
+            deleted_files.append(tgt.file_path)
+            if tgt.is_rom:
+                deleted_rom = True
+            else:
+                deleted_media_count += 1
+        except Exception as exc:
+            errors.append(f"{tgt.label} ({p.name}): {exc}")
+
+    # Limpiar subcarpetas exclusivas del juego (ej. loading_path/<stem>) si quedaron vacías
+    for dir_str in plan.empty_dirs_to_cleanup:
+        d = Path(dir_str)
+        try:
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+        except OSError:
+            pass
+
+    rom_gone = deleted_rom or (not plan.rom_path) or (not os.path.isfile(plan.rom_path))
+    removed_game_ids: list[int] = []
+    affected_list_ids: set[int] = {plan.list_id}
+
+    if db is not None and hasattr(db, "delete_game"):
+        gids_to_remove = [plan.game_id]
+        if remove_other_list_refs and rom_gone and plan.other_list_refs:
+            for og_id, ol_id, _ol_name, _ol_type in plan.other_list_refs:
+                if og_id not in gids_to_remove:
+                    gids_to_remove.append(og_id)
+                affected_list_ids.add(ol_id)
+
+        batch_ctx = db.batch() if hasattr(db, "batch") else None
+        if batch_ctx is not None:
+            with batch_ctx:
+                for gid in gids_to_remove:
+                    db.delete_game(gid)
+                    removed_game_ids.append(gid)
+        else:
+            for gid in gids_to_remove:
+                db.delete_game(gid)
+                removed_game_ids.append(gid)
+
+        if rom_gone:
+            try:
+                from playnexus.services.library import sync_filtered_lists_for_source
+                sync_filtered_lists_for_source(db, None)
+            except Exception:
+                pass
+
+    clear_media_cache()
+    return {
+        "deleted_rom": deleted_rom,
+        "deleted_media_count": deleted_media_count,
+        "deleted_files": deleted_files,
+        "removed_game_ids": removed_game_ids,
+        "affected_list_ids": sorted(affected_list_ids),
+        "errors": errors,
+    }
+
+
+def _resolve_target_rom_directory(list_row: dict[str, Any] | None, old_rom_path: str) -> Path | None:
+    if old_rom_path:
+        old_parent = Path(old_rom_path).parent
+        if old_parent.is_dir():
+            return old_parent
+    roms_raw = str((list_row or {}).get("roms_path") or "").strip()
+    if roms_raw:
+        for chunk in roms_raw.split(";"):
+            c_str = chunk.strip()
+            if c_str and Path(c_str).is_dir():
+                return Path(c_str)
+    if old_rom_path:
+        return Path(old_rom_path).parent
+    return None
+
+
+def replace_game_rom_file(
+    db: Any,
+    list_row: dict[str, Any] | None,
+    rom: RomAuditResult,
+    new_rom_source_path: str,
+    *,
+    keep_existing_stem: bool = True,
+    copy_to_list_folder: bool = True,
+    remove_old_rom: bool = True,
+    rename_media_on_new_stem: bool = False,
+) -> dict[str, Any]:
+    """
+    Reemplaza el archivo ROM de un juego manteniendo opcionalmente el stem existente (para conservar
+    todas sus artes sin perder coincidencias) o actualizando la ruta/stem y renombrando sus medios.
+    """
+    if rom.is_menu_target:
+        raise ValueError("No se puede reemplazar la ROM de un ítem de menú.")
+
+    src = Path(new_rom_source_path)
+    if not src.is_file():
+        raise FileNotFoundError(f"No se encontró el archivo ROM seleccionado:\n{new_rom_source_path}")
+
+    old_rom_path = str(rom.rom_path or "").strip()
+    old_stem = (rom.stem or (Path(old_rom_path).stem if old_rom_path else "")).strip()
+    target_dir = _resolve_target_rom_directory(list_row, old_rom_path)
+
+    if keep_existing_stem and old_stem:
+        dest_dir = target_dir or src.parent
+        dest_path = dest_dir / f"{old_stem}{src.suffix}"
+    elif copy_to_list_folder and target_dir is not None:
+        dest_path = target_dir / src.name
+    else:
+        dest_path = src
+
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Capturar referencias y artes del stem previo antes de modificar DB o archivos
+    pre_plan = collect_game_deletion_targets(db, list_row, rom)
+    old_game_row = dict(db.get_game(int(rom.game_id)) or {}) if (db is not None and hasattr(db, "get_game")) else {}
+
+    # Copia atómica segura mediante archivo temporal si el origen difiere del destino
+    if _norm_fs_key(src) != _norm_fs_key(dest_path):
+        tmp_dest = dest_path.parent / f"{dest_path.name}.__rom_tmp__.{os.getpid()}"
+        try:
+            shutil.copy2(str(src), str(tmp_dest))
+            os.replace(str(tmp_dest), str(dest_path))
+        finally:
+            if tmp_dest.is_file():
+                try:
+                    tmp_dest.unlink()
+                except OSError:
+                    pass
+
+    if not dest_path.is_file():
+        raise IOError(f"No se pudo escribir el archivo ROM destino:\n{dest_path}")
+
+    old_removed = False
+    warnings: list[str] = []
+    if (
+        remove_old_rom
+        and old_rom_path
+        and os.path.isfile(old_rom_path)
+        and _norm_fs_key(old_rom_path) != _norm_fs_key(dest_path)
+    ):
+        try:
+            _unlink_with_retry(Path(old_rom_path))
+            old_removed = True
+        except Exception as exc:
+            warnings.append(f"No se pudo eliminar la ROM anterior ({Path(old_rom_path).name}): {exc}")
+
+    new_rom_str = str(dest_path).replace("\\", "/")
+    new_stem = dest_path.stem
+    stem_changed = bool(old_stem) and (new_stem.lower() != old_stem.lower())
+
+    renamed_media = 0
+    extra_db_updates: dict[str, Any] = {}
+    old_cov_key = _norm_fs_key(old_game_row.get("cover_path", "")) if old_game_row.get("cover_path") else ""
+    old_man_key = _norm_fs_key(old_game_row.get("manual_file_path", "")) if old_game_row.get("manual_file_path") else ""
+
+    if (not keep_existing_stem) and rename_media_on_new_stem and stem_changed:
+        for tgt in pre_plan.media_targets:
+            mp = Path(tgt.file_path)
+            if not mp.is_file():
+                continue
+            low_name = mp.name.lower()
+            if low_name.endswith(".bak"):
+                inner = mp.name[:-4]
+                _, ext = os.path.splitext(inner)
+                dst_media = mp.parent / f"{new_stem}{ext}.bak"
+            else:
+                dst_media = mp.parent / f"{new_stem}{mp.suffix}"
+            if _norm_fs_key(mp) == _norm_fs_key(dst_media):
+                continue
+            if dst_media.exists():
+                warnings.append(f"Ya existe {dst_media.name}; se conservó {mp.name}.")
+                continue
+            try:
+                os.replace(str(mp), str(dst_media))
+                renamed_media += 1
+                new_m_str = str(dst_media).replace("\\", "/")
+                if old_cov_key and _norm_fs_key(tgt.file_path) == old_cov_key:
+                    extra_db_updates["cover_path"] = new_m_str
+                if old_man_key and _norm_fs_key(tgt.file_path) == old_man_key:
+                    extra_db_updates["manual_file_path"] = new_m_str
+            except Exception as exc:
+                warnings.append(f"No se pudo renombrar {mp.name}: {exc}")
+
+    if db is not None and hasattr(db, "update_game"):
+        updates = {"rom_path": new_rom_str, "rom_name": new_stem, **extra_db_updates}
+        batch_ctx = db.batch() if hasattr(db, "batch") else None
+        if batch_ctx is not None:
+            with batch_ctx:
+                db.update_game(rom.game_id, **updates)
+                for og_id, _ol_id, _ol_name, _ol_type in pre_plan.other_list_refs:
+                    db.update_game(og_id, **updates)
+        else:
+            db.update_game(rom.game_id, **updates)
+            for og_id, _ol_id, _ol_name, _ol_type in pre_plan.other_list_refs:
+                db.update_game(og_id, **updates)
+
+        try:
+            from playnexus.services.library import sync_filtered_lists_for_source
+            sync_filtered_lists_for_source(db, None)
+        except Exception:
+            pass
+
+    clear_media_cache()
+    return {
+        "new_rom_path": new_rom_str,
+        "new_stem": new_stem,
+        "old_removed": old_removed,
+        "renamed_media": renamed_media,
+        "warnings": warnings,
+    }
+
+
 def export_audit_csv(summary: AuditSummary, output_path: str, only_incomplete: bool = False) -> int:
     """Exporta la tabla de auditoría de media a CSV compatible con Excel (UTF-8 BOM)."""
     rows_to_export = (

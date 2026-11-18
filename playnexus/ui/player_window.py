@@ -114,6 +114,11 @@ class PlayerWindow(QMainWindow):
         self._build_ui()
         self._setup_shortcuts()
         self.load_startup_list()
+        try:
+            from playnexus.services.audio_guard import ensure_audio_guard_installed
+            ensure_audio_guard_installed(self)
+        except Exception:
+            pass
 
     def _build_ui(self):
         self.layout_stack = QStackedWidget()

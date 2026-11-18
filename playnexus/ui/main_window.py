@@ -192,6 +192,11 @@ class MainWindow(QMainWindow):
             EMULATOR_MANAGER.telemetry_updated.connect(self._on_telemetry_updated)
         except Exception:
             pass
+        try:
+            from playnexus.services.audio_guard import ensure_audio_guard_installed
+            ensure_audio_guard_installed(self)
+        except Exception:
+            pass
 
     def _build_ui(self):
         # Estructura principal de la biblioteca
@@ -1858,15 +1863,38 @@ class MainWindow(QMainWindow):
         if not game:
             return
 
+        active_layout = self.layout_stack.currentWidget()
         try:
-            active_layout = self.layout_stack.currentWidget()
+            self._was_maximized_before_emu = self.isMaximized()
+            self._restore_after_emulator = True
+            if active_layout and hasattr(active_layout, "pause_media") and callable(active_layout.pause_media):
+                try:
+                    active_layout.pause_media()
+                except Exception:
+                    pass
             result = launch_game(self.db, game, layout=active_layout, parent_window=self)
             if not result or result[0] is None:
+                self._restore_after_emulator = False
+                if active_layout and hasattr(active_layout, "resume_media") and callable(active_layout.resume_media):
+                    try:
+                        active_layout.resume_media()
+                    except Exception:
+                        pass
                 return
             name, source = result
             source_desc = "asignación individual del juego" if source == "juego" else "predeterminado de la lista"
             self.statusBar().showMessage(f"Iniciando con {name} ({source_desc})…", 6000)
+            # Ceder pantalla completa/escritorio al emulador minimizando el Configurador
+            # para evitar que tape al juego lanzado desde la Biblioteca.
+            self.showMinimized()
+            EMULATOR_MANAGER.refocus_emulator()
         except Exception as e:
+            self._restore_after_emulator = False
+            if active_layout and hasattr(active_layout, "resume_media") and callable(active_layout.resume_media):
+                try:
+                    active_layout.resume_media()
+                except Exception:
+                    pass
             QMessageBox.critical(self, "No se pudo iniciar el juego", str(e))
 
     def open_system_settings_tab(self):
@@ -1912,11 +1940,13 @@ class MainWindow(QMainWindow):
         self._edit_list_by_id(list_id, from_rom_manager=True)
 
     def _on_rom_manager_games_updated(self, list_id: int):
-        """Refresca datos de biblioteca cuando el scraper del Rom Manager completa metadatos."""
+        """Refresca datos de biblioteca cuando el scraper o eliminador del Rom Manager modifica juegos de la lista."""
         if hasattr(self, "frontend_tab"):
             self.frontend_tab.refresh_data()
-        if self.current_list_id == list_id and self.main_tabs.currentIndex() == 0:
-            self.refresh_games()
+        if self.main_tabs.currentIndex() == 0:
+            self.refresh_lists(select_id=self.current_list_id)
+        else:
+            self._pending_library_lists_refresh = True
 
     def _on_tab_changed(self, index: int):
         """Mantiene sincronizados los datos al alternar entre pestañas y suspende la multimedia inactiva."""
@@ -1959,7 +1989,11 @@ class MainWindow(QMainWindow):
                 self._on_layout_studio_saved(cur_layout_name)
 
             self.refresh_emulators()
-            self.refresh_games()
+            if getattr(self, "_pending_library_lists_refresh", False):
+                self._pending_library_lists_refresh = False
+                self.refresh_lists(select_id=self.current_list_id)
+            else:
+                self.refresh_games()
             cur = self.layout_stack.currentWidget() if hasattr(self, "layout_stack") else None
             if cur and hasattr(cur, "resume_media") and callable(cur.resume_media):
                 cur.resume_media()

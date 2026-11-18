@@ -55,6 +55,11 @@ class BaseLayout(QWidget):
         self.theme_name = theme_name
         self.games = []
         self.current_game_id = None
+        try:
+            from playnexus.services.audio_guard import ensure_audio_guard_installed
+            ensure_audio_guard_installed(self)
+        except Exception:
+            pass
 
     def _load_pixmap(self, path: str | Path | None) -> QPixmap | None:
         """Carga un QPixmap con caché en memoria global para acelerar la inicialización instantánea."""
@@ -239,6 +244,70 @@ class BaseLayout(QWidget):
         if event is not None:
             super().closeEvent(event)
 
+    _ANIMATION_TIMER_NAMES: tuple[str, ...] = (
+        "_pointer_anim_timer",
+        "_avatar_bounce_timer",
+        "_avatar_anim_timer",
+        "_cd_spin_timer",
+        "_disc_anim_timer",
+        "_wheel_spin_timer",
+        "_cart_anim_timer",
+        "_logo_anim_timer",
+        "_boxart_anim_timer",
+        "_anim_timer",
+        "_wheel_fade_timer",
+        "_flyer_delay_timer",
+        "_studio_anim_timer",
+    )
+
+    def _resume_animation_timers(self, paused_timers: dict[str, int] | None = None):
+        """Reinicia los temporizadores de animación pausados y las animaciones continuas del layout."""
+        for timer_name, interval in (paused_timers or {}).items():
+            t = getattr(self, timer_name, None)
+            if t is not None and hasattr(t, "isActive") and hasattr(t, "start"):
+                try:
+                    if not t.isActive():
+                        t.start(interval if interval > 0 else 16)
+                except Exception:
+                    pass
+
+        ambient_defaults: tuple[tuple[str, int, bool], ...] = (
+            ("_pointer_anim_timer", 16, bool(getattr(self, "_pix_pointer", None))),
+            ("_avatar_bounce_timer", 20, bool(getattr(self, "_pix_avatar", None))),
+            ("_cd_spin_timer", 16, hasattr(self, "_cd_spin_timer")),
+        )
+        for timer_name, default_ms, should_run in ambient_defaults:
+            if not should_run:
+                continue
+            t = getattr(self, timer_name, None)
+            if t is not None and hasattr(t, "isActive") and hasattr(t, "start"):
+                try:
+                    if not t.isActive():
+                        t.start(default_ms)
+                except Exception:
+                    pass
+
+        has_wheel_motion = (
+            abs(float(getattr(self, "_wheel_offset", 0.0) or 0.0)) > 0.001
+            or abs(float(getattr(self, "_wheel_spin_offset", 0.0) or 0.0)) > 0.001
+        )
+        if has_wheel_motion:
+            for spin_name in ("_wheel_spin_timer", "_anim_timer"):
+                t = getattr(self, spin_name, None)
+                if t is not None and hasattr(t, "isActive") and hasattr(t, "start"):
+                    try:
+                        if not t.isActive():
+                            t.start(16)
+                    except Exception:
+                        pass
+
+        studio_resume = getattr(self, "_resume_studio_animations", None)
+        if callable(studio_resume):
+            try:
+                studio_resume()
+            except Exception:
+                pass
+
     def pause_media(self):
         """Pausa la reproducción multimedia y silencia el audio mientras el emulador está activo."""
         self._is_emulator_running = True
@@ -252,13 +321,18 @@ class BaseLayout(QWidget):
                     getattr(self, timer_name).stop()
                 except Exception:
                     pass
-        for anim_timer_name in (
-            "_pointer_anim_timer", "_avatar_bounce_timer", "_wheel_spin_timer",
-            "_cart_anim_timer", "_logo_anim_timer", "_boxart_anim_timer"
-        ):
-            if hasattr(self, anim_timer_name):
+        paused_map = getattr(self, "_paused_anim_timers", None)
+        if not isinstance(paused_map, dict):
+            paused_map = {}
+            self._paused_anim_timers = paused_map
+        for anim_timer_name in self._ANIMATION_TIMER_NAMES:
+            t = getattr(self, anim_timer_name, None)
+            if t is not None and hasattr(t, "isActive") and hasattr(t, "stop"):
                 try:
-                    getattr(self, anim_timer_name).stop()
+                    if t.isActive():
+                        interval = int(t.interval()) if hasattr(t, "interval") else 16
+                        paused_map[anim_timer_name] = interval if interval > 0 else 16
+                        t.stop()
                 except Exception:
                     pass
         if hasattr(self, "_wheel_worker") and self._wheel_worker:
@@ -291,15 +365,8 @@ class BaseLayout(QWidget):
     def showEvent(self, event):
         """Asegura que el video snap o tema comience al hacerse visible este layout."""
         super().showEvent(event)
-        # Reanudar timers de animación si estaban detenidos
-        for t_name in ("_pointer_anim_timer", "_avatar_bounce_timer"):
-            if hasattr(self, t_name):
-                t = getattr(self, t_name)
-                if t and not t.isActive():
-                    try:
-                        t.start(16 if "pointer" in t_name else 20)
-                    except Exception:
-                        pass
+        if not getattr(self, "_is_emulator_running", False):
+            self._resume_animation_timers()
         if getattr(self, "_pending_video_play_on_show", False):
             self._pending_video_play_on_show = False
             if hasattr(self, "_play_debounced_video") and callable(self._play_debounced_video):
@@ -325,8 +392,16 @@ class BaseLayout(QWidget):
         self.stop_media()
 
     def resume_media(self):
-        """Reanuda la reproducción multimedia y el audio cuando el emulador finaliza."""
+        """Reanuda la reproducción multimedia y las animaciones cuando el emulador finaliza."""
+        try:
+            from playnexus.services.audio_guard import ensure_audio_guard_installed, refresh_audio_devices
+            ensure_audio_guard_installed(self)
+            refresh_audio_devices(force_rebind=False)
+        except Exception:
+            pass
         self._is_emulator_running = False
+        paused_timers = dict(getattr(self, "_paused_anim_timers", None) or {})
+        self._paused_anim_timers = {}
         if hasattr(self, "_want_game_video_playing"):
             self._want_game_video_playing = True
         if hasattr(self, "_want_video_playing"):
@@ -369,6 +444,7 @@ class BaseLayout(QWidget):
                     getattr(self, timer_name).start()
                 except Exception:
                     pass
+        self._resume_animation_timers(paused_timers)
         try:
             self.update()
         except Exception:
