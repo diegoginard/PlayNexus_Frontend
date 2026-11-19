@@ -20,6 +20,7 @@ emulator_global_exit = true
 emulator_mute_video = true
 frontend_effects_perf = high
 frontend_particle_preset = layout
+frontend_render_backend = auto
 frontend_shader_preset = layout
 frontend_shader_target = layout
 frontend_splash_enabled = true
