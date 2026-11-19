@@ -8,6 +8,12 @@ import struct
 import time
 from pathlib import Path
 from typing import Any
+import weakref
+
+try:
+    import shiboken6  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover
+    shiboken6 = None  # type: ignore[assignment]
 
 from PySide6.QtCore import QCoreApplication, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import (
@@ -911,6 +917,151 @@ class RetroShaderPreviewGLWidget(QOpenGLWidget):
         prog.disableAttributeArray(uv_loc)
         self._vbo.release()
         prog.release()
+        self._ensure_ctx_destroy_hook()
+
+    def _ensure_ctx_destroy_hook(self) -> None:
+        state = getattr(self, "_gl_cleanup_state", None)
+        if not isinstance(state, dict):
+            state = {"texture": self._texture, "vbo": self._vbo, "programs": self._programs}
+            self._gl_cleanup_state = state
+        else:
+            state["texture"] = self._texture
+            state["vbo"] = self._vbo
+            state["programs"] = self._programs
+
+        ctx = None
+        try:
+            ctx = self.context()
+        except Exception:
+            ctx = None
+        if ctx is None or (shiboken6 is not None and not shiboken6.isValid(ctx)):
+            return
+        if getattr(ctx, "_pn_shader_preview_hook", False):
+            return
+
+        ctx_ref = weakref.ref(ctx)
+        res_holder: list[dict[str, Any]] = [state]
+
+        def _on_ctx_destroyed() -> None:
+            if not res_holder:
+                return
+            shared_state = res_holder[0]
+            res_holder.clear()
+            c = ctx_ref()
+            temp_offscreen = None
+            prev_ctx = None
+            prev_surf = None
+            switched = False
+            try:
+                if c is not None and (shiboken6 is None or shiboken6.isValid(c)) and c.isValid():
+                    cur = QOpenGLContext.currentContext()
+                    if cur is not c and (cur is None or not QOpenGLContext.areSharing(c, cur)):
+                        prev_ctx = cur
+                        prev_surf = cur.surface() if cur is not None else None
+                        surf = c.surface()
+                        if surf is not None:
+                            switched = bool(c.makeCurrent(surf))
+                        else:
+                            try:
+                                temp_offscreen = QOffscreenSurface(c.screen())
+                                temp_offscreen.setFormat(c.format())
+                                temp_offscreen.create()
+                                if temp_offscreen.isValid():
+                                    switched = bool(c.makeCurrent(temp_offscreen))
+                            except Exception:
+                                temp_offscreen = None
+                RetroShaderPreviewGLWidget._destroy_gl_objects_dict(shared_state)
+            except Exception:
+                pass
+            finally:
+                if switched and c is not None and (shiboken6 is None or shiboken6.isValid(c)):
+                    try:
+                        if prev_ctx is not None and prev_surf is not None and prev_ctx.isValid():
+                            prev_ctx.makeCurrent(prev_surf)
+                        else:
+                            c.doneCurrent()
+                    except Exception:
+                        pass
+                if temp_offscreen is not None:
+                    try:
+                        temp_offscreen.destroy()
+                    except Exception:
+                        pass
+
+        try:
+            ctx.aboutToBeDestroyed.connect(_on_ctx_destroyed)
+            setattr(ctx, "_pn_shader_preview_hook", True)
+            state["_destroy_cb"] = _on_ctx_destroyed
+        except Exception:
+            res_holder.clear()
+
+    @staticmethod
+    def _destroy_gl_objects_dict(state: dict[str, Any] | None) -> None:
+        if not state:
+            return
+        tex = state.get("texture")
+        if tex is not None and (shiboken6 is None or shiboken6.isValid(tex)):
+            try:
+                if tex.isCreated():
+                    tex.destroy()
+            except Exception:
+                pass
+        state["texture"] = None
+        vbo = state.get("vbo")
+        if vbo is not None and (shiboken6 is None or shiboken6.isValid(vbo)):
+            try:
+                vbo.destroy()
+            except Exception:
+                pass
+        state["vbo"] = None
+        progs = state.get("programs")
+        if isinstance(progs, dict):
+            for prog in progs.values():
+                if prog is not None and (shiboken6 is None or shiboken6.isValid(prog)):
+                    try:
+                        prog.removeAllShaders()
+                    except Exception:
+                        pass
+            progs.clear()
+
+    def cleanup_gl(self) -> None:
+        """Libera textura, VBO y shaders de previsualización en su contexto OpenGL."""
+        if shiboken6 is not None and not shiboken6.isValid(self):
+            return
+        state = getattr(self, "_gl_cleanup_state", None)
+        if isinstance(state, dict):
+            state["texture"] = self._texture
+            state["vbo"] = self._vbo
+            state["programs"] = self._programs
+        try:
+            self.makeCurrent()
+            if self._texture is not None and self._texture.isCreated():
+                self._texture.destroy()
+            if self._vbo is not None:
+                self._vbo.destroy()
+            for prog in self._programs.values():
+                prog.removeAllShaders()
+        except Exception:
+            pass
+        finally:
+            try:
+                self.doneCurrent()
+            except Exception:
+                pass
+        self._texture = None
+        self._vbo = None
+        self._programs.clear()
+        if isinstance(state, dict):
+            state["texture"] = None
+            state["vbo"] = None
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        self.cleanup_gl()
+        super().hideEvent(event)
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self.cleanup_gl()
+        super().closeEvent(event)
 
 
 def resolve_widget_effect_settings(widget: Any) -> tuple[str, str, str, str]:

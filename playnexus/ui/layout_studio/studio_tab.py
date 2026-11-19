@@ -1506,6 +1506,22 @@ class LayoutStudioWidget(QWidget):
             self._test_win = test_win  # Prevenir recolección de basura
             self._apply_sandbox_window_geometry(test_win, layout_widget)
 
+            _orig_test_win_close = test_win.closeEvent
+
+            def _sandbox_close_event(event):
+                if getattr(self, "_test_layout_widget", None) is layout_widget:
+                    self._test_layout_widget = None
+                if getattr(self, "_test_win", None) is test_win:
+                    self._test_win = None
+                try:
+                    if hasattr(layout_widget, "cleanup") and callable(layout_widget.cleanup):
+                        layout_widget.cleanup()
+                except Exception:
+                    pass
+                _orig_test_win_close(event)
+
+            test_win.closeEvent = _sandbox_close_event
+
             layout_widget.set_games(games)
             # Reutilizar logos wheel ya cargados en el Studio para arranque instantáneo
             if self.canvas.layout_instance and hasattr(self.canvas.layout_instance, "_wheel_pixmaps"):

@@ -7,6 +7,7 @@ import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
+import weakref
 
 from PySide6.QtCore import Qt, QRect, QRectF, QPointF
 from PySide6.QtGui import (
@@ -2737,7 +2738,17 @@ def install_studio_overrides(
     if gpu_vp is None and is_gpu_rendering_permitted(getattr(layout_widget, "_pn_render_backend", None)):
         try:
             gpu_vp = GpuSceneViewport(layout_widget)
-            gpu_vp.set_scene_builder(lambda w, h: build_studio_gpu_scene(layout_widget, w, h))
+            lw_ref = weakref.ref(layout_widget)
+
+            def _build_scene(w: int, h: int, _ref: weakref.ref[Any] = lw_ref):
+                lw = _ref()
+                if lw is None:
+                    return []
+                return build_studio_gpu_scene(lw, w, h)
+
+            gpu_vp.set_scene_builder(_build_scene)
+            gpu_vp.register_video_surface(game_surface)
+            gpu_vp.register_video_surface(bg_surface)
             gpu_vp.setGeometry(0, 0, max(1, layout_widget.width()), max(1, layout_widget.height()))
             gpu_vp.lower()
             gpu_vp.show()
@@ -3127,3 +3138,75 @@ def install_studio_overrides(
 
     layout_widget._studio_override_installed = True
     layout_widget.paintEvent = _studio_paint_event
+
+    lw_cleanup_ref = weakref.ref(layout_widget)
+    orig_cleanup = getattr(layout_widget, "cleanup", None)
+    if not getattr(orig_cleanup, "_is_studio_cleanup_wrapped", False):
+        def _studio_cleanup() -> None:
+            lw = lw_cleanup_ref()
+            if lw is None:
+                return
+            try:
+                if anim_timer.isActive():
+                    anim_timer.stop()
+            except Exception:
+                pass
+            for t_attr in ("_anim_timer", "_debounce_timer", "_commit_timer"):
+                tm = getattr(lw, t_attr, None)
+                if tm is not None:
+                    try:
+                        if tm.isActive():
+                            tm.stop()
+                    except Exception:
+                        pass
+            ww = getattr(lw, "_wheel_worker", None)
+            if ww is not None:
+                try:
+                    ww.stop()
+                    ww.wait(500)
+                except Exception:
+                    pass
+            if callable(orig_cleanup):
+                try:
+                    orig_cleanup()
+                except Exception:
+                    pass
+            if hasattr(lw, "stop_media"):
+                try:
+                    lw.stop_media()
+                except Exception:
+                    pass
+            gs = getattr(lw, "_gpu_game_video_surface", None)
+            bs = getattr(lw, "_gpu_bg_video_surface", None)
+            vp = getattr(lw, "_gpu_viewport", None)
+            if vp is not None:
+                try:
+                    vp.register_video_surface(gs)
+                    vp.register_video_surface(bs)
+                    vp.cleanup_gl()
+                except Exception:
+                    pass
+            for surf_obj in (gs, bs):
+                if surf_obj is not None:
+                    try:
+                        surf_obj.clear()
+                    except Exception:
+                        pass
+
+        _studio_cleanup._is_studio_cleanup_wrapped = True
+        layout_widget.cleanup = _studio_cleanup
+
+    orig_close_ev = getattr(layout_widget, "closeEvent", None)
+    if not getattr(orig_close_ev, "_is_studio_close_wrapped", False):
+        def _studio_close_event(event) -> None:
+            lw = lw_cleanup_ref()
+            if lw is not None:
+                try:
+                    lw.cleanup()
+                except Exception:
+                    pass
+            if callable(orig_close_ev):
+                orig_close_ev(event)
+
+        _studio_close_event._is_studio_close_wrapped = True
+        layout_widget.closeEvent = _studio_close_event

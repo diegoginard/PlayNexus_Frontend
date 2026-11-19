@@ -18,11 +18,19 @@ import os
 import struct
 import time
 from typing import Any, Callable
+import weakref
 
-from PySide6.QtCore import QCoreApplication, QPointF, QRect, QRectF, Qt, QTimer
+try:
+    import shiboken6  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover
+    shiboken6 = None  # type: ignore[assignment]
+
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QImage,
+    QOffscreenSurface,
+    QOpenGLContext,
     QPainter,
     QPixmap,
     QPolygonF,
@@ -358,6 +366,205 @@ def _upload_premultiplied_level0(tex: QOpenGLTexture, img: QImage) -> None:
     )
 
 
+def _is_qt_valid(obj: Any) -> bool:
+    """Devuelve True si el objeto Python/Shiboken sigue teniendo instancia C++ válida."""
+    if obj is None:
+        return False
+    if shiboken6 is not None:
+        try:
+            return bool(shiboken6.isValid(obj))
+        except Exception:
+            return False
+    return True
+
+
+def _contexts_compatible(owner_ctx: QOpenGLContext | None, cur_ctx: QOpenGLContext | None) -> bool:
+    """Indica si `cur_ctx` puede destruir recursos creados en `owner_ctx` sin warnings."""
+    if cur_ctx is None or not _is_qt_valid(cur_ctx):
+        return False
+    if owner_ctx is None:
+        return True
+    if not _is_qt_valid(owner_ctx):
+        return False
+    if cur_ctx is owner_ctx:
+        return True
+    try:
+        return bool(QOpenGLContext.areSharing(owner_ctx, cur_ctx))
+    except Exception:
+        return False
+
+
+def _ctx_make_current_safe(ctx: QOpenGLContext | None) -> tuple[QOpenGLContext | None, Any, bool]:
+    """Activa temporalmente `ctx` si no comparte con el contexto actual."""
+    if ctx is None or not _is_qt_valid(ctx):
+        return None, None, False
+    try:
+        if not ctx.isValid():
+            return None, None, False
+        cur = QOpenGLContext.currentContext()
+        if _contexts_compatible(ctx, cur):
+            return cur, None, False
+        surf = ctx.surface()
+        if surf is None:
+            return cur, None, False
+        prev_surf = cur.surface() if (cur is not None and _is_qt_valid(cur)) else None
+        if ctx.makeCurrent(surf):
+            return cur, prev_surf, True
+    except Exception:
+        pass
+    return None, None, False
+
+
+def _restore_ctx_safe(
+    owner_ctx: QOpenGLContext | None,
+    prev_ctx: QOpenGLContext | None,
+    prev_surf: Any,
+    switched: bool,
+) -> None:
+    if not switched:
+        return
+    try:
+        if (
+            prev_ctx is not None
+            and prev_surf is not None
+            and _is_qt_valid(prev_ctx)
+            and prev_ctx.isValid()
+            and prev_ctx.makeCurrent(prev_surf)
+        ):
+            return
+        if _is_qt_valid(owner_ctx):
+            owner_ctx.doneCurrent()
+    except Exception:
+        pass
+
+
+def _destroy_gl_texture_safe(
+    tex: QOpenGLTexture | None,
+    owner_ctx: QOpenGLContext | None = None,
+) -> None:
+    """Destruye un `QOpenGLTexture` únicamente en su contexto dueño o uno compartido."""
+    if not _is_qt_valid(tex):
+        return
+    try:
+        if not tex.isCreated():
+            return
+    except Exception:
+        return
+
+    target_ctx = owner_ctx if _is_qt_valid(owner_ctx) else QOpenGLContext.currentContext()
+    prev_ctx, prev_surf, switched = _ctx_make_current_safe(target_ctx)
+    try:
+        cur = QOpenGLContext.currentContext()
+        if _contexts_compatible(owner_ctx, cur):
+            tex.destroy()
+    except Exception:
+        pass
+    finally:
+        _restore_ctx_safe(target_ctx, prev_ctx, prev_surf, switched)
+
+
+class _AncestorGlCleanupFilter(QObject):
+    """Captura `DeferredDelete`, `Close` y `WinIdChange` del padre/ventana antes de `~QOpenGLWidget`."""
+
+    def __init__(self, viewport: Any) -> None:
+        super().__init__(viewport)
+        self._vp_ref = weakref.ref(viewport)
+        self._watched: weakref.WeakSet[QObject] = weakref.WeakSet()
+
+    def watch(self, target: QObject | None) -> None:
+        if not _is_qt_valid(target) or target in self._watched:
+            return
+        try:
+            target.installEventFilter(self)
+            self._watched.add(target)
+        except Exception:
+            pass
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
+        ev_type = event.type()
+        if ev_type in (
+            QEvent.Type.DeferredDelete,
+            QEvent.Type.Close,
+            QEvent.Type.WinIdChange,
+        ):
+            vp = self._vp_ref()
+            if vp is not None and _is_qt_valid(vp):
+                try:
+                    if ev_type == QEvent.Type.WinIdChange:
+                        vp.release_gl_textures()
+                    else:
+                        vp.cleanup_gl()
+                except Exception:
+                    pass
+        return False
+
+
+def _install_ctx_destroy_hook(
+    ctx: QOpenGLContext | None,
+    pipeline: Any,
+) -> None:
+    """Conecta `ctx.aboutToBeDestroyed` sin depender del wrapper C++ del `QOpenGLWidget`.
+
+    Cuando Qt destruye un widget padre o `deleteLater()`, el `QOpenGLWidget` puede
+    marcarse como eliminado en Shiboken antes de emitirse `ctx.aboutToBeDestroyed`.
+    Reteniendo temporalmente solo `pipeline` (soltado tras ejecutarse) y `ctx` en
+    referencia débil garantizamos que las texturas no mueran en GC fuera de contexto.
+    """
+    if not _is_qt_valid(ctx) or pipeline is None:
+        return
+    if getattr(ctx, "_pn_destroy_hook_installed", False):
+        return
+    ctx_ref = weakref.ref(ctx)
+    pipe_holder: list[Any] = [pipeline]
+
+    def _on_ctx_about_to_be_destroyed() -> None:
+        if not pipe_holder:
+            return
+        pipe = pipe_holder[0]
+        pipe_holder.clear()
+        c = ctx_ref()
+        temp_offscreen = None
+        prev_ctx = None
+        prev_surf = None
+        switched = False
+        try:
+            if _is_qt_valid(c) and c.isValid():
+                cur = QOpenGLContext.currentContext()
+                if not _contexts_compatible(c, cur):
+                    prev_ctx = cur
+                    prev_surf = cur.surface() if _is_qt_valid(cur) else None
+                    surf = c.surface()
+                    if surf is not None:
+                        switched = bool(c.makeCurrent(surf))
+                    else:
+                        try:
+                            temp_offscreen = QOffscreenSurface(c.screen())
+                            temp_offscreen.setFormat(c.format())
+                            temp_offscreen.create()
+                            if temp_offscreen.isValid():
+                                switched = bool(c.makeCurrent(temp_offscreen))
+                        except Exception:
+                            temp_offscreen = None
+            pipe.cleanup()
+        except Exception:
+            pass
+        finally:
+            if switched and _is_qt_valid(c):
+                _restore_ctx_safe(c, prev_ctx, prev_surf, True)
+            if temp_offscreen is not None:
+                try:
+                    temp_offscreen.destroy()
+                except Exception:
+                    pass
+
+    try:
+        ctx.aboutToBeDestroyed.connect(_on_ctx_about_to_be_destroyed)
+        setattr(ctx, "_pn_destroy_hook_installed", True)
+        setattr(pipeline, "_ctx_destroy_cb", _on_ctx_about_to_be_destroyed)
+    except Exception:
+        pipe_holder.clear()
+
+
 class GpuTextureCache:
     """Caché LRU de `QOpenGLTexture` residentes en VRAM ligado a un contexto OpenGL."""
 
@@ -365,19 +572,27 @@ class GpuTextureCache:
         self._max_entries = max(16, int(max_entries))
         self._textures: OrderedDict[Any, QOpenGLTexture] = OrderedDict()
         self._dynamic_revs: dict[Any, int] = {}
+        self._owner_ctx_ref: weakref.ref[QOpenGLContext] | None = None
+
+    def set_owner_context(self, ctx: QOpenGLContext | None) -> None:
+        """Asocia el caché al `QOpenGLContext` dueño y limpia entradas si cambió."""
+        prev = self._owner_ctx_ref() if self._owner_ctx_ref is not None else None
+        if prev is not None and ctx is not None and not _contexts_compatible(prev, ctx):
+            self.clear()
+        self._owner_ctx_ref = weakref.ref(ctx) if _is_qt_valid(ctx) else None
+
+    def _get_owner_context(self) -> QOpenGLContext | None:
+        return self._owner_ctx_ref() if self._owner_ctx_ref is not None else None
 
     def __len__(self) -> int:
         return len(self._textures)
 
     def _evict_overflow(self) -> None:
+        owner_ctx = self._get_owner_context()
         while len(self._textures) > self._max_entries:
             old_key, old_tex = self._textures.popitem(last=False)
             self._dynamic_revs.pop(old_key, None)
-            try:
-                if old_tex.isCreated():
-                    old_tex.destroy()
-            except Exception:
-                pass
+            _destroy_gl_texture_safe(old_tex, owner_ctx)
 
     def get_or_upload(
         self,
@@ -388,6 +603,16 @@ class GpuTextureCache:
         mipmaps: bool = True,
     ) -> QOpenGLTexture | None:
         """Devuelve la textura GL en VRAM o la sube preservando alfa premultiplicado."""
+        cur_ctx = QOpenGLContext.currentContext()
+        if cur_ctx is not None:
+            if self._owner_ctx_ref is None:
+                self._owner_ctx_ref = weakref.ref(cur_ctx)
+            else:
+                owner_ctx = self._get_owner_context()
+                if owner_ctx is not None and not _contexts_compatible(owner_ctx, cur_ctx):
+                    self.clear()
+                    self._owner_ctx_ref = weakref.ref(cur_ctx)
+
         tex = self._textures.get(key)
         if tex is not None and tex.isCreated():
             self._textures.move_to_end(key)
@@ -454,10 +679,7 @@ class GpuTextureCache:
             # Si cambiaron dimensiones, destruir textura vieja y crear nueva
             self._textures.pop(key, None)
             self._dynamic_revs.pop(key, None)
-            try:
-                tex.destroy()
-            except Exception:
-                pass
+            _destroy_gl_texture_safe(tex, self._get_owner_context())
             tex = self.get_or_upload(key, img, linear=linear, mipmaps=False)
             if tex is not None:
                 self._dynamic_revs[key] = rev
@@ -470,14 +692,12 @@ class GpuTextureCache:
 
     def clear(self) -> None:
         """Libera todas las texturas GL almacenadas (debe llamarse con contexto activo)."""
-        for tex in self._textures.values():
-            try:
-                if tex.isCreated():
-                    tex.destroy()
-            except Exception:
-                pass
+        owner_ctx = self._get_owner_context()
+        textures = list(self._textures.values())
         self._textures.clear()
         self._dynamic_revs.clear()
+        for tex in textures:
+            _destroy_gl_texture_safe(tex, owner_ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -855,20 +1075,41 @@ class GpuQuadPipeline:
             self._error = str(exc)
             return False
 
+    def track_video_surface(self, surf: GpuVideoSurface | None) -> None:
+        """Registra una superficie de video para destruir sus planos GL al limpiar el pipeline."""
+        if surf is None:
+            return
+        tracked = getattr(self, "_tracked_surfaces", None)
+        if tracked is None:
+            tracked = weakref.WeakSet()
+            self._tracked_surfaces = tracked
+        try:
+            tracked.add(surf)
+        except Exception:
+            pass
+
     def cleanup(self) -> None:
+        tracked = getattr(self, "_tracked_surfaces", None)
+        if tracked is not None:
+            for surf in list(tracked):
+                try:
+                    surf.destroy_gl()
+                except Exception:
+                    pass
         self.texture_cache.clear()
         self._fbos.clear()
-        if self._vbo is not None:
+        if _is_qt_valid(self._vbo):
             try:
                 self._vbo.destroy()
             except Exception:
                 pass
-            self._vbo = None
+        self._vbo = None
         for prog in self._programs.values():
-            try:
-                prog.removeAllShaders()
-            except Exception:
-                pass
+            if _is_qt_valid(prog):
+                try:
+                    prog.removeAllShaders()
+                except Exception:
+                    pass
         self._programs.clear()
         self._ready = False
 
@@ -991,7 +1232,10 @@ class GpuQuadPipeline:
             self.draw_solid(gl_funcs, cmd.dst_ndc_pts, cmd.fill_color, opacity=cmd.opacity)
 
         surf = cmd.video_surface
-        if surf is None or not surf.sync_to_gpu():
+        if surf is None:
+            return
+        self.track_video_surface(surf)
+        if not surf.sync_to_gpu():
             return
 
         norm_fx = normalize_shader_preset(cmd.shader_preset)
@@ -1121,6 +1365,7 @@ class GpuQuadPipeline:
         dst_ndc_pts: list[tuple[float, float]],
         opacity: float,
     ) -> None:
+        self.track_video_surface(surf)
         if self._vbo is None or not surf.sync_to_gpu():
             return
         # Determinar shader acorde al formato actual tras sync_to_gpu()
@@ -1230,30 +1475,146 @@ class GpuSceneViewport(QOpenGLWidget):
     def set_on_frame_rendered(self, cb: Callable[[], None] | None) -> None:
         self._on_frame_rendered = cb
 
+    def register_video_surface(self, surf: GpuVideoSurface | None) -> None:
+        """Registra una `GpuVideoSurface` para liberar sus texturas en VRAM al cerrar."""
+        self.pipeline.track_video_surface(surf)
+
+    def _with_ctx_current(self, fn: Callable[[], None]) -> None:
+        if not _is_qt_valid(self):
+            return
+        ctx = None
+        try:
+            ctx = self.context()
+        except Exception:
+            ctx = None
+
+        if _is_qt_valid(ctx) and ctx.isValid():
+            prev_ctx = None
+            prev_surf = None
+            switched = False
+            made_widget_current = False
+            try:
+                cur = QOpenGLContext.currentContext()
+                if not _contexts_compatible(ctx, cur):
+                    prev_ctx = cur
+                    prev_surf = cur.surface() if _is_qt_valid(cur) else None
+                    surf = ctx.surface()
+                    if surf is not None:
+                        switched = bool(ctx.makeCurrent(surf))
+                    if not switched:
+                        self.makeCurrent()
+                        made_widget_current = True
+                if QOpenGLContext.currentContext() is not None:
+                    fn()
+            except Exception:
+                pass
+            finally:
+                if made_widget_current:
+                    try:
+                        if prev_ctx is not None and prev_surf is not None and _is_qt_valid(prev_ctx) and prev_ctx.isValid():
+                            prev_ctx.makeCurrent(prev_surf)
+                        else:
+                            self.doneCurrent()
+                    except Exception:
+                        pass
+                elif switched:
+                    _restore_ctx_safe(ctx, prev_ctx, prev_surf, True)
+
+    def release_gl_textures(self) -> None:
+        """Libera texturas, FBOs y planos de video mientras el contexto aún es válido (ej. al ocultar/recrear ventana)."""
+        def _do_release() -> None:
+            tracked = getattr(self.pipeline, "_tracked_surfaces", None)
+            if tracked is not None:
+                for surf in list(tracked):
+                    try:
+                        surf.destroy_gl()
+                    except Exception:
+                        pass
+            self.pipeline.texture_cache.clear()
+            self.pipeline._fbos.clear()
+
+        self._with_ctx_current(_do_release)
+
+    def cleanup_gl(self) -> None:
+        """Libera de forma síncrona las texturas, FBOs, shaders y superficies de video en VRAM."""
+        if getattr(self, "_pn_gl_cleaned", False) and not self.pipeline._ready and len(self.pipeline.texture_cache) == 0:
+            tracked = getattr(self.pipeline, "_tracked_surfaces", None)
+            if not tracked:
+                return
+        if not _is_qt_valid(self):
+            try:
+                self.pipeline.cleanup()
+            except Exception:
+                pass
+            return
+
+        ctx = None
+        try:
+            ctx = self.context()
+        except Exception:
+            ctx = None
+
+        if _is_qt_valid(ctx) and ctx.isValid():
+            self._with_ctx_current(self.pipeline.cleanup)
+        else:
+            try:
+                self.pipeline.cleanup()
+            except Exception:
+                pass
+        self._pn_gl_cleaned = True
+
     def initializeGL(self) -> None:  # noqa: N802
+        ctx = self.context()
+        prev_ctx_ref = getattr(self, "_bound_ctx_ref", None)
+        prev_ctx = prev_ctx_ref() if prev_ctx_ref is not None else None
+        if prev_ctx_ref is not None and ctx is not prev_ctx:
+            # El contexto OpenGL fue recreado (p. ej. cambio fullscreen/bordes): limpiar estado previo
+            prev_p, prev_s, sw = _ctx_make_current_safe(prev_ctx)
+            try:
+                self.pipeline.cleanup()
+            except Exception:
+                pass
+            finally:
+                _restore_ctx_safe(prev_ctx, prev_p, prev_s, sw)
+            if _is_qt_valid(ctx) and QOpenGLContext.currentContext() is not ctx:
+                surf = ctx.surface()
+                if surf is not None:
+                    try:
+                        ctx.makeCurrent(surf)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self.makeCurrent()
+                    except Exception:
+                        pass
+
+        self._pn_gl_cleaned = False
+        self.pipeline.texture_cache.set_owner_context(ctx)
         ok = self.pipeline.initialize()
         self._fallback_triggered = not ok
-        ctx = self.context()
-        if ctx is not None:
-            try:
-                ctx.aboutToBeDestroyed.connect(self._on_context_destroyed)
-            except Exception:
-                pass
+        if _is_qt_valid(ctx):
+            self._bound_ctx_ref = weakref.ref(ctx)
+            _install_ctx_destroy_hook(ctx, self.pipeline)
+        else:
+            self._bound_ctx_ref = None
+
+        anc_filter = getattr(self, "_ancestor_cleanup_filter", None)
+        if anc_filter is None:
+            anc_filter = _AncestorGlCleanupFilter(self)
+            self._ancestor_cleanup_filter = anc_filter
+        anc_filter.watch(self.parentWidget())
+        anc_filter.watch(self.window())
+
+    def hideEvent(self, event) -> None:  # noqa: N802
+        self.release_gl_textures()
+        super().hideEvent(event)
 
     def _on_context_destroyed(self) -> None:
-        try:
-            self.makeCurrent()
-            self.pipeline.cleanup()
-        except Exception:
-            pass
-        finally:
-            try:
-                self.doneCurrent()
-            except Exception:
-                pass
+        self.cleanup_gl()
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        self._on_context_destroyed()
+        self.cleanup_gl()
         super().closeEvent(event)
 
     def paintGL(self) -> None:  # noqa: N802
@@ -1548,14 +1909,22 @@ class GpuVideoPlayerWidget(QWidget):
             self._particles.paint(painter, QRectF(0.0, 0.0, float(w), float(h)), scale=max(0.45, min(1.5, w / 1280.0)))
         painter.end()
 
-    def closeEvent(self, event) -> None:  # noqa: N802
+    def cleanup(self) -> None:
+        """Detiene efectos y libera los recursos OpenGL y la superficie de video."""
         if self._fx_timer.isActive():
             self._fx_timer.stop()
         if self.viewport is not None:
             try:
-                self.viewport.makeCurrent()
-                self.surface.destroy_gl()
-                self.viewport.doneCurrent()
+                self.viewport.register_video_surface(self.surface)
+                self.viewport.cleanup_gl()
             except Exception:
                 pass
+        else:
+            try:
+                self.surface.clear()
+            except Exception:
+                pass
+
+    def closeEvent(self, event) -> None:  # noqa: N802
+        self.cleanup()
         super().closeEvent(event)
