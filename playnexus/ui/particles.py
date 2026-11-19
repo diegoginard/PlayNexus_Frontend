@@ -11,6 +11,7 @@ from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QWidget
 
+from playnexus.i18n import tr
 from playnexus.ui.shaders import (
     normalize_effects_perf,
     normalize_shader_preset,
@@ -22,13 +23,40 @@ from playnexus.ui.shaders import (
 # Presets declarativos de partículas
 # ---------------------------------------------------------------------------
 
-PARTICLE_PRESETS: list[tuple[str, str]] = [
-    ("none", "Sin partículas"),
-    ("arcade_sparks", "Chispas Arcade (Ascenso luminoso)"),
-    ("neon_dust", "Polvo Neón (Flotación ambiental)"),
-    ("snow_drift", "Nieve / Destellos (Caída suave)"),
-    ("starfield_parallax", "Campo Estelar Parallax"),
-]
+_PARTICLE_LABEL_ALIASES: dict[str, str] = {
+    "sin partículas": "none",
+    "sin particulas": "none",
+    "no particles": "none",
+    "chispas arcade (ascenso luminoso)": "arcade_sparks",
+    "arcade sparks (luminous rise)": "arcade_sparks",
+    "polvo neón (flotación ambiental)": "neon_dust",
+    "polvo neon (flotacion ambiental)": "neon_dust",
+    "neon dust (ambient float)": "neon_dust",
+    "nieve / destellos (caída suave)": "snow_drift",
+    "nieve / destellos (caida suave)": "snow_drift",
+    "snow / sparkles (gentle fall)": "snow_drift",
+    "campo estelar parallax": "starfield_parallax",
+    "parallax starfield": "starfield_parallax",
+}
+
+
+def get_particle_presets() -> list[tuple[str, str]]:
+    """Devuelve la lista localizada de presets de partículas `(id, etiqueta)`."""
+    return [
+        ("none", tr("fx.particle_none", "No particles")),
+        ("arcade_sparks", tr("fx.particle_arcade_sparks", "Arcade Sparks (Luminous rise)")),
+        ("neon_dust", tr("fx.particle_neon_dust", "Neon Dust (Ambient float)")),
+        ("snow_drift", tr("fx.particle_snow_drift", "Snow / Sparkles (Gentle fall)")),
+        ("starfield_parallax", tr("fx.particle_starfield_parallax", "Parallax Starfield")),
+    ]
+
+
+def get_particle_label(key: str, default: str | None = None) -> str:
+    """Devuelve la etiqueta localizada para un preset de partículas."""
+    return dict(get_particle_presets()).get(key, key if default is None else default)
+
+
+PARTICLE_PRESETS: list[tuple[str, str]] = get_particle_presets()
 
 VALID_PARTICLE_PRESETS: set[str] = {key for key, _ in PARTICLE_PRESETS}
 PARTICLE_LABELS: dict[str, str] = dict(PARTICLE_PRESETS)
@@ -64,13 +92,15 @@ _SPRITE_CACHE: dict[tuple[int, int, int, int], QPixmap] = {}
 def normalize_particle_preset(value: Any, *, allow_layout: bool = False) -> str:
     """Normaliza identificadores o etiquetas de partículas ambientales."""
     raw = str(value or "").strip().lower()
-    if allow_layout and raw in ("layout", "auto", "default", "del layout"):
+    if allow_layout and raw in ("layout", "auto", "default", "del layout", "from layout"):
         return "layout"
-    if not raw or raw in ("none", "off", "disabled", "ninguno", "sin particulas", "sin partículas"):
+    if not raw or raw in ("none", "off", "disabled", "ninguno", "sin particulas", "sin partículas", "no particles"):
         return "none"
     if raw in VALID_PARTICLE_PRESETS:
         return raw
-    for key, label in PARTICLE_PRESETS:
+    if raw in _PARTICLE_LABEL_ALIASES:
+        return _PARTICLE_LABEL_ALIASES[raw]
+    for key, label in get_particle_presets():
         if raw == label.strip().lower():
             return key
     return "none"

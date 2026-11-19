@@ -16,6 +16,7 @@ import urllib.parse
 from difflib import SequenceMatcher
 from typing import Any, Callable
 
+from playnexus.i18n import tr
 from playnexus.services.scraper.cache import ScraperCache
 from playnexus.services.scraper.http_utils import (
     ProviderRateLimiter,
@@ -584,13 +585,19 @@ class ScreenScraperProvider(BaseScraperProvider):
         except Exception:
             body = ""
         if exc.code == 403 and not config.has_screenscraper_dev_credentials:
-            return (
-                "ScreenScraper rechazó la solicitud (HTTP 403) porque la API v2 exige una clave "
-                "de aplicación (devid/devpassword) además del usuario y contraseña."
+            return tr(
+                "svc.scraper.ss_err_403_no_dev",
+                "ScreenScraper rejected the request (HTTP 403) because API v2 requires an application key "
+                "(devid/devpassword) in addition to username and password.",
             )
         if exc.code in (401, 403):
             detail = f" ({body})" if body else ""
-            return f"Credenciales de ScreenScraper rechazadas (HTTP {exc.code}){detail}"
+            return tr(
+                "svc.scraper.ss_err_creds_rejected",
+                "ScreenScraper credentials rejected (HTTP {code}){detail}",
+                code=exc.code,
+                detail=detail,
+            )
         return f"HTTP {exc.code}"
 
     def _fetch_api_json(
@@ -622,7 +629,7 @@ class ScreenScraperProvider(BaseScraperProvider):
                     err_msg = str(hdr.get("error") or "").strip()
                     low_err = err_msg.lower()
                     if any(tok in low_err for tok in ("login", "identifiant", "utilisateur", "password", "devid")):
-                        raise ScreenScraperAuthError(f"ScreenScraper: {err_msg}")
+                        raise ScreenScraperAuthError(tr("svc.scraper.ss_err_prefix", "ScreenScraper: {msg}", msg=err_msg))
                 return data
             return None
         except json.JSONDecodeError as exc:
@@ -630,10 +637,20 @@ class ScreenScraperProvider(BaseScraperProvider):
             if any(tok in low for tok in ("erreur de login", "identifiant", "utilisateur", "développeur", "forbidden")):
                 if not config.has_screenscraper_dev_credentials:
                     raise ScreenScraperAuthError(
-                        f"ScreenScraper rechazó la solicitud ({text[:180]}) porque la API v2 exige "
-                        "clave de desarrollador (devid/devpassword) además del usuario y contraseña."
+                        tr(
+                            "svc.scraper.ss_err_text_no_dev",
+                            "ScreenScraper rejected the request ({detail}) because API v2 requires a developer key "
+                            "(devid/devpassword) in addition to username and password.",
+                            detail=text[:180],
+                        )
                     ) from exc
-                raise ScreenScraperAuthError(f"Error de autenticación en ScreenScraper: {text[:180]}") from exc
+                raise ScreenScraperAuthError(
+                    tr(
+                        "svc.scraper.ss_err_auth",
+                        "ScreenScraper authentication error: {detail}",
+                        detail=text[:180],
+                    )
+                ) from exc
             return None
 
     @staticmethod
@@ -685,7 +702,7 @@ class ScreenScraperProvider(BaseScraperProvider):
             jeu.get("noms"),
             ("ss",) + tuple(config.region_priority) + ("wor", "us", "eu", "jp"),
             key_field="region",
-        ) or str(jeu.get("id") or "Sin título")
+        ) or str(jeu.get("id") or tr("svc.scraper.untitled", "Untitled"))
 
         year_raw = self._pick_localized_text(
             jeu.get("dates"),

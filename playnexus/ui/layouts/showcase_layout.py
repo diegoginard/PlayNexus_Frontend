@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QPushButton, QFrame
 )
+from playnexus.i18n import tr
 from playnexus.ui.layouts.base import (
     BaseLayout,
     CoverPreloadWorker,
@@ -59,7 +60,7 @@ class ShowcaseLayout(BaseLayout):
     e informacion detallada a la derecha. Carrusel de seleccion inferior.
     """
     LAYOUT_NAME = "Showcase"
-    LAYOUT_DESCRIPTION = "Modo Cinematico con banner principal y carrusel inferior"
+    LAYOUT_DESCRIPTION = tr("layout.showcase_desc", "Cinematic mode with main hero banner and bottom carousel")
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -98,7 +99,7 @@ class ShowcaseLayout(BaseLayout):
         info_layout.setSpacing(8)
 
         badges_row = QHBoxLayout()
-        self.format_badge = QLabel("RETRO")
+        self.format_badge = QLabel(tr("layout.retro_badge", "RETRO"))
         self.format_badge.setStyleSheet("""
             background-color: #5d48d9;
             color: #ffffff;
@@ -114,7 +115,7 @@ class ShowcaseLayout(BaseLayout):
         badges_row.addStretch()
         info_layout.addLayout(badges_row)
 
-        self.title_label = QLabel("Selecciona un juego")
+        self.title_label = QLabel(tr("layout.select_game", "Select a game"))
         self.title_label.setFont(QFont("Segoe UI", 20, QFont.Bold))
         self.title_label.setStyleSheet("color: #f1f3f9;")
         self.title_label.setWordWrap(True)
@@ -125,14 +126,14 @@ class ShowcaseLayout(BaseLayout):
         self.path_label.setWordWrap(True)
         info_layout.addWidget(self.path_label)
 
-        self.emu_label = QLabel("Emulador: --")
+        self.emu_label = QLabel(tr("layout.emulator_empty", "Emulator: --"))
         self.emu_label.setStyleSheet("color: #4ade80; font-weight: 600; font-size: 10pt;")
         info_layout.addWidget(self.emu_label)
 
         info_layout.addStretch()
 
         btn_row = QHBoxLayout()
-        self.play_btn = QPushButton("Play JUGAR AHORA")
+        self.play_btn = QPushButton(tr("layout.play_now_btn", "▶ PLAY NOW"))
         self.play_btn.setFocusPolicy(Qt.NoFocus)
         self.play_btn.setMinimumHeight(44)
         self.play_btn.setFixedWidth(200)
@@ -156,7 +157,7 @@ class ShowcaseLayout(BaseLayout):
         hero_layout.addLayout(info_layout, 1)
         main_layout.addWidget(self.hero_card, 2)
 
-        strip_header = QLabel("COLECCION DE JUEGOS")
+        strip_header = QLabel(tr("layout.game_collection_header", "GAME COLLECTION"))
         strip_header.setStyleSheet("color: #8e9bb0; font-weight: bold; font-size: 9pt; letter-spacing: 1px;")
         main_layout.addWidget(strip_header)
 
@@ -190,7 +191,7 @@ class ShowcaseLayout(BaseLayout):
             self._hero_cover_cache.put((gid, tw, th), False)
 
     def _on_hero_rom_size_loaded(self, gid: int, size_str: str):
-        label_txt = "Archivo no encontrado" if size_str == "?" else size_str
+        label_txt = tr("layout.file_not_found", "File not found") if size_str == "?" else size_str
         self._rom_size_cache[gid] = label_txt
         if gid == self.current_game_id:
             self.size_badge.setText(label_txt)
@@ -233,11 +234,11 @@ class ShowcaseLayout(BaseLayout):
 
     def _update_hero(self, game_id):
         if not game_id or not self.games:
-            self.title_label.setText("No hay juegos seleccionados")
-            self.format_badge.setText("RETRO")
+            self.title_label.setText(tr("layout.no_games_selected", "No games selected"))
+            self.format_badge.setText(tr("layout.retro_badge", "RETRO"))
             self.size_badge.setText("--")
             self.path_label.setText("--")
-            self.emu_label.setText("Emulador: --")
+            self.emu_label.setText(tr("layout.emulator_empty", "Emulator: --"))
             self.play_btn.setEnabled(False)
             blank = generate_placeholder_cover("PlayNexus", QSize(180, 160))
             self.cover_label.set_cover(blank)
@@ -256,9 +257,16 @@ class ShowcaseLayout(BaseLayout):
         cached_sz = self._rom_size_cache.get(game_id)
         self.size_badge.setText(cached_sz if cached_sz is not None else "--")
 
-        emu = game.get("effective_name", "Sin emulador")
+        raw_emu = game.get("effective_name")
+        emu = tr("layout.no_emulator", "No emulator") if not raw_emu or raw_emu == "Sin emulador" else raw_emu
         source = game.get("source", "")
-        source_str = f" ({source})" if source else ""
+        source_lbl = {
+            "juego": tr("layout.source_game", "game"),
+            "lista": tr("layout.source_list", "list"),
+            "ninguno": tr("layout.source_none", "none"),
+            "menu": tr("layout.source_menu", "menu"),
+        }.get(source, source)
+        source_str = f" ({source_lbl})" if source_lbl else ""
         xml_bits = []
         if game.get("year"):
             xml_bits.append(str(game["year"]))
@@ -267,9 +275,17 @@ class ShowcaseLayout(BaseLayout):
         if game.get("genre"):
             xml_bits.append(str(game["genre"]))
         if game.get("players"):
-            xml_bits.append(f"{game['players']} Jug.")
+            xml_bits.append(tr("layout.players_short", "{players} Pl.", players=game["players"]))
         extra_meta = f"   |   {' · '.join(xml_bits)}" if xml_bits else ""
-        self.emu_label.setText(f"Emulador: {emu}{source_str}{extra_meta}")
+        self.emu_label.setText(
+            tr(
+                "layout.showcase_emu_line",
+                "Emulator: {emulator}{source}{extra}",
+                emulator=emu,
+                source=source_str,
+                extra=extra_meta,
+            )
+        )
 
         tw = max(1, self.cover_label.width())
         th = max(1, self.cover_label.height())

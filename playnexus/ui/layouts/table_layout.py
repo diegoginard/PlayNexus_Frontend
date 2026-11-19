@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, QPoint
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
 )
+from playnexus.i18n import tr
 from playnexus.ui.layouts.base import BaseLayout
 from playnexus.services.controls import matches_action, ACTION_NAV_BACK
 from playnexus.ui.table_utils import SortableTableWidgetItem, configure_details_table
@@ -14,7 +15,7 @@ class TableLayout(BaseLayout):
     Layout personalizado: Tabla Detallada con datos técnicos ordenables.
     """
     LAYOUT_NAME = "Detalles"
-    LAYOUT_DESCRIPTION = "Tabla técnica completa con columnas redimensionables y ordenables"
+    LAYOUT_DESCRIPTION = tr("layout.table_desc", "Complete technical table with resizable and sortable columns")
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,7 +27,16 @@ class TableLayout(BaseLayout):
 
         self.table = QTableWidget(0, 10)
         self.table.setHorizontalHeaderLabels([
-            "Título", "ROM / Archivo", "Sourcefile", "Año", "Fabricante", "Género", "Formato", "Tamaño", "Emulador efectivo", "Logros RA"
+            tr("layout.col_title", "Title"),
+            tr("layout.col_rom_file", "ROM / File"),
+            tr("layout.col_sourcefile", "Sourcefile"),
+            tr("layout.col_year", "Year"),
+            tr("layout.col_manufacturer", "Manufacturer"),
+            tr("layout.col_genre", "Genre"),
+            tr("layout.col_format", "Format"),
+            tr("layout.col_size", "Size"),
+            tr("layout.col_effective_emulator", "Effective emulator"),
+            tr("layout.col_ra_achievements", "RA Achievements"),
         ])
         configure_details_table(
             self.table,
@@ -99,9 +109,16 @@ class TableLayout(BaseLayout):
                 size_str, size_bytes = cached
             self.table.setItem(i, 7, SortableTableWidgetItem(size_str, sort_key=size_bytes))
 
-            emu = g.get("effective_name", "Sin emulador")
+            raw_emu = g.get("effective_name")
+            emu = tr("layout.no_emulator", "No emulator") if not raw_emu or raw_emu == "Sin emulador" else raw_emu
             source = g.get("source", "")
-            source_str = f" ({source})" if source else ""
+            source_lbl = {
+                "juego": tr("layout.source_game", "game"),
+                "lista": tr("layout.source_list", "list"),
+                "ninguno": tr("layout.source_none", "none"),
+                "menu": tr("layout.source_menu", "menu"),
+            }.get(source, source)
+            source_str = f" ({source_lbl})" if source_lbl else ""
             self.table.setItem(i, 8, SortableTableWidgetItem(f"{emu}{source_str}"))
 
             if g.get("is_menu_target"):
@@ -116,7 +133,7 @@ class TableLayout(BaseLayout):
                         ra_txt = format_ra_badge_text(ra_sum)
                         ra_sort = float(ra_sum.get("pct") or 0.0)
                     elif ra_sum:
-                        ra_txt = "N/D"
+                        ra_txt = tr("layout.ra_na", "N/A")
                         ra_sort = -0.5
                     else:
                         ra_txt = "—"

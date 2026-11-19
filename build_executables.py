@@ -22,6 +22,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 DIST_DIR = ROOT_DIR / "dist"
 
 CLEAN_SETTINGS = """# Configuración del Sistema PlayNexus (Limpio)
+app_language = en
 video_mode = fullscreen
 video_resolution = system
 video_driver = d3d11
@@ -137,6 +138,15 @@ def setup_clean_environment(dist_dir: Path):
             shutil.rmtree(splash_dest)
         shutil.copytree(splash_src, splash_dest)
         print(" [OK] Splash Screen: carpeta splash/ copiada.")
+
+    # 5c. Copiar lang/
+    lang_src = ROOT_DIR / "lang"
+    lang_dest = dist_dir / "lang"
+    if lang_src.exists():
+        if lang_dest.exists():
+            shutil.rmtree(lang_dest)
+        shutil.copytree(lang_src, lang_dest)
+        print(" [OK] Idiomas: carpeta lang/ copiada.")
 
     # 6. Verificar ejecutables en dist/
     config_exe = dist_dir / "PlayNexus_Config.exe"

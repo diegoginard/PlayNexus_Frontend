@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QStackedWidget, QGraphicsOpacityEffect
 )
 from playnexus.db import Database
+from playnexus.i18n import tr
 from playnexus.services.library import enrich_game_dict
 from playnexus.services.launcher import launch_game
 from playnexus.services.controls import (
@@ -42,6 +43,7 @@ from playnexus.ui.shaders import (
     install_layout_runtime_fx_hook,
     resolve_widget_effect_settings,
     SHADER_LABELS,
+    get_shader_label,
     normalize_shader_preset,
     normalize_shader_target,
     normalize_effects_perf,
@@ -49,6 +51,7 @@ from playnexus.ui.shaders import (
 from playnexus.ui.particles import (
     RetroEffectOverlayWidget,
     PARTICLE_LABELS,
+    get_particle_label,
     normalize_particle_preset,
 )
 
@@ -99,7 +102,7 @@ class PlayerWindow(QMainWindow):
         self.active_layouts = {}
         self.navigation_history = []
 
-        self.setWindowTitle("PlayNexus — Frontend")
+        self.setWindowTitle(tr("player.window_title", "PlayNexus — Frontend"))
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
@@ -151,7 +154,7 @@ class PlayerWindow(QMainWindow):
             border-radius: 8px;
             border: 1px solid rgba(0, 255, 136, 0.5);
         """)
-        self.fps_label.setText("FPS: --")
+        self.fps_label.setText(tr("player.fps_placeholder", "FPS: --"))
         self.fps_label.adjustSize()
         show_fps_cfg = self.db.get_setting("video_show_fps", "false").lower() in ("true", "1", "yes")
         self.fps_label.setVisible(show_fps_cfg)
@@ -299,7 +302,17 @@ class PlayerWindow(QMainWindow):
                 border: 1px solid {color}88;
             """)
             self._last_fps_color = color
-        self.fps_label.setText(f"{fps:.1f} FPS ({frame_ms:.1f} ms) • {driver} • {self.width()}x{self.height()}")
+        self.fps_label.setText(
+            tr(
+                "player.fps_readout",
+                "{fps} FPS ({ms} ms) • {driver} • {w}x{h}",
+                fps=f"{fps:.1f}",
+                ms=f"{frame_ms:.1f}",
+                driver=driver,
+                w=self.width(),
+                h=self.height(),
+            )
+        )
         self.fps_label.adjustSize()
         self._reposition_fps_label()
 
@@ -383,7 +396,7 @@ class PlayerWindow(QMainWindow):
         from playnexus.services.media import resolve_game_manual_pdf
         pdf = resolve_game_manual_pdf(full_game, list_row=list_row)
         if not pdf:
-            self._show_toast("Este juego no tiene un manual PDF asignado.")
+            self._show_toast(tr("player.toast_no_manual", "This game does not have an assigned PDF manual."))
             return
 
         if self._quick_menu_overlay and self._quick_menu_overlay.isVisible():
@@ -457,21 +470,21 @@ class PlayerWindow(QMainWindow):
         self.db.update_list(self.current_list_id, layout=layout_name)
         keep_gid = self.current_game_id
         self.select_list(self.current_list_id, push_history=False, restore_game_id=keep_gid)
-        self._show_toast(f"🎨 Layout: {layout_name}", "#a78bfa")
+        self._show_toast(tr("player.toast_layout", "🎨 Layout: {name}", name=layout_name), "#a78bfa")
 
     def _on_quick_shader_changed(self, shader_preset: str):
         norm = normalize_shader_preset(shader_preset, allow_layout=True)
         self.db.set_setting("frontend_shader_preset", norm)
         self._sync_visual_effects()
-        lbl = "Del Layout" if norm == "layout" else SHADER_LABELS.get(norm, norm)
-        self._show_toast(f"📺 Shader: {lbl}", "#38bdf8")
+        lbl = tr("qmenu.from_layout", "From Layout") if norm == "layout" else get_shader_label(norm)
+        self._show_toast(tr("player.toast_shader", "📺 Shader: {label}", label=lbl), "#38bdf8")
 
     def _on_quick_particle_changed(self, particle_preset: str):
         norm = normalize_particle_preset(particle_preset, allow_layout=True)
         self.db.set_setting("frontend_particle_preset", norm)
         self._sync_visual_effects()
-        lbl = "Del Layout" if norm == "layout" else PARTICLE_LABELS.get(norm, norm)
-        self._show_toast(f"✨ Partículas: {lbl}", "#c084fc")
+        lbl = tr("qmenu.from_layout", "From Layout") if norm == "layout" else get_particle_label(norm)
+        self._show_toast(tr("player.toast_particles", "✨ Particles: {label}", label=lbl), "#c084fc")
 
     def _sync_visual_effects(self):
         """Sincroniza shader GPU/software, backend gráfico y partículas activas en el layout y overlay."""
@@ -543,7 +556,11 @@ class PlayerWindow(QMainWindow):
             try:
                 execute_system_power_action(action)
             except Exception as e:
-                QMessageBox.critical(self, "Error de energía", f"No se pudo ejecutar la acción del sistema:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("player.power_error_title", "Power error"),
+                    tr("player.power_error_msg", "Could not execute system action:\n{error}", error=e),
+                )
 
     def start_random_roulette(self):
         """
@@ -557,7 +574,10 @@ class PlayerWindow(QMainWindow):
         if n == 1:
             gid = pool[0].get("id")
             if gid:
-                self._show_toast(f"🎲 {pool[0].get('title', 'Juego')}", "#fbbf24")
+                self._show_toast(
+                    f"🎲 {pool[0].get('title') or tr('player.game_fallback', 'Game')}",
+                    "#fbbf24",
+                )
             return
 
         cur_idx = 0
@@ -595,7 +615,11 @@ class PlayerWindow(QMainWindow):
 
         self._roulette_steps = steps_list
         self._roulette_active = True
-        self._show_toast("🎲 Girando ruleta aleatoria…", "#fbbf24", duration_ms=2600)
+        self._show_toast(
+            tr("player.toast_roulette_spinning", "🎲 Spinning random wheel…"),
+            "#fbbf24",
+            duration_ms=2600,
+        )
         self._on_roulette_tick()
 
     def _stop_random_roulette(self, commit: bool = False):
@@ -671,7 +695,15 @@ class PlayerWindow(QMainWindow):
             if winner_gid is not None:
                 self._on_game_selected(winner_gid)
             if winner:
-                self._show_toast(f"🎲 ¡Salió: {winner.get('title', 'Juego')}!", "#4ade80", duration_ms=2600)
+                self._show_toast(
+                    tr(
+                        "player.toast_roulette_winner",
+                        "🎲 Picked: {title}!",
+                        title=winner.get("title") or tr("player.game_fallback", "Game"),
+                    ),
+                    "#4ade80",
+                    duration_ms=2600,
+                )
         else:
             self._roulette_timer.start(delay_ms)
 
@@ -725,21 +757,24 @@ class PlayerWindow(QMainWindow):
 
         selected_item = next((g for g in self.games_cache if g.get("id") == gid), None)
         if selected_item and selected_item.get("is_menu_target"):
-            self._show_toast("★ Favoritos disponible dentro de una lista de juegos", "#94a3b8")
+            self._show_toast(
+                tr("player.toast_favorites_only_in_list", "★ Favorites are available inside a game list"),
+                "#94a3b8",
+            )
             return
 
         new_state = self.db.toggle_game_favorite(gid)
         if new_state is None:
             return
 
-        title = (selected_item.get("title") if selected_item else None) or "Juego"
+        title = (selected_item.get("title") if selected_item else None) or tr("player.game_fallback", "Game")
         if selected_item is not None:
             selected_item["is_favorite"] = 1 if new_state else 0
 
         if new_state:
-            self._show_toast(f"⭐ Agregado a Favoritos: {title}", "#fbbf24")
+            self._show_toast(tr("player.toast_fav_added", "⭐ Added to Favorites: {title}", title=title), "#fbbf24")
         else:
-            self._show_toast(f"☆ Quitado de Favoritos: {title}", "#cbd5e1")
+            self._show_toast(tr("player.toast_fav_removed", "☆ Removed from Favorites: {title}", title=title), "#cbd5e1")
 
     def toggle_fps_counter(self):
         """Muestra u oculta el contador de FPS en pantalla y persiste la preferencia."""
@@ -1293,8 +1328,11 @@ class PlayerWindow(QMainWindow):
         rows = self.db.get_lists(with_counts=True)
         if not rows:
             self._show_empty_placeholder(
-                "No hay listas creadas en PlayNexus.<br><br>"
-                "Abrí el Configurador para crear listas y añadir juegos."
+                tr(
+                    "player.no_lists_placeholder",
+                    "No lists have been created in PlayNexus.<br><br>"
+                    "Open the Configurator to create lists and add games.",
+                )
             )
             return
 
@@ -1508,7 +1546,7 @@ class PlayerWindow(QMainWindow):
                     "menu_video_path": menu_video_path,
                     "menu_boxart_path": menu_boxart_path,
                     "menu_cartart_path": menu_cartart_path,
-                    "effective_name": f"{g_count} juegos",
+                    "effective_name": tr("player.menu_game_count", "{count} games", count=g_count),
                     "source": "menu",
                     "icon_path": t_dict.get("icon_path", ""),
                 })
@@ -1539,7 +1577,10 @@ class PlayerWindow(QMainWindow):
             self._all_list_games, self._runtime_filter_mode, self._runtime_sort_mode
         )
         if not filtered and self._all_list_games and self._runtime_filter_mode != "all":
-            self._show_toast("⚠ Ningún juego coincide con el filtro; mostrando todos", "#f59e0b")
+            self._show_toast(
+                tr("player.toast_filter_fallback", "⚠ No games match the filter; showing all"),
+                "#f59e0b",
+            )
             self._runtime_filter_mode = "all"
             filtered = filter_and_sort_runtime_games(
                 self._all_list_games, self._runtime_filter_mode, self._runtime_sort_mode
@@ -1605,7 +1646,7 @@ class PlayerWindow(QMainWindow):
         except Exception as e:
             self._last_activation_time = 0.0
             self.resume_active_media()
-            QMessageBox.critical(self, "No se pudo iniciar el juego", str(e))
+            QMessageBox.critical(self, tr("player.launch_error_title", "Could not launch game"), str(e))
 
     def _is_screensaver_active(self) -> bool:
         """Indica si el widget del salvapantallas está actualmente activo y visible."""
@@ -1732,7 +1773,9 @@ def run_player():
     from PySide6.QtCore import QTimer
     try:
         from playnexus.db import Database
+        from playnexus.i18n import init_i18n
         db = Database()
+        init_i18n(db)
         driver = db.get_setting("video_driver", "d3d11")
         if driver:
             os.environ["QSG_RHI_BACKEND"] = driver

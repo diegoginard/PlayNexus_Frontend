@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from playnexus.i18n import tr
+
 CANONICAL_W = 1920
 CANONICAL_H = 1080
 
@@ -14,7 +16,7 @@ CANONICAL_H = 1080
 class LayoutElement:
     """Representa un elemento visual o capa dentro del layout."""
     id: str = field(default_factory=lambda: f"elem_{uuid.uuid4().hex[:8]}")
-    name: str = "Nuevo Elemento"
+    name: str = field(default_factory=lambda: tr("studio.models.new_element", "New Element"))
     type: str = "image"  # 'image', 'video', 'wheel', 'marquee', 'text', 'effect'
     
     # Coordenadas canónicas (1920 x 1080)
@@ -168,7 +170,7 @@ class LayoutElement:
 
         return cls(
             id=str(data.get("id", f"elem_{uuid.uuid4().hex[:8]}")),
-            name=str(data.get("name", "Elemento")),
+            name=str(data.get("name", tr("studio.models.element", "Element"))),
             type=str(data.get("type", "image")),
             x=float(data.get("x", 100)),
             y=float(data.get("y", 100)),
@@ -217,8 +219,10 @@ class LayoutElement:
 @dataclass
 class LayoutProject:
     """Contenedor de metadatos y capas del layout en edición."""
-    name: str = "Nuevo Layout"
-    description: str = "Layout creado con PlayNexus Layout Studio"
+    name: str = field(default_factory=lambda: tr("studio.models.new_layout", "New Layout"))
+    description: str = field(
+        default_factory=lambda: tr("studio.models.default_description", "Layout created with PlayNexus Layout Studio")
+    )
     author: str = "PlayNexus"
     elements: list[LayoutElement] = field(default_factory=list)
     media_requirements: list[dict[str, Any]] = field(default_factory=list)

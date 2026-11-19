@@ -9,6 +9,8 @@ import os
 import sys
 from pathlib import Path
 
+from playnexus.i18n import tr
+
 # Directorio raíz del aplicativo
 if getattr(sys, "frozen", False):
     APP_DIR = Path(sys.executable).resolve().parent
@@ -18,135 +20,182 @@ else:
 CONFIG_DIR = APP_DIR / "config"
 TEMPLATES_FILE = CONFIG_DIR / "emulator_templates.txt"
 
+def _build_default_emulator_templates() -> list[dict[str, str]]:
+    """Construye la lista de plantillas predeterminadas usando el idioma activo."""
+    return [
+        {
+            "name": tr("svc.tmpl.win_pc.name", "Windows / PC Games (cmd.exe)"),
+            "executable": "cmd",
+            "arguments": '/c "[romfilename]"',
+            "platform": "PC Games",
+            "description": tr(
+                "svc.tmpl.win_pc.desc",
+                "Launches executables (.exe), shortcuts (.lnk), and scripts (.bat) with working directory set to the game folder.",
+            ),
+            "bezel_delay": "0.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": tr("svc.tmpl.retroarch_general.name", "RetroArch (General)"),
+            "executable": "retroarch.exe",
+            "arguments": '-f -L cores\\nombre_core_libretro.dll "{rom}"',
+            "platform": tr("svc.tmpl.platform_multisystem", "Multi-system"),
+            "description": tr(
+                "svc.tmpl.retroarch_general.desc",
+                "Starts RetroArch in fullscreen mode loading the specified core.",
+            ),
+            "bezel_delay": "0.5",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "RetroArch - Genesis Plus GX (Mega Drive)",
+            "executable": "retroarch.exe",
+            "arguments": '-f -L cores\\genesis_plus_gx_libretro.dll "{rom}"',
+            "platform": "Sega Genesis",
+            "description": tr(
+                "svc.tmpl.retroarch_genesis.desc",
+                "High-compatibility core for Sega Genesis / Mega Drive and Master System.",
+            ),
+            "bezel_delay": "0.5",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "RetroArch - Snes9x (Super Nintendo)",
+            "executable": "retroarch.exe",
+            "arguments": '-f -L cores\\snes9x_libretro.dll "{rom}"',
+            "platform": "Super Nintendo",
+            "description": tr(
+                "svc.tmpl.retroarch_snes.desc",
+                "Snes9x core for Super Nintendo / Super Famicom.",
+            ),
+            "bezel_delay": "0.5",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "RetroArch - Beetle PSX (PlayStation 1)",
+            "executable": "retroarch.exe",
+            "arguments": '-f -L cores\\mednafen_psx_hw_libretro.dll "{rom}"',
+            "platform": "Sony PlayStation",
+            "description": tr(
+                "svc.tmpl.retroarch_ps1.desc",
+                "Beetle PSX HW core with hardware rendering.",
+            ),
+            "bezel_delay": "1.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "RetroArch - Mupen64Plus (Nintendo 64)",
+            "executable": "retroarch.exe",
+            "arguments": '-f -L cores\\mupen64plus_next_libretro.dll "{rom}"',
+            "platform": "Nintendo 64",
+            "description": tr(
+                "svc.tmpl.retroarch_n64.desc",
+                "High-performance Mupen64Plus-Next core for N64.",
+            ),
+            "bezel_delay": "1.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": tr("svc.tmpl.mame.name", "MAME (Official Arcade)"),
+            "executable": "mame.exe",
+            "arguments": "[name] -skip_gameinfo",
+            "platform": "Arcade",
+            "description": tr(
+                "svc.tmpl.mame.desc",
+                "Launches the arcade ROM in MAME skipping initial diagnostic screens.",
+            ),
+            "bezel_delay": "1.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "DuckStation (PlayStation 1)",
+            "executable": "duckstation-qt-x64-ReleaseLTCG.exe",
+            "arguments": '-batch -fullscreen "[romfilename]"',
+            "platform": "Sony PlayStation",
+            "description": tr(
+                "svc.tmpl.duckstation.desc",
+                "Modern DuckStation emulator in fullscreen batch mode.",
+            ),
+            "bezel_delay": "1.5",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "PCSX2 (PlayStation 2)",
+            "executable": "pcsx2-qtx64.exe",
+            "arguments": '-nogui -fullscreen -- "[romfilename]"',
+            "platform": "Sony PlayStation 2",
+            "description": tr(
+                "svc.tmpl.pcsx2.desc",
+                "PCSX2 Qt in fullscreen mode without GUI.",
+            ),
+            "bezel_delay": "2.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "Dolphin (GameCube / Wii)",
+            "executable": "Dolphin.exe",
+            "arguments": '-b -e "[romfilename]"',
+            "platform": "Nintendo GameCube",
+            "description": tr(
+                "svc.tmpl.dolphin.desc",
+                "Dolphin in batch mode / direct game launch.",
+            ),
+            "bezel_delay": "1.5",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "PPSSPP (Sony PSP)",
+            "executable": "PPSSPPWindows64.exe",
+            "arguments": '"[romfilename]"',
+            "platform": "Sony PSP",
+            "description": tr(
+                "svc.tmpl.ppsspp.desc",
+                "PPSSPP emulator for PlayStation Portable in fullscreen mode.",
+            ),
+            "bezel_delay": "1.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "Flycast (Dreamcast / Naomi)",
+            "executable": "flycast.exe",
+            "arguments": '"[romfilename]"',
+            "platform": "Sega Dreamcast",
+            "description": tr(
+                "svc.tmpl.flycast.desc",
+                "Flycast emulator for Sega Dreamcast, Naomi, and Naomi 2.",
+            ),
+            "bezel_delay": "1.5",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "RPCS3 (PlayStation 3)",
+            "executable": "rpcs3.exe",
+            "arguments": '--no-gui "[romfilename]"',
+            "platform": "Sony PlayStation 3",
+            "description": tr(
+                "svc.tmpl.rpcs3.desc",
+                "RPCS3 for PS3 in direct mode without GUI.",
+            ),
+            "bezel_delay": "3.0",
+            "bezel_fade": "0.3",
+        },
+        {
+            "name": "Odin (Sega Hikaru / Arcade)",
+            "executable": "odin.exe",
+            "arguments": '-r [name] -R "[romdir]" -f',
+            "platform": "Arcade",
+            "description": tr(
+                "svc.tmpl.odin.desc",
+                "Odin emulator for Sega Hikaru arcade boards in fullscreen mode.",
+            ),
+            "bezel_delay": "1.5",
+            "bezel_fade": "0.3",
+        },
+    ]
+
+
 # Plantillas oficiales predeterminadas
-DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = [
-    {
-        "name": "Juegos de Windows / PC (cmd.exe)",
-        "executable": "cmd",
-        "arguments": '/c "[romfilename]"',
-        "platform": "PC Games",
-        "description": "Lanza ejecutables (.exe), accesos directos (.lnk) y scripts (.bat) con cwd en la carpeta del juego.",
-        "bezel_delay": "0.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "RetroArch (General)",
-        "executable": "retroarch.exe",
-        "arguments": '-f -L cores\\nombre_core_libretro.dll "{rom}"',
-        "platform": "Multi-sistema",
-        "description": "Inicia RetroArch en pantalla completa cargando el núcleo especificado.",
-        "bezel_delay": "0.5",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "RetroArch - Genesis Plus GX (Mega Drive)",
-        "executable": "retroarch.exe",
-        "arguments": '-f -L cores\\genesis_plus_gx_libretro.dll "{rom}"',
-        "platform": "Sega Genesis",
-        "description": "Núcleo de alta compatibilidad para Sega Genesis / Mega Drive y Master System.",
-        "bezel_delay": "0.5",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "RetroArch - Snes9x (Super Nintendo)",
-        "executable": "retroarch.exe",
-        "arguments": '-f -L cores\\snes9x_libretro.dll "{rom}"',
-        "platform": "Super Nintendo",
-        "description": "Núcleo Snes9x para Super Nintendo / Super Famicom.",
-        "bezel_delay": "0.5",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "RetroArch - Beetle PSX (PlayStation 1)",
-        "executable": "retroarch.exe",
-        "arguments": '-f -L cores\\mednafen_psx_hw_libretro.dll "{rom}"',
-        "platform": "Sony PlayStation",
-        "description": "Núcleo Beetle PSX HW con renderizado por hardware.",
-        "bezel_delay": "1.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "RetroArch - Mupen64Plus (Nintendo 64)",
-        "executable": "retroarch.exe",
-        "arguments": '-f -L cores\\mupen64plus_next_libretro.dll "{rom}"',
-        "platform": "Nintendo 64",
-        "description": "Núcleo Mupen64Plus-Next de alto rendimiento para N64.",
-        "bezel_delay": "1.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "MAME (Arcade Oficial)",
-        "executable": "mame.exe",
-        "arguments": "[name] -skip_gameinfo",
-        "platform": "Arcade",
-        "description": "Lanza la ROM de arcade en MAME omitiendo pantallas de diagnóstico inicial.",
-        "bezel_delay": "1.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "DuckStation (PlayStation 1)",
-        "executable": "duckstation-qt-x64-ReleaseLTCG.exe",
-        "arguments": '-batch -fullscreen "[romfilename]"',
-        "platform": "Sony PlayStation",
-        "description": "Emulador DuckStation moderno en modo batch a pantalla completa.",
-        "bezel_delay": "1.5",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "PCSX2 (PlayStation 2)",
-        "executable": "pcsx2-qtx64.exe",
-        "arguments": '-nogui -fullscreen -- "[romfilename]"',
-        "platform": "Sony PlayStation 2",
-        "description": "PCSX2 Qt en modo pantalla completa sin GUI.",
-        "bezel_delay": "2.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "Dolphin (GameCube / Wii)",
-        "executable": "Dolphin.exe",
-        "arguments": '-b -e "[romfilename]"',
-        "platform": "Nintendo GameCube",
-        "description": "Dolphin en modo batch / arranque directo del juego.",
-        "bezel_delay": "1.5",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "PPSSPP (Sony PSP)",
-        "executable": "PPSSPPWindows64.exe",
-        "arguments": '"[romfilename]"',
-        "platform": "Sony PSP",
-        "description": "Emulador PPSSPP para PlayStation Portable en pantalla completa.",
-        "bezel_delay": "1.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "Flycast (Dreamcast / Naomi)",
-        "executable": "flycast.exe",
-        "arguments": '"[romfilename]"',
-        "platform": "Sega Dreamcast",
-        "description": "Emulador Flycast para Sega Dreamcast, Naomi y Naomi 2.",
-        "bezel_delay": "1.5",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "RPCS3 (PlayStation 3)",
-        "executable": "rpcs3.exe",
-        "arguments": '--no-gui "[romfilename]"',
-        "platform": "Sony PlayStation 3",
-        "description": "RPCS3 para PS3 en modo directo sin interfaz.",
-        "bezel_delay": "3.0",
-        "bezel_fade": "0.3",
-    },
-    {
-        "name": "Odin (Sega Hikaru / Arcade)",
-        "executable": "odin.exe",
-        "arguments": '-r [name] -R "[romdir]" -f',
-        "platform": "Arcade",
-        "description": "Emulador Odin para placas arcade Sega Hikaru a pantalla completa.",
-        "bezel_delay": "1.5",
-        "bezel_fade": "0.3",
-    },
-]
+DEFAULT_EMULATOR_TEMPLATES: list[dict[str, str]] = _build_default_emulator_templates()
 
 
 def _escape(val: str) -> str:
@@ -216,8 +265,9 @@ def load_emulator_templates(custom_dir: Path | str | None = None) -> list[dict[s
     """
     path = get_templates_file_path(custom_dir)
     if not path.exists():
-        save_emulator_templates(DEFAULT_EMULATOR_TEMPLATES, custom_dir=custom_dir)
-        return [dict(t) for t in DEFAULT_EMULATOR_TEMPLATES]
+        defaults = _build_default_emulator_templates()
+        save_emulator_templates(defaults, custom_dir=custom_dir)
+        return defaults
 
     templates: list[dict[str, str]] = []
     try:
@@ -249,10 +299,10 @@ def load_emulator_templates(custom_dir: Path | str | None = None) -> list[dict[s
                     "exit_loading_time": exit_loading_t,
                 })
     except Exception as e:
-        print(f"Error al cargar {path}: {e}")
-        return [dict(t) for t in DEFAULT_EMULATOR_TEMPLATES]
+        print(tr("svc.tmpl.err_load", "Error loading {path}: {err}", path=path, err=e))
+        return _build_default_emulator_templates()
 
-    return templates if templates else [dict(t) for t in DEFAULT_EMULATOR_TEMPLATES]
+    return templates if templates else _build_default_emulator_templates()
 
 
 def save_emulator_templates(templates: list[dict[str, str]], custom_dir: Path | str | None = None) -> None:
@@ -289,6 +339,7 @@ def reset_default_templates(custom_dir: Path | str | None = None) -> list[dict[s
     """
     Restaura el archivo a las plantillas oficiales predeterminadas.
     """
-    save_emulator_templates(DEFAULT_EMULATOR_TEMPLATES, custom_dir=custom_dir)
-    return [dict(t) for t in DEFAULT_EMULATOR_TEMPLATES]
+    defaults = _build_default_emulator_templates()
+    save_emulator_templates(defaults, custom_dir=custom_dir)
+    return defaults
 

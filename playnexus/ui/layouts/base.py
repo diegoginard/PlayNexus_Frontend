@@ -4,6 +4,7 @@ from PySide6.QtCore import Signal, QPoint, Qt
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QMediaPlayer
+from playnexus.i18n import tr
 from playnexus.services.controls import (
     matches_action, ACTION_NAV_UP, ACTION_NAV_DOWN, ACTION_SELECT,
     ACTION_NAV_LETTER, ACTION_NAV_STEP5,
@@ -52,7 +53,7 @@ class BaseLayout(QWidget):
 
     # Identificadores del layout
     LAYOUT_NAME = "Base"
-    LAYOUT_DESCRIPTION = "Layout base"
+    LAYOUT_DESCRIPTION = tr("layout.base_desc", "Base layout")
 
     def __init__(self, parent=None, theme_name: str | None = None, **kwargs):
         super().__init__(parent)
@@ -479,7 +480,11 @@ class BaseLayout(QWidget):
         if hasattr(self, "mute_btn") and self.mute_btn:
             try:
                 self.mute_btn.setChecked(muted)
-                self.mute_btn.setText("🔇 Silenciado" if muted else "🔊 Silenciar video")
+                self.mute_btn.setText(
+                    tr("layout.muted_btn", "🔇 Muted")
+                    if muted
+                    else tr("layout.mute_video_btn", "🔊 Mute video")
+                )
             except Exception:
                 pass
 

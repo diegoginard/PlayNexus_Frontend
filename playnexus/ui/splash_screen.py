@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt, QUrl, Signal, QTimer
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
+from playnexus.i18n import tr
 
 if getattr(sys, "frozen", False):
     APP_DIR = Path(sys.executable).resolve().parent
@@ -73,7 +74,7 @@ class VideoSplashScreen(QWidget):
         self.db = db
         self._is_finishing = False
 
-        self.setWindowTitle("PlayNexus — Intro")
+        self.setWindowTitle(tr("splash.window_title", "PlayNexus — Intro"))
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Window)
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setStyleSheet("background-color: #000000;")

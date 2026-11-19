@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QSlider, QLabel, QStyleOptionViewItem, QStyledItemDelegate, QStyle
 )
+from playnexus.i18n import tr
 from playnexus.ui.layouts.base import (
     BaseLayout,
     CoverPreloadWorker,
@@ -57,8 +58,9 @@ class GameCardDelegate(QStyledItemDelegate):
             if not game_data:
                 return
 
-            title = game_data.get("title", "Desconocido")
-            emu = game_data.get("effective_name", "Sin emulador")
+            title = game_data.get("title") or tr("layout.unknown", "Unknown")
+            raw_emu = game_data.get("effective_name")
+            emu = tr("layout.no_emulator", "No emulator") if not raw_emu or raw_emu == "Sin emulador" else raw_emu
             game_id = game_data.get("id", 0)
 
             # ── Fondo de la tarjeta ──────────────────────────────────────
@@ -141,7 +143,7 @@ class GridLayout(BaseLayout):
     título y emulador. El tamaño de las tarjetas se puede ajustar con el slider.
     """
     LAYOUT_NAME = "Grid"
-    LAYOUT_DESCRIPTION = "Cuadrícula de tarjetas visuales con portadas y tamaño regulable"
+    LAYOUT_DESCRIPTION = tr("layout.grid_desc", "Visual card grid with covers and adjustable size")
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -156,7 +158,7 @@ class GridLayout(BaseLayout):
         ctrl_bar.setContentsMargins(6, 2, 6, 2)
         ctrl_bar.addStretch()
 
-        zoom_lbl = QLabel("Tamaño de tarjetas:")
+        zoom_lbl = QLabel(tr("layout.card_size_label", "Card size:"))
         zoom_lbl.setStyleSheet("color: #8e9bb0; font-size: 9pt;")
         ctrl_bar.addWidget(zoom_lbl)
 
@@ -255,11 +257,17 @@ class GridLayout(BaseLayout):
             item = QListWidgetItem()
             item.setData(Qt.UserRole, g["id"])
             item.setData(Qt.UserRole + 10, g)
+            raw_emu = g.get("effective_name")
+            emu_name = tr("layout.no_emulator", "No emulator") if not raw_emu or raw_emu == "Sin emulador" else raw_emu
             item.setToolTip(
-                f"{g['title']}\n"
-                f"Archivo: {Path(g['rom_path']).name}\n"
-                f"Emulador: {g.get('effective_name', 'Sin emulador')}\n"
-                f"Ruta: {g['rom_path']}"
+                tr(
+                    "layout.grid_item_tooltip",
+                    "{title}\nFile: {filename}\nEmulator: {emulator}\nPath: {path}",
+                    title=g["title"],
+                    filename=Path(g["rom_path"]).name,
+                    emulator=emu_name,
+                    path=g["rom_path"],
+                )
             )
             self.list_widget.addItem(item)
 

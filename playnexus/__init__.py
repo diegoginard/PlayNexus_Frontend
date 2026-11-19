@@ -40,6 +40,12 @@ def _configure_qt_multimedia() -> None:
 
 _configure_qt_multimedia()
 
+try:
+    from playnexus.i18n import init_i18n as _init_i18n
+    _init_i18n()
+except Exception:
+    pass
+
 from playnexus.__version__ import (
     __version__, __commit__, __version_full__, __app_name__, __release_date__
 )

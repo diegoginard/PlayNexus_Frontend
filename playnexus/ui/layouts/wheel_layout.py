@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QStackedWidget, QStyle
 )
 
+from playnexus.i18n import tr
 from playnexus.ui.layouts.base import (
     BaseLayout,
     WheelPreloadWorker,
@@ -159,7 +160,7 @@ class WheelLayout(BaseLayout):
     en Windows al mostrar QVideoWidget antes de que el event loop esté activo.
     """
     LAYOUT_NAME = "Wheel"
-    LAYOUT_DESCRIPTION = "Modo Arcade con Rueda de Logos (Wheel), Video Snaps en vivo y Box Art"
+    LAYOUT_DESCRIPTION = tr("layout.wheel_desc", "Arcade mode with Wheel Logos, live Video Snaps, and Box Art")
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -209,7 +210,7 @@ class WheelLayout(BaseLayout):
         video_box_layout.addWidget(self._video_stack)
 
         # Placeholder inicial (siempre seguro de mostrar)
-        self.no_video_label = QLabel("🎬 Sin video snap disponible")
+        self.no_video_label = QLabel(tr("layout.no_video_snap", "🎬 No video snap available"))
         self.no_video_label.setAlignment(Qt.AlignCenter)
         self.no_video_label.setStyleSheet("color: #616e87; font-size: 11pt; background: #0c0e14;")
         self._video_stack.addWidget(self.no_video_label)  # índice 0
@@ -221,7 +222,7 @@ class WheelLayout(BaseLayout):
 
         # Barra de control de audio del video snap
         video_bar = QHBoxLayout()
-        self.mute_btn = QPushButton("🔊 Silenciar video")
+        self.mute_btn = QPushButton(tr("layout.mute_video_btn", "🔊 Mute video"))
         self.mute_btn.setCheckable(True)
         self.mute_btn.setFocusPolicy(Qt.NoFocus)
         self.mute_btn.setStyleSheet("""
@@ -267,7 +268,7 @@ class WheelLayout(BaseLayout):
         self.wheel_logo_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         info_layout.addWidget(self.wheel_logo_label)
 
-        self.title_label = QLabel("Seleccioná un juego")
+        self.title_label = QLabel(tr("layout.select_game", "Select a game"))
         self.title_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
         self.title_label.setStyleSheet("color: #f1f3f9;")
         self.title_label.setWordWrap(True)
@@ -297,7 +298,7 @@ class WheelLayout(BaseLayout):
         right_layout.setContentsMargins(8, 12, 8, 8)
         right_layout.setSpacing(8)
 
-        wheel_header = QLabel("RUEDA DE JUEGOS")
+        wheel_header = QLabel(tr("layout.wheel_header", "GAME WHEEL"))
         wheel_header.setStyleSheet("font-weight: bold; color: #8e9bb0; letter-spacing: 1.5px; font-size: 9pt; padding-left: 6px;")
         right_layout.addWidget(wheel_header)
 
@@ -602,7 +603,7 @@ class WheelLayout(BaseLayout):
             self._clear_game_display()
 
     def _clear_game_display(self):
-        self.title_label.setText("No hay elementos")
+        self.title_label.setText(tr("layout.no_items", "No items"))
         self.meta_label.setText("—")
         self.boxart_label.clear()
         self.boxart_label.setVisible(False)
@@ -642,11 +643,19 @@ class WheelLayout(BaseLayout):
         title = game.get("title", "")
         self.title_label.setText(title)
 
-        emu = game.get("effective_name", "Sin emulador")
-        plat = game.get("platform") or "Retro"
+        raw_emu = game.get("effective_name")
+        emu = tr("layout.no_emulator", "No emulator") if not raw_emu or raw_emu == "Sin emulador" else raw_emu
+        plat = game.get("platform") or tr("layout.retro_badge_titlecase", "Retro")
         filename = os.path.basename(game.get("rom_path", ""))
         if game.get("is_menu_target"):
-            self.meta_label.setText(f"Sistema: <b>{plat}</b>   |   Contenido: <b>{emu}</b>")
+            self.meta_label.setText(
+                tr(
+                    "layout.wheel_menu_meta",
+                    "System: <b>{platform}</b>   |   Content: <b>{content}</b>",
+                    platform=plat,
+                    content=emu,
+                )
+            )
         else:
             xml_bits = []
             if game.get("year"):
@@ -659,8 +668,15 @@ class WheelLayout(BaseLayout):
                 xml_bits.append(f"👥 {game['players']}")
             xml_line = f"<br>{'   ·   '.join(xml_bits)}" if xml_bits else ""
             self.meta_label.setText(
-                f"Plataforma: <b>{plat}</b>   |   Emulador: <b>{emu}</b>{xml_line}"
-                f"<br>Archivo: <span style='color:#6d7b93;'>{filename}</span>"
+                tr(
+                    "layout.wheel_game_meta",
+                    "Platform: <b>{platform}</b>   |   Emulator: <b>{emulator}</b>{extra}"
+                    "<br>File: <span style='color:#6d7b93;'>{filename}</span>",
+                    platform=plat,
+                    emulator=emu,
+                    extra=xml_line,
+                    filename=filename,
+                )
             )
 
         # Detener video previo y diferir la lectura en disco de artes pesadas (boxart/logo/video)
@@ -893,7 +909,11 @@ class WheelLayout(BaseLayout):
             try:
                 self.mute_btn.blockSignals(True)
                 self.mute_btn.setChecked(muted)
-                self.mute_btn.setText("🔇 Silenciado" if muted else "🔊 Silenciar video")
+                self.mute_btn.setText(
+                    tr("layout.muted_btn", "🔇 Muted")
+                    if muted
+                    else tr("layout.mute_video_btn", "🔊 Mute video")
+                )
                 self.mute_btn.blockSignals(False)
             except Exception:
                 pass

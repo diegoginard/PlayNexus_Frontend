@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from playnexus.__version__ import __version__
+from playnexus.i18n import tr
 from playnexus.services.media import IMAGE_EXTS, PDF_EXTS, VIDEO_EXTS, clear_media_cache
 from playnexus.services.rom_manager import _unlink_with_retry
 
@@ -57,7 +58,7 @@ def http_get_bytes(
     """Realiza un GET HTTP/HTTPS con reintentos breves ante fallos transitorios (429/502/503/504)."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise ValueError(f"Esquema de URL no soportado: {parsed.scheme}")
+        raise ValueError(tr("svc.scraper.err_unsupported_scheme", "Unsupported URL scheme: {scheme}", scheme=parsed.scheme))
 
     req_headers = {"User-Agent": USER_AGENT}
     if headers:
@@ -195,13 +196,13 @@ def download_media_to_slot(
     """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        return None, "URL inválida"
+        return None, tr("svc.scraper.err_invalid_url", "Invalid URL")
     if not target_stem or not target_folder:
-        return None, "Carpeta o stem destino vacío"
+        return None, tr("svc.scraper.err_empty_target", "Empty target folder or stem")
 
     dest_dir = Path(target_folder)
     if not dest_dir.is_dir():
-        return None, f"La carpeta no existe: {target_folder}"
+        return None, tr("svc.scraper.err_folder_missing", "Folder does not exist: {folder}", folder=target_folder)
 
     tmp_name = f".tmp_pn_{os.getpid()}_{threading.get_ident()}_{int(time.time() * 1000)}"
     tmp_path = dest_dir / tmp_name
@@ -212,7 +213,7 @@ def download_media_to_slot(
             content_type = resp.headers.get("Content-Type", "")
             first_chunk = resp.read(64 * 1024)
             if not first_chunk:
-                return None, "Archivo remoto vacío"
+                return None, tr("svc.scraper.err_empty_remote_file", "Empty remote file")
 
             real_ext = detect_media_extension_from_bytes(
                 first_chunk[:256],
@@ -220,32 +221,33 @@ def download_media_to_slot(
                 fallback_ext=fallback_ext,
             )
             if not real_ext:
-                return None, f"Formato de archivo remoto no válido ({content_type or 'desconocido'})"
+                ct_disp = content_type or tr("svc.scraper.unknown_type", "unknown")
+                return None, tr("svc.scraper.err_invalid_remote_fmt", "Invalid remote file format ({content_type})", content_type=ct_disp)
 
             kind_valid = (
                 set(VIDEO_EXTS) if media_kind == "video"
                 else (set(PDF_EXTS) if media_kind == "pdf" else set(IMAGE_EXTS))
             )
             if real_ext not in kind_valid:
-                return None, f"Tipo incompatible ({real_ext} para slot {media_kind})"
+                return None, tr("svc.scraper.err_incompatible_type", "Incompatible type ({ext} for {kind} slot)", ext=real_ext, kind=media_kind)
 
             chosen_ext = _pick_compatible_ext(real_ext, allowed_exts)
             if not chosen_ext:
                 exp = ", ".join(allowed_exts)
-                return None, f"Extensión remota '{real_ext}' no admitida por el layout ({exp})"
+                return None, tr("svc.scraper.err_ext_not_allowed", "Remote extension '{ext}' not accepted by layout ({allowed})", ext=real_ext, allowed=exp)
 
             with open(tmp_path, "wb") as fh:
                 fh.write(first_chunk)
                 while True:
                     if cancel_check and cancel_check():
-                        return None, "Descarga cancelada"
+                        return None, tr("svc.scraper.err_download_cancelled", "Download cancelled")
                     chunk = resp.read(64 * 1024)
                     if not chunk:
                         break
                     fh.write(chunk)
 
         if not tmp_path.is_file() or tmp_path.stat().st_size < 64:
-            return None, "Archivo descargado incompleto o corrupto"
+            return None, tr("svc.scraper.err_download_corrupt", "Downloaded file incomplete or corrupt")
 
         dest_path = dest_dir / f"{target_stem}{chosen_ext}"
         stem_low = target_stem.lower()
@@ -263,7 +265,7 @@ def download_media_to_slot(
                     continue
                 e_stem, _ = os.path.splitext(entry.name)
                 if e_stem.lower() == stem_low:
-                    return str(entry.path).replace("\\", "/"), "Ya existe en disco"
+                    return str(entry.path).replace("\\", "/"), tr("svc.scraper.already_exists", "Already exists on disk")
 
         delays = (0.04, 0.08, 0.15)
         for idx in range(len(delays) + 1):

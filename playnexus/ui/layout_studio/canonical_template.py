@@ -21,6 +21,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from playnexus.i18n import tr
 from playnexus.ui.layout_studio.models import LayoutElement, LayoutProject, CANONICAL_W, CANONICAL_H
 
 
@@ -29,20 +30,24 @@ def get_default_media_requirements(layout_type: str = "console", is_cd: bool = F
     reqs = [
         {
             "key": "video",
-            "label": "Video Snaps",
+            "label": tr("studio.media.video_snaps", "Video Snaps"),
             "extensions": [".mp4", ".mkv", ".avi", ".webm"],
             "required": True,
         },
         {
             "key": "wheel",
-            "label": "Wheel Logos",
+            "label": tr("studio.media.wheel_logos", "Wheel Logos"),
             "extensions": [".png", ".webp"],
             "required": True,
         },
     ]
     if layout_type in ("console", "retro_console"):
         art_key = "discart" if is_cd else "cartart"
-        art_label = "Discos / CDs" if is_cd else "Cartuchos"
+        art_label = (
+            tr("studio.media.discs_cds", "Discs / CDs")
+            if is_cd
+            else tr("studio.media.cartridges", "Cartridges")
+        )
         reqs.append({
             "key": art_key,
             "label": art_label,
@@ -51,20 +56,20 @@ def get_default_media_requirements(layout_type: str = "console", is_cd: bool = F
         })
         reqs.append({
             "key": "boxart",
-            "label": "Box Art / Cajas",
+            "label": tr("studio.media.boxart", "Box Art / Boxes"),
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": False,
         })
     elif layout_type == "arcade":
         reqs.append({
             "key": "marquee",
-            "label": "Marquee / Marquesina",
+            "label": tr("studio.media.marquee_full", "Marquee"),
             "extensions": [".png", ".jpg", ".webp"],
             "required": False,
         })
         reqs.append({
             "key": "flyer",
-            "label": "Flyers / Folletos",
+            "label": tr("studio.media.flyers", "Flyers"),
             "extensions": [".png", ".jpg", ".webp"],
             "required": False,
         })
@@ -215,6 +220,13 @@ except Exception:
         boxart_h_str = "0.380"
         boxart_anchor_str = '"bottom"'
 
+    layout_desc = description or tr(
+        "studio.canonical.default_description",
+        "{name} interactive themed layout",
+        name=name,
+    )
+    fallback_game_title = tr("studio.canonical.fallback_game", "Game")
+
     code = f'''"""
 =============================================================================
 Layout Autónomo: {name}
@@ -253,7 +265,7 @@ COMMON_DIR = LAYOUT_DIR.parent / "gtc-common"
 
 class ThemeLayout(BaseLayout):
     LAYOUT_NAME = "{name}"
-    LAYOUT_DESCRIPTION = "{description or (name + ' layout temático interactivo')}"
+    LAYOUT_DESCRIPTION = {layout_desc!r}
 
     CANONICAL_W = 1920
     CANONICAL_H = 1080
@@ -1198,7 +1210,7 @@ class ThemeLayout(BaseLayout):
                 painter.setBrush(QBrush(bg_col))
                 painter.drawRoundedRect(rect, 8, 8)
 
-                title = game.get("title") or "Juego"
+                title = game.get("title") or {fallback_game_title!r}
                 painter.setPen(QColor(255, 255, 255))
                 f_size = max(11, int(nh * 0.30))
                 painter.setFont(QFont(self._font_main, f_size, QFont.Bold))

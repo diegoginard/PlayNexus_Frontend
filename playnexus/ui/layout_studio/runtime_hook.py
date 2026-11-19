@@ -15,6 +15,7 @@ from PySide6.QtGui import (
     QPolygonF, QImage, QPixmap
 )
 
+from playnexus.i18n import tr
 from playnexus.ui.gpu_renderer import (
     GpuQuadCommand,
     GpuSceneViewport,
@@ -476,7 +477,7 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
             sel_idx = int(getattr(inst, "selected_index", 0))
             cur_game = games[sel_idx] if (games and 0 <= sel_idx < len(games)) else {}
             txt = (elem.text_template or "{title}").format(
-                title=cur_game.get("title", "Juego"),
+                title=cur_game.get("title", tr("studio.runtime.default_game", "Game")),
                 year=cur_game.get("year", ""),
                 manufacturer=cur_game.get("manufacturer", ""),
                 genre=cur_game.get("genre", ""),
@@ -775,30 +776,30 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
     """
     # Mapear tokens de atributos/métodos de self usados en paintEvent -> (elem_id, nombre, tipo, media_key, anim_type)
     TOKEN_SPEC: dict[str, tuple[str, str, str, str, str]] = {
-        "_bg_video_image": ("bg_image", "Fondo (Video / Imagen)", "image", "", ""),
-        "_pix_bg_fallback": ("bg_image", "Fondo (gtc-common)", "image", "", ""),
-        "_pix_bkg": ("bg_image", "Fondo del Layout", "image", "", ""),
-        "_current_artwork_pixmap": ("bg_image", "Artwork de Fondo", "image", "", ""),
-        "_game_video_image": ("video_snap", "Pantalla CRT (Video Snap)", "video", "video", ""),
-        "_current_video_image": ("video_snap", "Pantalla TV / Video Snap", "video", "video", ""),
-        "_pix_scanlines": ("scanlines_crt", "Scanlines CRT (gtc-common)", "effect", "", ""),
-        "_pix_scratches": ("scratches", "Reflejo Vidrio CRT (gtc-common)", "effect", "", ""),
-        "_current_bezel_pix": ("bezel", "Bisel de Monitor (Bezel)", "image", "bezel", ""),
-        "_pix_tv": ("tv_bezel", "Televisor CRT (tv.png)", "image", "", ""),
-        "_current_marquee_pix": ("marquee", "Marquesina (Marquee)", "marquee", "marquee", ""),
-        "_current_cabinet_pix": ("cabinet", "Mueble Arcade (Cabinet)", "cabinet", "cabinet", ""),
-        "_pix_cabinet": ("cabinet", "Mueble Arcade (Cabinet)", "cabinet", "cabinet", ""),
-        "_draw_avatar": ("avatar", "Avatar / Personaje", "image", "", "avatar_float"),
-        "_draw_logo": ("logo", "Logotipo del Sistema", "image", "", "logo_bounce"),
-        "_pix_console": ("console", "Consola (console.png)", "image", "", ""),
-        "_draw_cart_or_disc": ("cartart", "Cartucho / Disco", "image", "cartart", "cart_drop"),
-        "_pix_console_cover": ("console_cover", "Tapa de Consola (console_cover.png)", "image", "", ""),
-        "_pix_joystick": ("joystick", "Joystick / Mando (joystick.png)", "image", "", ""),
-        "_draw_boxart": ("boxart", "Carátula (Box Art)", "image", "boxart", "boxart_slide_fade"),
-        "_draw_flyer": ("flyer", "Flyer Publicitario", "image", "flyer", "flyer_slide_right"),
-        "_pix_wheel_shadow": ("wheel_shadow", "Sombra de Ruleta (gtc-common)", "image", "", ""),
-        "_draw_wheel_conveyor": ("wheel_list", "Ruleta Curva (Wheel Conveyor)", "wheel", "wheel", ""),
-        "_draw_pointer": ("pointer", "Puntero de Ruleta", "image", "", "pointer_pulse"),
+        "_bg_video_image": ("bg_image", tr("studio.layer.bg_video_image", "Background (Video / Image)"), "image", "", ""),
+        "_pix_bg_fallback": ("bg_image", tr("studio.layer.bg_common", "Background (gtc-common)"), "image", "", ""),
+        "_pix_bkg": ("bg_image", tr("studio.layer.bg_layout", "Layout Background"), "image", "", ""),
+        "_current_artwork_pixmap": ("bg_image", tr("studio.layer.bg_artwork", "Background Artwork"), "image", "", ""),
+        "_game_video_image": ("video_snap", tr("studio.layer.video_crt", "CRT Screen (Video Snap)"), "video", "video", ""),
+        "_current_video_image": ("video_snap", tr("studio.layer.video_tv", "TV Screen / Video Snap"), "video", "video", ""),
+        "_pix_scanlines": ("scanlines_crt", tr("studio.layer.scanlines", "CRT Scanlines (gtc-common)"), "effect", "", ""),
+        "_pix_scratches": ("scratches", tr("studio.layer.scratches", "CRT Glass Glare (gtc-common)"), "effect", "", ""),
+        "_current_bezel_pix": ("bezel", tr("studio.layer.bezel", "Monitor Bezel"), "image", "bezel", ""),
+        "_pix_tv": ("tv_bezel", tr("studio.layer.tv_bezel", "CRT Television (tv.png)"), "image", "", ""),
+        "_current_marquee_pix": ("marquee", tr("studio.layer.marquee", "Marquee"), "marquee", "marquee", ""),
+        "_current_cabinet_pix": ("cabinet", tr("studio.layer.cabinet", "Arcade Cabinet"), "cabinet", "cabinet", ""),
+        "_pix_cabinet": ("cabinet", tr("studio.layer.cabinet", "Arcade Cabinet"), "cabinet", "cabinet", ""),
+        "_draw_avatar": ("avatar", tr("studio.layer.avatar", "Avatar / Character"), "image", "", "avatar_float"),
+        "_draw_logo": ("logo", tr("studio.layer.logo", "System Logo"), "image", "", "logo_bounce"),
+        "_pix_console": ("console", tr("studio.layer.console", "Console (console.png)"), "image", "", ""),
+        "_draw_cart_or_disc": ("cartart", tr("studio.layer.cartart", "Cartridge / Disc"), "image", "cartart", "cart_drop"),
+        "_pix_console_cover": ("console_cover", tr("studio.layer.console_cover", "Console Cover (console_cover.png)"), "image", "", ""),
+        "_pix_joystick": ("joystick", tr("studio.layer.joystick", "Joystick / Controller (joystick.png)"), "image", "", ""),
+        "_draw_boxart": ("boxart", tr("studio.layer.boxart", "Box Art"), "image", "boxart", "boxart_slide_fade"),
+        "_draw_flyer": ("flyer", tr("studio.layer.flyer", "Promotional Flyer"), "image", "flyer", "flyer_slide_right"),
+        "_pix_wheel_shadow": ("wheel_shadow", tr("studio.layer.wheel_shadow", "Wheel Shadow (gtc-common)"), "image", "", ""),
+        "_draw_wheel_conveyor": ("wheel_list", tr("studio.layer.wheel_conveyor", "Curved Wheel (Conveyor)"), "wheel", "wheel", ""),
+        "_draw_pointer": ("pointer", tr("studio.layer.pointer", "Wheel Pointer"), "image", "", "pointer_pulse"),
     }
 
     ordered_tokens: list[str] = []
@@ -902,13 +903,13 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
             _add_step(eid, ename, etype, emkey, eatype)
         elif tok == "_draw_wheel":
             # En At-The-Arcade Flex, _draw_wheel dibuja la ruleta y el puntero
-            _add_step("wheel_list", "Ruleta de Ruedas (Wheel)", "wheel", "wheel", "")
-            _add_step("pointer", "Puntero de Ruleta", "image", "", "pointer_pulse")
+            _add_step("wheel_list", tr("studio.layer.wheel_list", "Wheel List"), "wheel", "wheel", "")
+            _add_step("pointer", tr("studio.layer.pointer", "Wheel Pointer"), "image", "", "pointer_pulse")
         elif tok in ("_draw_bottom_bar", "_draw_footer"):
             if getattr(inst, "_pix_frame", None) or tok == "_draw_footer":
-                _add_step("footer_frame", "Barra Inferior (Footer)", "image", "", "")
-            _add_step("title_text", "Título del Juego (Footer)", "text", "", "")
-            _add_step("counter_text", "Contador de Juegos (Footer)", "text", "", "")
+                _add_step("footer_frame", tr("studio.layer.footer_frame", "Bottom Bar (Footer)"), "image", "", "")
+            _add_step("title_text", tr("studio.layer.title_text", "Game Title (Footer)"), "text", "", "")
+            _add_step("counter_text", tr("studio.layer.counter_text", "Game Counter (Footer)"), "text", "", "")
 
     # Si AST detectó `video_snap` antes que `bg_image` (p. ej. Main Menu), mover `bg_image`
     # al fondo (índice 0) y reindexar `z_index` para respetar la precedencia de capas.

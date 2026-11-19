@@ -19,6 +19,7 @@ import subprocess
 import time
 
 from playnexus.db import APP_DIR
+from playnexus.i18n import tr
 from playnexus.services.library import sync_filtered_list_games
 from playnexus.services.media import IMAGE_EXTS, VIDEO_EXTS, clear_media_cache
 from playnexus.services.rom_manager import _unlink_with_retry
@@ -196,15 +197,24 @@ def detect_toolkit_capabilities(db=None) -> dict[str, Any]:
     notices: list[str] = []
     if not pil_ok:
         notices.append(
-            "Pillow no está instalado en este entorno: Auto-Trim funcionará con el motor nativo Qt (RGBA8888), sin pérdida de compatibilidad."
+            tr(
+                "svc.toolkit.notice_no_pillow",
+                "Pillow is not installed in this environment: Auto-Trim will run using the native Qt engine (RGBA8888), with no loss of compatibility.",
+            )
         )
     if not ffmpeg_path:
         notices.append(
-            "ffmpeg no encontrado en el sistema ni en PlayNexus/tools/ffmpeg: la pestaña de normalización de videos permanecerá informativa hasta indicar ffmpeg.exe o agregarlo al PATH."
+            tr(
+                "svc.toolkit.notice_no_ffmpeg",
+                "ffmpeg was not found on the system or in PlayNexus/tools/ffmpeg: the video normalization tab will remain informational until you locate ffmpeg.exe or add it to PATH.",
+            )
         )
     if not qtpdf_ok:
         notices.append(
-            "PySide6.QtPdf no está disponible: el visor integrado usará el botón de apertura con el lector PDF del sistema operativo."
+            tr(
+                "svc.toolkit.notice_no_qtpdf",
+                "PySide6.QtPdf is not available: the built-in viewer will fall back to opening files with the OS default PDF reader.",
+            )
         )
 
     return {
@@ -454,7 +464,7 @@ def compute_trim_bbox_for_image(
     else:
         qimg, had_alpha = _qimage_load_rgba(p)
         if qimg is None:
-            raise ValueError(f"No se pudo leer la imagen: {p}")
+            raise ValueError(tr("svc.toolkit.err_read_image", "Could not read image: {path}", path=p))
         w, h = qimg.width(), qimg.height()
         bbox, eff_mode = _compute_bbox_from_qimage(qimg, had_alpha, trim_mode, alpha_threshold, black_threshold)
 
@@ -493,9 +503,9 @@ def auto_trim_image_file(
     p = Path(image_path)
     ext = p.suffix.lower()
     if ext not in TRIM_SUPPORTED_EXTS:
-        return TrimFileResult(str(p), "skipped_format", message=f"Formato no soportado ({ext})")
+        return TrimFileResult(str(p), "skipped_format", message=tr("svc.toolkit.trim_unsupported_fmt", "Unsupported format ({ext})", ext=ext))
     if not p.is_file():
-        return TrimFileResult(str(p), "error", message="Archivo inexistente")
+        return TrimFileResult(str(p), "error", message=tr("svc.toolkit.trim_missing_file", "File does not exist"))
 
     bytes_before = int(p.stat().st_size)
     try:
@@ -517,7 +527,7 @@ def auto_trim_image_file(
             new_size=(w, h),
             bytes_before=bytes_before,
             bytes_after=bytes_before,
-            message="Imagen completamente vacía/transparente; omitida por seguridad",
+            message=tr("svc.toolkit.trim_empty_image", "Image is completely empty/transparent; skipped for safety"),
         )
 
     x0, y0, x1, y1 = crop_box
@@ -532,7 +542,7 @@ def auto_trim_image_file(
             new_size=(w, h),
             bytes_before=bytes_before,
             bytes_after=bytes_before,
-            message=f"Sin margen recortable relevante ({eff_mode})",
+            message=tr("svc.toolkit.trim_no_margin", "No significant trimmable margin ({mode})", mode=eff_mode),
         )
 
     if dry_run:
@@ -543,7 +553,15 @@ def auto_trim_image_file(
             new_size=(new_w, new_h),
             bytes_before=bytes_before,
             bytes_after=bytes_before,
-            message=f"Simulación ({eff_mode}): {w}x{h} -> {new_w}x{new_h}",
+            message=tr(
+                "svc.toolkit.trim_dry_run",
+                "Dry run ({mode}): {w}x{h} -> {new_w}x{new_h}",
+                mode=eff_mode,
+                w=w,
+                h=h,
+                new_w=new_w,
+                new_h=new_h,
+            ),
         )
 
     bak_path = ""
@@ -570,7 +588,7 @@ def auto_trim_image_file(
             from PySide6.QtGui import QImage
             qimg = QImage(str(p))
             if qimg.isNull():
-                raise ValueError("QImage no pudo recargar el archivo")
+                raise ValueError(tr("svc.toolkit.trim_qimage_reload_err", "QImage could not reload the file"))
             cropped_q = qimg.copy(x0, y0, new_w, new_h)
             fmt_map = {
                 ".png": "PNG",
@@ -582,7 +600,7 @@ def auto_trim_image_file(
             fmt = fmt_map.get(ext, "PNG")
             quality = 92 if ext in (".webp", ".jpg", ".jpeg") else -1
             if not cropped_q.save(str(tmp_path), fmt, quality):
-                raise IOError(f"Error guardando imagen recortada ({fmt})")
+                raise IOError(tr("svc.toolkit.trim_save_err", "Error saving cropped image ({fmt})", fmt=fmt))
 
         os.replace(tmp_path, p)
         bytes_after = int(p.stat().st_size)
@@ -594,7 +612,15 @@ def auto_trim_image_file(
             bytes_before=bytes_before,
             bytes_after=bytes_after,
             backup_path=bak_path,
-            message=f"Recortada ({eff_mode}): {w}x{h} -> {new_w}x{new_h}",
+            message=tr(
+                "svc.toolkit.trim_done",
+                "Cropped ({mode}): {w}x{h} -> {new_w}x{new_h}",
+                mode=eff_mode,
+                w=w,
+                h=h,
+                new_w=new_w,
+                new_h=new_h,
+            ),
         )
     except Exception as exc:
         if tmp_path.exists():
@@ -828,10 +854,10 @@ def scan_video_candidates(
         size_b = int(p.stat().st_size)
         reasons: list[str] = []
         if ext != ".mp4":
-            reasons.append(f"Formato {ext} (objetivo .mp4)")
+            reasons.append(tr("svc.toolkit.vid_reason_format", "Format {ext} (target .mp4)", ext=ext))
         if size_b > threshold_bytes:
             mb = size_b / (1024.0 * 1024.0)
-            reasons.append(f"Tamaño {mb:.1f} MB > {limit_lbl} MB")
+            reasons.append(tr("svc.toolkit.vid_reason_size", "Size {mb} MB > {limit} MB", mb=f"{mb:.1f}", limit=limit_lbl))
 
         w = h = 0
         vcodec = pix_fmt = ""
@@ -843,11 +869,11 @@ def scan_video_candidates(
             vcodec = vinfo["vcodec"]
             pix_fmt = vinfo["pix_fmt"]
             if h > max_height:
-                reasons.append(f"Altura {h}p > {max_height}p")
+                reasons.append(tr("svc.toolkit.vid_reason_height", "Height {h}p > {max_h}p", h=h, max_h=max_height))
             if vcodec and vcodec != "h264":
-                reasons.append(f"Códec {vcodec} != h264")
+                reasons.append(tr("svc.toolkit.vid_reason_codec", "Codec {codec} != h264", codec=vcodec))
             if pix_fmt and pix_fmt not in ("yuv420p", "yuvj420p"):
-                reasons.append(f"Pixel format {pix_fmt} != yuv420p")
+                reasons.append(tr("svc.toolkit.vid_reason_pixfmt", "Pixel format {pix_fmt} != yuv420p", pix_fmt=pix_fmt))
 
         if reasons:
             candidates.append(
@@ -934,9 +960,9 @@ def normalize_video_file(
     """Transcodifica un video de forma cancelable y reemplaza atómicamente con respaldo `.bak` opcional."""
     src = Path(src_path)
     if not ffmpeg_path or not Path(ffmpeg_path).is_file():
-        return {"status": "error", "src": str(src), "message": "ffmpeg no disponible."}
+        return {"status": "error", "src": str(src), "message": tr("svc.toolkit.vid_no_ffmpeg", "ffmpeg is not available.")}
     if not src.is_file():
-        return {"status": "error", "src": str(src), "message": "El archivo de video no existe."}
+        return {"status": "error", "src": str(src), "message": tr("svc.toolkit.vid_missing_file", "Video file does not exist.")}
 
     bytes_before = int(src.stat().st_size)
     final_mp4 = src.with_suffix(".mp4")
@@ -971,12 +997,16 @@ def normalize_video_file(
                     proc.kill()
                 if tmp_mp4.exists():
                     _unlink_with_retry(tmp_mp4)
-                return {"status": "cancelled", "src": str(src), "message": "Cancelado por el usuario."}
+                return {"status": "cancelled", "src": str(src), "message": tr("svc.toolkit.vid_cancelled", "Cancelled by user.")}
             time.sleep(0.15)
 
         stderr_bytes = proc.stderr.read() if proc.stderr else b""
         if proc.returncode != 0 or not tmp_mp4.is_file() or tmp_mp4.stat().st_size == 0:
-            err_msg = stderr_bytes.decode("utf-8", errors="replace").strip() or f"ffmpeg salió con código {proc.returncode}"
+            err_msg = stderr_bytes.decode("utf-8", errors="replace").strip() or tr(
+                "svc.toolkit.vid_ffmpeg_exit_code",
+                "ffmpeg exited with code {code}",
+                code=proc.returncode,
+            )
             if tmp_mp4.exists():
                 _unlink_with_retry(tmp_mp4)
             return {"status": "error", "src": str(src), "message": err_msg}
@@ -1001,7 +1031,12 @@ def normalize_video_file(
             "backup_path": backup_path,
             "bytes_before": bytes_before,
             "bytes_after": bytes_after,
-            "message": f"Convertido a {final_mp4.name} ({bytes_after / (1024 * 1024):.1f} MB)",
+            "message": tr(
+                "svc.toolkit.vid_converted",
+                "Converted to {name} ({mb} MB)",
+                name=final_mp4.name,
+                mb=f"{bytes_after / (1024 * 1024):.1f}",
+            ),
         }
     except Exception as exc:
         if tmp_mp4.exists():
@@ -1262,7 +1297,7 @@ def create_filtered_1g1r_list(
     """
     src = db.get_list(int(source_list_id))
     if not src:
-        raise ValueError("Lista origen no encontrada.")
+        raise ValueError(tr("svc.toolkit.err_source_list_not_found", "Source list not found."))
 
     base_name = (new_list_name or f"{src['name']} (1G1R)").strip()
     existing_names = {str(l.get("name") or "").strip().lower() for l in db.get_lists(with_counts=False)}

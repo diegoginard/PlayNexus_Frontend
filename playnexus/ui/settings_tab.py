@@ -14,6 +14,13 @@ from PySide6.QtWidgets import (
     QSpinBox, QDialog, QMessageBox, QFrame, QScrollArea, QAbstractItemView,
     QListWidget, QListWidgetItem, QStackedWidget
 )
+from playnexus.i18n import (
+    discover_languages,
+    get_lang_dir,
+    restart_current_application,
+    set_language,
+    tr,
+)
 from playnexus.services.controls import (
     ACTIONS_INFO, get_all_bindings, set_binding, reset_default_bindings,
     qt_key_to_name, qt_event_to_shortcut_name,
@@ -30,37 +37,48 @@ from playnexus.ui.table_utils import (
     paused_table_sorting,
 )
 
-SCREEN_MODES = [
-    ("Pantalla completa exclusiva (Fullscreen)", "fullscreen"),
-    ("Ventana sin bordes (Borderless Window)", "borderless"),
-    ("Modo ventana estándar", "windowed")
-]
 
-RESOLUTIONS_LIST = [
-    ("Resolución del sistema (Nativa del monitor)", "system"),
-    ("3840 x 2160 (4K UHD - 16:9)", "3840x2160"),
-    ("2560 x 1440 (2K QHD - 16:9)", "2560x1440"),
-    ("1920 x 1080 (Full HD 1080p - 16:9)", "1920x1080"),
-    ("1600 x 900 (HD+ - 16:9)", "1600x900"),
-    ("1366 x 768 (Laptop HD - 16:9)", "1366x768"),
-    ("1360 x 768 (HD Wide - TV / Monitor)", "1360x768"),
-    ("1280 x 720 (HD 720p - 16:9)", "1280x720"),
-    ("1920 x 1200 (WUXGA - 16:10)", "1920x1200"),
-    ("1680 x 1050 (16:10)", "1680x1050"),
-    ("1280 x 800 (16:10)", "1280x800"),
-    ("1280 x 1024 (SXGA - 5:4)", "1280x1024"),
-    ("1024 x 768 (XGA 4:3 CRT / Arcade)", "1024x768"),
-    ("800 x 600 (SVGA - 4:3)", "800x600"),
-    ("640 x 480 (VGA 4:3 Retro)", "640x480"),
-    ("Personalizada (definir ancho y alto)...", "custom"),
-]
+def _get_screen_modes() -> list[tuple[str, str]]:
+    return [
+        (tr("settings.video.mode_fullscreen", "Exclusive Fullscreen"), "fullscreen"),
+        (tr("settings.video.mode_borderless", "Borderless Window"), "borderless"),
+        (tr("settings.video.mode_windowed", "Standard Windowed Mode"), "windowed"),
+    ]
 
-GRAPHICS_ENGINES = [
-    ("DirectX 11 (Direct3D 11 - Recomendado en Windows)", "d3d11"),
-    ("DirectX 12 (Direct3D 12)", "d3d12"),
-    ("OpenGL (Estándar multiplataforma)", "opengl"),
-    ("Vulkan (Alto rendimiento)", "vulkan"),
-]
+
+def _get_resolutions_list() -> list[tuple[str, str]]:
+    return [
+        (tr("settings.video.res_system", "System Resolution (Monitor Native)"), "system"),
+        ("3840 x 2160 (4K UHD - 16:9)", "3840x2160"),
+        ("2560 x 1440 (2K QHD - 16:9)", "2560x1440"),
+        ("1920 x 1080 (Full HD 1080p - 16:9)", "1920x1080"),
+        ("1600 x 900 (HD+ - 16:9)", "1600x900"),
+        ("1366 x 768 (Laptop HD - 16:9)", "1366x768"),
+        ("1360 x 768 (HD Wide - TV / Monitor)", "1360x768"),
+        ("1280 x 720 (HD 720p - 16:9)", "1280x720"),
+        ("1920 x 1200 (WUXGA - 16:10)", "1920x1200"),
+        ("1680 x 1050 (16:10)", "1680x1050"),
+        ("1280 x 800 (16:10)", "1280x800"),
+        ("1280 x 1024 (SXGA - 5:4)", "1280x1024"),
+        ("1024 x 768 (XGA 4:3 CRT / Arcade)", "1024x768"),
+        ("800 x 600 (SVGA - 4:3)", "800x600"),
+        ("640 x 480 (VGA 4:3 Retro)", "640x480"),
+        (tr("settings.video.res_custom", "Custom (define width and height)..."), "custom"),
+    ]
+
+
+def _get_graphics_engines() -> list[tuple[str, str]]:
+    return [
+        (tr("settings.video.engine_d3d11", "DirectX 11 (Direct3D 11 - Recommended on Windows)"), "d3d11"),
+        ("DirectX 12 (Direct3D 12)", "d3d12"),
+        (tr("settings.video.engine_opengl", "OpenGL (Cross-platform standard)"), "opengl"),
+        (tr("settings.video.engine_vulkan", "Vulkan (High performance)"), "vulkan"),
+    ]
+
+
+SCREEN_MODES = _get_screen_modes()
+RESOLUTIONS_LIST = _get_resolutions_list()
+GRAPHICS_ENGINES = _get_graphics_engines()
 
 
 class KeyCaptureDialog(QDialog):
@@ -72,7 +90,7 @@ class KeyCaptureDialog(QDialog):
         self.action_name = action_name
         self.captured_key_name: str | None = None
 
-        self.setWindowTitle("Asignar tecla o atajo")
+        self.setWindowTitle(tr("settings.key_dlg.title", "Assign Key or Shortcut"))
         self.setFixedSize(460, 240)
         self.setModal(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -88,7 +106,7 @@ class KeyCaptureDialog(QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
 
-        lbl_title = QLabel("Asignando tecla para:")
+        lbl_title = QLabel(tr("settings.key_dlg.assigning_for", "Assigning key for:"))
         lbl_title.setStyleSheet("color: #9aa5b8; font-size: 10pt;")
         layout.addWidget(lbl_title)
 
@@ -106,18 +124,18 @@ class KeyCaptureDialog(QDialog):
             }
         """)
         kb_layout = QVBoxLayout(self.key_box)
-        self.status_label = QLabel("Presioná una tecla en el teclado...")
+        self.status_label = QLabel(tr("settings.key_dlg.prompt", "Press a key on the keyboard..."))
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("color: #e2e8f0; font-size: 11pt; font-weight: bold;")
         kb_layout.addWidget(self.status_label)
         layout.addWidget(self.key_box)
 
-        hint = QLabel("Presioná cualquier tecla o atajo (ej: Escape, Espacio, Enter, Flechas, Letras, Ctrl+Q, Alt+F4...)")
+        hint = QLabel(tr("settings.key_dlg.hint", "Press any key or shortcut (e.g., Escape, Space, Enter, Arrows, Letters, Ctrl+Q, Alt+F4...)"))
         hint.setStyleSheet("color: #718096; font-size: 8.5pt;")
         hint.setAlignment(Qt.AlignCenter)
         layout.addWidget(hint)
 
-        btn_cancel = QPushButton("Cancelar")
+        btn_cancel = QPushButton(tr("common.cancel", "Cancel"))
         btn_cancel.setFocusPolicy(Qt.NoFocus)
         btn_cancel.clicked.connect(self._safe_reject)
         layout.addWidget(btn_cancel)
@@ -180,7 +198,7 @@ class KeyCaptureDialog(QDialog):
 
         name = qt_event_to_shortcut_name(event)
         self.captured_key_name = name
-        self.status_label.setText(f"✓ Tecla asignada: {name}")
+        self.status_label.setText(tr("settings.key_dlg.assigned", "✓ Key assigned: {name}", name=name))
         self.status_label.setStyleSheet("color: #4ade80; font-size: 12pt; font-weight: bold;")
         event.accept()
 
@@ -207,7 +225,7 @@ class KeyCaptureDialog(QDialog):
                 self.status_label.setText(f"{' + '.join(mod_names)} + ...")
                 self.status_label.setStyleSheet("color: #93c5fd; font-size: 11pt; font-weight: bold;")
             else:
-                self.status_label.setText("Presioná una tecla en el teclado...")
+                self.status_label.setText(tr("settings.key_dlg.prompt", "Press a key on the keyboard..."))
                 self.status_label.setStyleSheet("color: #e2e8f0; font-size: 11pt; font-weight: bold;")
             event.accept()
             return
@@ -223,7 +241,7 @@ class GamepadCaptureDialog(QDialog):
         self.action_name = action_name
         self.captured_button_name: str | None = None
 
-        self.setWindowTitle("Asignar botón de mando / joystick")
+        self.setWindowTitle(tr("settings.pad_dlg.title", "Assign Controller / Gamepad Button"))
         self.setFixedSize(460, 240)
         self.setModal(True)
         self.setStyleSheet("""
@@ -238,7 +256,7 @@ class GamepadCaptureDialog(QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
 
-        lbl_title = QLabel("Asignando botón de mando para:")
+        lbl_title = QLabel(tr("settings.pad_dlg.assigning_for", "Assigning controller button for:"))
         lbl_title.setStyleSheet("color: #9aa5b8; font-size: 10pt;")
         layout.addWidget(lbl_title)
 
@@ -256,18 +274,18 @@ class GamepadCaptureDialog(QDialog):
             }
         """)
         kb_layout = QVBoxLayout(self.key_box)
-        self.status_label = QLabel("Presioná un botón, cruceta o palanca en el mando...")
+        self.status_label = QLabel(tr("settings.pad_dlg.prompt", "Press a button, D-pad, or stick on the controller..."))
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("color: #e2e8f0; font-size: 11pt; font-weight: bold;")
         kb_layout.addWidget(self.status_label)
         layout.addWidget(self.key_box)
 
-        hint = QLabel("Soporta mandos Xbox, PlayStation, 8BitDo y genéricos USB (A, B, X, Y, LB, RB, D-Pad, etc.)")
+        hint = QLabel(tr("settings.pad_dlg.hint", "Supports Xbox, PlayStation, 8BitDo and generic USB controllers (A, B, X, Y, LB, RB, D-Pad, etc.)"))
         hint.setStyleSheet("color: #718096; font-size: 8.5pt;")
         hint.setAlignment(Qt.AlignCenter)
         layout.addWidget(hint)
 
-        btn_cancel = QPushButton("Cancelar")
+        btn_cancel = QPushButton(tr("common.cancel", "Cancel"))
         btn_cancel.clicked.connect(self._safe_reject)
         layout.addWidget(btn_cancel)
 
@@ -295,7 +313,7 @@ class GamepadCaptureDialog(QDialog):
 
         self.captured_button_name = btn_name
         self._timer.stop()
-        self.status_label.setText(f"✓ Botón capturado: {btn_name}")
+        self.status_label.setText(tr("settings.pad_dlg.captured", "✓ Button captured: {btn}", btn=btn_name))
         self.status_label.setStyleSheet("color: #4ade80; font-size: 12pt; font-weight: bold;")
         QTimer.singleShot(180, self.accept)
 
@@ -331,14 +349,17 @@ class SystemSettingsWidget(QWidget):
         h_layout.setContentsMargins(14, 10, 14, 10)
         h_layout.setSpacing(4)
 
-        title = QLabel("⚙ Configuración del Sistema")
+        title = QLabel(tr("settings.header.title", "⚙ System Settings"))
         title.setFont(QFont("Segoe UI", 15, QFont.Bold))
         title.setStyleSheet("color: #ffffff;")
         h_layout.addWidget(title)
 
         desc = QLabel(
-            "Administrá los controles de teclado y joystick, el comportamiento al ejecutar emuladores, "
-            "la pantalla y video del frontend, y las plantillas rápidas de emulación."
+            tr(
+                "settings.header.desc",
+                "Manage keyboard and controller controls, emulator launch behavior, "
+                "frontend display and video, quick emulator templates, and interface language."
+            )
         )
         desc.setStyleSheet("color: #9aa5b8; font-size: 9.5pt;")
         desc.setWordWrap(True)
@@ -386,10 +407,26 @@ class SystemSettingsWidget(QWidget):
         """)
 
         sidebar_items = [
-            ("⌨️🎮  Configuración de teclas y mando", "Asignación de teclas y botones de joystick"),
-            ("🕹️  Comportamiento de emuladores", "Opciones de audio, salida y bezel overlay"),
-            ("🖥️  Pantalla y video del frontend", "Modo de pantalla, resolución, monitor y FPS"),
-            ("🧩  Plantilla rápida para emuladores", "Gestión de plantillas y presets de emuladores"),
+            (
+                tr("settings.tab.controls", "⌨️🎮  Controls & Gamepad"),
+                tr("settings.tab.controls_tip", "Keyboard key and controller button bindings"),
+            ),
+            (
+                tr("settings.tab.emulators", "🕹️  Emulator Behavior"),
+                tr("settings.tab.emulators_tip", "Audio, exit shortcut, and bezel overlay options"),
+            ),
+            (
+                tr("settings.tab.video", "🖥️  Frontend Display & Video"),
+                tr("settings.tab.video_tip", "Screen mode, resolution, monitor, and FPS overlay"),
+            ),
+            (
+                tr("settings.tab.templates", "🧩  Quick Emulator Templates"),
+                tr("settings.tab.templates_tip", "Manage quick emulator presets and templates"),
+            ),
+            (
+                tr("settings.tab.language", "🌐  Language / Idioma"),
+                tr("settings.tab.language_tip", "Interface language selection (lang/*.txt)"),
+            ),
         ]
 
         for item_text, item_tip in sidebar_items:
@@ -420,13 +457,16 @@ class SystemSettingsWidget(QWidget):
         page_controls_layout.setContentsMargins(20, 18, 20, 18)
         page_controls_layout.setSpacing(14)
 
-        grp_controls = QGroupBox("🎮 Configuración de Teclas y Mando")
+        grp_controls = QGroupBox(tr("settings.controls.group", "🎮 Controls & Gamepad Configuration"))
         v_controls = QVBoxLayout(grp_controls)
         v_controls.setSpacing(12)
 
         lbl_c_info = QLabel(
-            "Configurá las teclas del teclado y los botones de mandos / joysticks para cada acción. "
-            "Ambos métodos de control funcionan de manera simultánea en todo momento en PlayNexus."
+            tr(
+                "settings.controls.info",
+                "Configure keyboard keys and controller/gamepad buttons for each action. "
+                "Both input methods work simultaneously at all times in PlayNexus."
+            )
         )
         lbl_c_info.setStyleSheet("color: #a0aec0; font-size: 9.5pt;")
         lbl_c_info.setWordWrap(True)
@@ -435,7 +475,10 @@ class SystemSettingsWidget(QWidget):
         self.controls_table = QTableWidget()
         self.controls_table.setColumnCount(4)
         self.controls_table.setHorizontalHeaderLabels([
-            "Acción", "Descripción", "Tecla (Teclado)", "Mando / Joystick"
+            tr("settings.controls.col_action", "Action"),
+            tr("settings.controls.col_desc", "Description"),
+            tr("settings.controls.col_key", "Key (Keyboard)"),
+            tr("settings.controls.col_pad", "Controller / Gamepad"),
         ])
         configure_details_table(
             self.controls_table,
@@ -446,7 +489,7 @@ class SystemSettingsWidget(QWidget):
         v_controls.addWidget(self.controls_table)
 
         row_c_btns = QHBoxLayout()
-        btn_reset_keys = QPushButton("↺ Restablecer controles predeterminados (Teclado y Mandos)")
+        btn_reset_keys = QPushButton(tr("settings.controls.reset_btn", "↺ Reset default controls (Keyboard & Controllers)"))
         btn_reset_keys.clicked.connect(self._reset_controls_defaults)
         row_c_btns.addWidget(btn_reset_keys)
         row_c_btns.addStretch(1)
@@ -464,40 +507,55 @@ class SystemSettingsWidget(QWidget):
         page_emu_layout.setContentsMargins(20, 18, 20, 18)
         page_emu_layout.setSpacing(14)
 
-        grp_emu = QGroupBox("🕹 Comportamiento de Emuladores")
+        grp_emu = QGroupBox(tr("settings.emu.group", "🕹 Emulator Behavior"))
         v_emu = QVBoxLayout(grp_emu)
         v_emu.setSpacing(14)
 
-        self.chk_mute_video = QCheckBox("Silenciar audio de los videos snaps automáticamente al ejecutar un emulador")
+        self.chk_mute_video = QCheckBox(
+            tr("settings.emu.mute_video", "Automatically mute video snap audio when launching an emulator")
+        )
         self.chk_mute_video.setStyleSheet("font-weight: 500; font-size: 10pt;")
         v_emu.addWidget(self.chk_mute_video)
 
-        lbl_mute_hint = QLabel("Al salir del emulador, el sonido del video snap en el diseño visual se reanuda de inmediato.")
+        lbl_mute_hint = QLabel(
+            tr("settings.emu.mute_hint", "When exiting the emulator, video snap sound in the layout resumes immediately.")
+        )
         lbl_mute_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
         lbl_mute_hint.setWordWrap(True)
         v_emu.addWidget(lbl_mute_hint)
 
-        self.chk_global_exit = QCheckBox("Permitir cerrar el emulador en ejecución con la tecla asignada (ej: Escape)")
+        self.chk_global_exit = QCheckBox(
+            tr("settings.emu.global_exit", "Allow closing the running emulator using the assigned key (e.g., Escape)")
+        )
         self.chk_global_exit.setStyleSheet("font-weight: 500; font-size: 10pt;")
         v_emu.addWidget(self.chk_global_exit)
 
-        lbl_exit_hint = QLabel("Monitorea globalmente en Windows la tecla configurada y cierra el emulador de forma limpia al presionarla.")
+        lbl_exit_hint = QLabel(
+            tr("settings.emu.exit_hint", "Globally monitors the configured key on Windows and cleanly closes the emulator when pressed.")
+        )
         lbl_exit_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
         lbl_exit_hint.setWordWrap(True)
         v_emu.addWidget(lbl_exit_hint)
 
-        self.chk_gamepad_exit = QCheckBox("Permitir cerrar el emulador con combo de control / gamepad (Back + Start)")
+        self.chk_gamepad_exit = QCheckBox(
+            tr("settings.emu.gamepad_exit", "Allow closing the emulator with controller / gamepad combo (Back + Start)")
+        )
         self.chk_gamepad_exit.setStyleSheet("font-weight: 500; font-size: 10pt;")
         v_emu.addWidget(self.chk_gamepad_exit)
 
-        self.chk_bezel_overlay = QCheckBox("Activar Bezels superpuestos (Overlay en primer plano sobre el emulador)")
+        self.chk_bezel_overlay = QCheckBox(
+            tr("settings.emu.bezel_overlay", "Enable Bezel Overlays (Foreground overlay above the emulator)")
+        )
         self.chk_bezel_overlay.setStyleSheet("font-weight: 500; font-size: 10pt;")
         v_emu.addWidget(self.chk_bezel_overlay)
 
         lbl_bezel_hint = QLabel(
-            "Superpone el marco decorativo (bezel) específico de la ROM o el genérico por encima del emulador. "
-            "Podés ocultar o restaurar el bezel en cualquier momento durante la emulación usando la tecla o botón asignado "
-            "en la tabla de controles (por defecto F11 o L-Thumb) para acceder libremente a menús y opciones del emulador."
+            tr(
+                "settings.emu.bezel_hint",
+                "Overlays the ROM-specific or generic decorative bezel frame on top of the emulator. "
+                "You can hide or restore the bezel anytime during emulation using the assigned key or controller button "
+                "in the controls table (default F11 or L-Thumb) to freely access emulator menus and options."
+            )
         )
         lbl_bezel_hint.setStyleSheet("color: #718096; font-size: 9pt; margin-left: 24px;")
         lbl_bezel_hint.setWordWrap(True)
@@ -515,7 +573,7 @@ class SystemSettingsWidget(QWidget):
         page_video_layout.setContentsMargins(20, 18, 20, 18)
         page_video_layout.setSpacing(14)
 
-        grp_video = QGroupBox("🖥 Pantalla y Video del Frontend")
+        grp_video = QGroupBox(tr("settings.video.group", "🖥 Frontend Display & Video"))
         v_video = QVBoxLayout(grp_video)
         v_video.setSpacing(14)
 
@@ -523,17 +581,17 @@ class SystemSettingsWidget(QWidget):
         row_v1.setSpacing(16)
 
         col1 = QVBoxLayout()
-        col1.addWidget(QLabel("Modo de pantalla:"))
+        col1.addWidget(QLabel(tr("settings.video.screen_mode", "Display mode:")))
         self.mode_combo = QComboBox()
-        for label, val in SCREEN_MODES:
+        for label, val in _get_screen_modes():
             self.mode_combo.addItem(label, val)
         col1.addWidget(self.mode_combo)
         row_v1.addLayout(col1, 1)
 
         col2 = QVBoxLayout()
-        col2.addWidget(QLabel("Resolución:"))
+        col2.addWidget(QLabel(tr("settings.video.resolution", "Resolution:")))
         self.res_combo = QComboBox()
-        for label, val in RESOLUTIONS_LIST:
+        for label, val in _get_resolutions_list():
             self.res_combo.addItem(label, val)
         self.res_combo.currentIndexChanged.connect(self._on_res_changed)
         col2.addWidget(self.res_combo)
@@ -548,7 +606,7 @@ class SystemSettingsWidget(QWidget):
         row_custom.setSpacing(16)
 
         col_cw = QVBoxLayout()
-        col_cw.addWidget(QLabel("📐 Ancho personalizado (px):"))
+        col_cw.addWidget(QLabel(tr("settings.video.custom_w", "📐 Custom width (px):")))
         self.spin_custom_w = QSpinBox()
         self.spin_custom_w.setRange(320, 7680)
         self.spin_custom_w.setSingleStep(10)
@@ -558,7 +616,7 @@ class SystemSettingsWidget(QWidget):
         row_custom.addLayout(col_cw, 1)
 
         col_ch = QVBoxLayout()
-        col_ch.addWidget(QLabel("Alto personalizado (px):"))
+        col_ch.addWidget(QLabel(tr("settings.video.custom_h", "Custom height (px):")))
         self.spin_custom_h = QSpinBox()
         self.spin_custom_h.setRange(240, 4320)
         self.spin_custom_h.setSingleStep(10)
@@ -574,40 +632,56 @@ class SystemSettingsWidget(QWidget):
         row_v2.setSpacing(16)
 
         col3 = QVBoxLayout()
-        col3.addWidget(QLabel("Motor gráfico / API de video:"))
+        col3.addWidget(QLabel(tr("settings.video.driver", "Graphics engine / Video API:")))
         self.driver_combo = QComboBox()
-        for label, val in GRAPHICS_ENGINES:
+        for label, val in _get_graphics_engines():
             self.driver_combo.addItem(label, val)
         col3.addWidget(self.driver_combo)
         row_v2.addLayout(col3, 1)
 
         col4 = QVBoxLayout()
-        col4.addWidget(QLabel("Monitor de destino:"))
+        col4.addWidget(QLabel(tr("settings.video.monitor", "Target monitor:")))
         self.screen_combo = QComboBox()
         screens = QGuiApplication.screens()
         primary = QGuiApplication.primaryScreen()
+        primary_tag = tr("settings.video.monitor_primary", " [Primary]")
         for idx, scr in enumerate(screens):
             geo = scr.geometry()
-            tag = " [Principal]" if scr == primary else ""
-            self.screen_combo.addItem(f"Monitor {idx + 1}: {geo.width()}x{geo.height()} ({scr.name()}){tag}", idx)
+            tag = primary_tag if scr == primary else ""
+            self.screen_combo.addItem(
+                tr(
+                    "settings.video.monitor_item",
+                    "Monitor {num}: {w}x{h} ({name}){tag}",
+                    num=idx + 1, w=geo.width(), h=geo.height(), name=scr.name(), tag=tag,
+                ),
+                idx,
+            )
         self.screen_combo.currentIndexChanged.connect(self._on_screen_changed)
         col4.addWidget(self.screen_combo)
         row_v2.addLayout(col4, 1)
 
         v_video.addLayout(row_v2)
 
-        lbl_driver_hint = QLabel("💡 <i>Nota: El cambio de motor gráfico (DirectX 11, DirectX 12, OpenGL o Vulkan) se aplicará la próxima vez que inicies PlayNexus.</i>")
+        lbl_driver_hint = QLabel(
+            tr(
+                "settings.video.driver_hint",
+                "💡 <i>Note: Changes to the graphics engine (DirectX 11, DirectX 12, OpenGL, or Vulkan) will apply the next time you start PlayNexus.</i>"
+            )
+        )
         lbl_driver_hint.setStyleSheet("color: #9aa5b8; font-size: 8.5pt;")
         lbl_driver_hint.setWordWrap(True)
         v_video.addWidget(lbl_driver_hint)
 
-        self.chk_show_fps = QCheckBox("Mostrar contador de FPS y rendimiento en el frontend (Overlay)")
+        self.chk_show_fps = QCheckBox(tr("settings.video.show_fps", "Show FPS and performance counter on frontend (Overlay)"))
         self.chk_show_fps.setStyleSheet("font-weight: 500; font-size: 10pt; margin-top: 6px;")
         v_video.addWidget(self.chk_show_fps)
 
         lbl_fps_hint = QLabel(
-            "Muestra en tiempo real los fotogramas por segundo (FPS), tiempo de render, resolución y motor gráfico. "
-            "Podés activarlo/desactivarlo aquí o en cualquier momento mediante la tecla o botón asignado en la tabla de controles."
+            tr(
+                "settings.video.fps_hint",
+                "Displays real-time frames per second (FPS), render time, resolution, and graphics engine. "
+                "You can toggle it here or anytime using the assigned key or button in the controls table."
+            )
         )
         lbl_fps_hint.setStyleSheet("color: #718096; font-size: 8.5pt; margin-left: 24px;")
         lbl_fps_hint.setWordWrap(True)
@@ -625,13 +699,16 @@ class SystemSettingsWidget(QWidget):
         page_tmpl_layout.setContentsMargins(20, 18, 20, 18)
         page_tmpl_layout.setSpacing(14)
 
-        grp_templates = QGroupBox("🧩 Plantilla Rápida para Emuladores")
+        grp_templates = QGroupBox(tr("settings.tmpl.group", "🧩 Quick Emulator Templates"))
         v_templates = QVBoxLayout(grp_templates)
         v_templates.setSpacing(12)
 
         lbl_tmpl_desc = QLabel(
-            "Administrá las plantillas que aparecen en el menú desplegable «Plantilla rápida» al dar de alta o configurar emuladores. "
-            "Podés crear tus propios presets con ejecutables, argumentos y plataformas habituales."
+            tr(
+                "settings.tmpl.desc",
+                "Manage the templates shown in the «Quick Template» dropdown when adding or editing emulators. "
+                "You can create your own presets with common executables, arguments, and platforms."
+            )
         )
         lbl_tmpl_desc.setStyleSheet("color: #a0aec0; font-size: 9.5pt;")
         lbl_tmpl_desc.setWordWrap(True)
@@ -640,7 +717,15 @@ class SystemSettingsWidget(QWidget):
         self.templates_table = QTableWidget()
         self.templates_table.setColumnCount(9)
         self.templates_table.setHorizontalHeaderLabels([
-            "Nombre", "Ejecutable", "Argumentos", "Plataforma", "Retardo", "Fade", "Carga (In)", "Cierre (Out)", "Descripción"
+            tr("settings.tmpl.col_name", "Name"),
+            tr("settings.tmpl.col_exec", "Executable"),
+            tr("settings.tmpl.col_args", "Arguments"),
+            tr("settings.tmpl.col_platform", "Platform"),
+            tr("settings.tmpl.col_delay", "Delay"),
+            tr("settings.tmpl.col_fade", "Fade"),
+            tr("settings.tmpl.col_load_in", "Load (In)"),
+            tr("settings.tmpl.col_load_out", "Exit (Out)"),
+            tr("settings.tmpl.col_desc", "Description"),
         ])
         configure_details_table(
             self.templates_table,
@@ -651,21 +736,21 @@ class SystemSettingsWidget(QWidget):
         v_templates.addWidget(self.templates_table)
 
         row_t_btns = QHBoxLayout()
-        btn_add_tmpl = QPushButton("➕ Agregar plantilla…")
+        btn_add_tmpl = QPushButton(tr("settings.tmpl.add_btn", "➕ Add template…"))
         btn_add_tmpl.clicked.connect(self._add_template)
         row_t_btns.addWidget(btn_add_tmpl)
 
-        btn_edit_tmpl = QPushButton("✏ Editar plantilla…")
+        btn_edit_tmpl = QPushButton(tr("settings.tmpl.edit_btn", "✏ Edit template…"))
         btn_edit_tmpl.clicked.connect(self._edit_selected_template)
         row_t_btns.addWidget(btn_edit_tmpl)
 
-        btn_del_tmpl = QPushButton("🗑 Eliminar plantilla")
+        btn_del_tmpl = QPushButton(tr("settings.tmpl.del_btn", "🗑 Delete template"))
         btn_del_tmpl.clicked.connect(self._delete_selected_template)
         row_t_btns.addWidget(btn_del_tmpl)
 
         row_t_btns.addStretch()
 
-        btn_reset_tmpl = QPushButton("↺ Restaurar plantillas predeterminadas")
+        btn_reset_tmpl = QPushButton(tr("settings.tmpl.reset_btn", "↺ Restore default templates"))
         btn_reset_tmpl.clicked.connect(self._reset_templates)
         row_t_btns.addWidget(btn_reset_tmpl)
 
@@ -674,6 +759,58 @@ class SystemSettingsWidget(QWidget):
         page_tmpl_layout.addWidget(grp_templates)
         page_tmpl_layout.addStretch(1)
         self.stacked_widget.addWidget(_make_tab_scroll(page_tmpl_container))
+
+        # -------------------------------------------------------------
+        # Pestaña 5: Idioma / Language (archivos .txt en carpeta lang/)
+        # -------------------------------------------------------------
+        page_lang_container = QWidget()
+        page_lang_layout = QVBoxLayout(page_lang_container)
+        page_lang_layout.setContentsMargins(20, 18, 20, 18)
+        page_lang_layout.setSpacing(14)
+
+        grp_lang = QGroupBox(tr("settings.lang.group", "🌐 Interface Language"))
+        v_lang = QVBoxLayout(grp_lang)
+        v_lang.setSpacing(12)
+
+        lbl_lang_desc = QLabel(
+            tr(
+                "settings.lang.desc",
+                "Select the application language. PlayNexus automatically loads all .txt language files placed in the 'lang/' folder."
+            )
+        )
+        lbl_lang_desc.setStyleSheet("color: #a0aec0; font-size: 9.5pt;")
+        lbl_lang_desc.setWordWrap(True)
+        v_lang.addWidget(lbl_lang_desc)
+
+        row_lang = QHBoxLayout()
+        row_lang.setSpacing(12)
+        row_lang.addWidget(QLabel(tr("settings.lang.label", "Active language:")))
+
+        self.lang_combo = QComboBox()
+        self.lang_combo.setMinimumWidth(260)
+        row_lang.addWidget(self.lang_combo, 1)
+
+        btn_reload_langs = QPushButton(tr("settings.lang.reload_btn", "🔄 Reload languages"))
+        btn_reload_langs.clicked.connect(lambda: self._refresh_languages_combo(keep_selection=True))
+        row_lang.addWidget(btn_reload_langs)
+        v_lang.addLayout(row_lang)
+
+        lbl_lang_hint = QLabel(
+            tr(
+                "settings.lang.hint",
+                "💡 To add a new language, copy 'lang/en.txt' as 'lang/<code>.txt' (UTF-8), set '_lang_code' and '_lang_name', translate the values, and click Reload languages.\nFolder: {folder}",
+                folder=str(get_lang_dir()),
+            )
+        )
+        lbl_lang_hint.setStyleSheet("color: #9aa5b8; font-size: 8.5pt;")
+        lbl_lang_hint.setWordWrap(True)
+        lbl_lang_hint.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        v_lang.addWidget(lbl_lang_hint)
+
+        page_lang_layout.addWidget(grp_lang)
+        page_lang_layout.addStretch(1)
+        self.stacked_widget.addWidget(_make_tab_scroll(page_lang_container))
+        self._refresh_languages_combo(keep_selection=False)
 
         # Seleccionar la primera pestaña lateral por defecto
         self.sidebar.setCurrentRow(0)
@@ -686,7 +823,7 @@ class SystemSettingsWidget(QWidget):
         save_bar = QHBoxLayout()
         save_bar.addStretch(1)
 
-        self.save_btn = QPushButton("💾 Guardar Configuración del Sistema")
+        self.save_btn = QPushButton(tr("settings.save_btn", "💾 Save System Settings"))
         self.save_btn.setObjectName("primary")
         self.save_btn.setMinimumHeight(42)
         self.save_btn.setMinimumWidth(280)
@@ -694,10 +831,6 @@ class SystemSettingsWidget(QWidget):
         save_bar.addWidget(self.save_btn)
 
         outer_layout.addLayout(save_bar)
-
-        self.refresh_controls_table()
-        self.refresh_templates_table()
-        self.load_settings()
 
         self.refresh_controls_table()
         self.refresh_templates_table()
@@ -722,14 +855,15 @@ class SystemSettingsWidget(QWidget):
                 self.controls_table.setItem(row, 1, item_desc)
 
                 # Teclado (Botón interactivo + ítem subyacente para ordenar por tecla)
-                key_text = info["key"] if info["key"] else "Sin asignar"
+                unassigned_txt = tr("settings.controls.unassigned", "Unassigned")
+                key_text = info["key"] if info["key"] else unassigned_txt
                 key_sort_item = SortableTableWidgetItem(key_text)
                 key_sort_item.setForeground(Qt.transparent)
                 key_sort_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                 self.controls_table.setItem(row, 2, key_sort_item)
                 btn_key = QPushButton(f"⌨  {key_text}")
                 btn_key.setCursor(Qt.PointingHandCursor)
-                btn_key.setToolTip("Hacé clic para cambiar la tecla asignada")
+                btn_key.setToolTip(tr("settings.controls.key_tip", "Click to change the assigned key"))
                 btn_key.setStyleSheet("""
                     QPushButton {
                         background-color: #242938;
@@ -750,14 +884,14 @@ class SystemSettingsWidget(QWidget):
                 self.controls_table.setCellWidget(row, 2, btn_key)
 
                 # Mando / Joystick (Botón interactivo + ítem subyacente para ordenar por mando)
-                pad_text = info["pad"] if info["pad"] else "Sin asignar"
+                pad_text = info["pad"] if info["pad"] else unassigned_txt
                 pad_sort_item = SortableTableWidgetItem(pad_text)
                 pad_sort_item.setForeground(Qt.transparent)
                 pad_sort_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                 self.controls_table.setItem(row, 3, pad_sort_item)
                 btn_pad = QPushButton(f"🎮  {pad_text}")
                 btn_pad.setCursor(Qt.PointingHandCursor)
-                btn_pad.setToolTip("Hacé clic para cambiar el botón o combo de mando asignado")
+                btn_pad.setToolTip(tr("settings.controls.pad_tip", "Click to change the assigned controller button or combo"))
                 btn_pad.setStyleSheet("""
                     QPushButton {
                         background-color: #242938;
@@ -802,8 +936,8 @@ class SystemSettingsWidget(QWidget):
     def _reset_controls_defaults(self):
         res = QMessageBox.question(
             self,
-            "Restablecer controles",
-            "¿Deseás restablecer todas las teclas y botones de mandos a sus valores predeterminados?",
+            tr("settings.controls.reset_title", "Reset Controls"),
+            tr("settings.controls.reset_msg", "Do you want to reset all keyboard and controller bindings to their default values?"),
             QMessageBox.Yes | QMessageBox.No
         )
         if res == QMessageBox.Yes:
@@ -811,6 +945,28 @@ class SystemSettingsWidget(QWidget):
             reset_default_gamepad_bindings(self.db)
             self.refresh_controls_table()
             self.settings_saved.emit()
+
+    def _refresh_languages_combo(self, keep_selection: bool = True):
+        """Recarga la lista de idiomas disponibles escaneando los `.txt` en `lang/`."""
+        if not hasattr(self, "lang_combo"):
+            return
+        prev_code = str(self.lang_combo.currentData() or "").strip().lower() if keep_selection else ""
+        if not prev_code and self.db:
+            prev_code = str(self.db.get_setting("app_language", "en") or "en").strip().lower()
+        self.lang_combo.blockSignals(True)
+        self.lang_combo.clear()
+        langs = discover_languages()
+        if not langs:
+            self.lang_combo.addItem("English (en)", "en")
+        else:
+            for item in langs:
+                self.lang_combo.addItem(f"{item['name']} ({item['code']})", item["code"])
+        idx = self.lang_combo.findData(prev_code or "en")
+        if idx == -1 and self.lang_combo.count() > 0:
+            idx = 0
+        if idx >= 0:
+            self.lang_combo.setCurrentIndex(idx)
+        self.lang_combo.blockSignals(False)
 
     def _on_res_changed(self):
         is_custom = (self.res_combo.currentData() == "custom")
@@ -830,9 +986,13 @@ class SystemSettingsWidget(QWidget):
         if scr:
             geo = scr.geometry()
             rate = int(round(scr.refreshRate())) if scr.refreshRate() > 0 else 60
-            text = f"Resolución del sistema ({geo.width()} x {geo.height()} @ {rate}Hz — {scr.name()})"
+            text = tr(
+                "settings.video.res_system_detected",
+                "System Resolution ({w} x {h} @ {rate}Hz — {name})",
+                w=geo.width(), h=geo.height(), rate=rate, name=scr.name(),
+            )
         else:
-            text = "Resolución del sistema (Nativa del monitor)"
+            text = tr("settings.video.res_system", "System Resolution (Monitor Native)")
 
         if self.res_combo.count() > 0 and self.res_combo.itemData(0) == "system":
             self.res_combo.setItemText(0, text)
@@ -916,14 +1076,22 @@ class SystemSettingsWidget(QWidget):
             self.refresh_templates_table()
             QMessageBox.information(
                 self,
-                "Plantilla agregada",
-                f"La plantilla '{new_tmpl['name']}' fue guardada con éxito.\nYa está disponible en la lista de 'Plantilla rápida' al registrar o editar emuladores."
+                tr("settings.tmpl.added_title", "Template Added"),
+                tr(
+                    "settings.tmpl.added_msg",
+                    "The template '{name}' was saved successfully.\nIt is now available in the 'Quick Template' dropdown when adding or editing emulators.",
+                    name=new_tmpl["name"],
+                ),
             )
 
     def _edit_selected_template(self):
         selected = self.templates_table.selectionModel().selectedRows()
         if not selected:
-            QMessageBox.information(self, "Seleccionar", "Por favor seleccioná una plantilla de la tabla para editar.")
+            QMessageBox.information(
+                self,
+                tr("common.select", "Select"),
+                tr("settings.tmpl.select_edit_msg", "Please select a template from the table to edit."),
+            )
             return
         row_idx = self._selected_template_index(selected[0].row())
         templates = load_emulator_templates()
@@ -939,7 +1107,11 @@ class SystemSettingsWidget(QWidget):
     def _delete_selected_template(self):
         selected = self.templates_table.selectionModel().selectedRows()
         if not selected:
-            QMessageBox.information(self, "Seleccionar", "Por favor seleccioná una plantilla de la tabla para eliminar.")
+            QMessageBox.information(
+                self,
+                tr("common.select", "Select"),
+                tr("settings.tmpl.select_del_msg", "Please select a template from the table to delete."),
+            )
             return
         row_idx = self._selected_template_index(selected[0].row())
         templates = load_emulator_templates()
@@ -947,8 +1119,8 @@ class SystemSettingsWidget(QWidget):
             target_name = templates[row_idx].get("name", "")
             confirm = QMessageBox.question(
                 self,
-                "Confirmar eliminación",
-                f"¿Deseás eliminar la plantilla '{target_name}'?",
+                tr("common.confirm_delete", "Confirm Deletion"),
+                tr("settings.tmpl.delete_confirm", "Do you want to delete the template '{name}'?", name=target_name),
                 QMessageBox.Yes | QMessageBox.No
             )
             if confirm == QMessageBox.Yes:
@@ -959,8 +1131,11 @@ class SystemSettingsWidget(QWidget):
     def _reset_templates(self):
         confirm = QMessageBox.question(
             self,
-            "Restaurar plantillas",
-            "¿Deseás restaurar todas las plantillas rápidas a los valores predeterminados oficiales?\n\n(Nota: Tus emuladores ya registrados en la biblioteca no se modificarán).",
+            tr("settings.tmpl.reset_title", "Restore Templates"),
+            tr(
+                "settings.tmpl.reset_msg",
+                "Do you want to restore all quick templates to the official defaults?\n\n(Note: Emulators already registered in your library will not be modified)."
+            ),
             QMessageBox.Yes | QMessageBox.No
         )
         if confirm == QMessageBox.Yes:
@@ -1015,6 +1190,13 @@ class SystemSettingsWidget(QWidget):
 
         self.chk_show_fps.setChecked(self.db.get_setting("video_show_fps", "false").lower() == "true")
 
+        # Idioma
+        self._refresh_languages_combo(keep_selection=False)
+        lang_code = (self.db.get_setting("app_language", "en") or "en").strip().lower()
+        idx_lang = self.lang_combo.findData(lang_code)
+        if idx_lang != -1:
+            self.lang_combo.setCurrentIndex(idx_lang)
+
         self._update_system_res_label()
         self.refresh_templates_table()
 
@@ -1022,6 +1204,8 @@ class SystemSettingsWidget(QWidget):
         """Guarda todas las configuraciones en la base de datos."""
         if not self.db:
             return
+
+        prev_lang = (self.db.get_setting("app_language", "en") or "en").strip().lower()
 
         # Emulador
         self.db.set_setting("emulator_mute_video", "true" if self.chk_mute_video.isChecked() else "false")
@@ -1048,10 +1232,34 @@ class SystemSettingsWidget(QWidget):
 
         self.db.set_setting("video_show_fps", "true" if self.chk_show_fps.isChecked() else "false")
 
+        # Idioma
+        new_lang = str(self.lang_combo.currentData() or "en").strip().lower()
+        self.db.set_setting("app_language", new_lang)
+        set_language(new_lang)
+
         self.settings_saved.emit()
+
+        if new_lang != prev_lang:
+            ans = QMessageBox.question(
+                self,
+                tr("settings.lang.restart_title", "Language Updated"),
+                tr(
+                    "settings.lang.restart_msg",
+                    "The configuration and language were saved successfully.\n\n"
+                    "Do you want to restart PlayNexus now to apply the new language across the entire interface?"
+                ),
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if ans == QMessageBox.Yes:
+                restart_current_application(self)
+                return
+
         QMessageBox.information(
             self,
-            "Configuración guardada",
-            "La configuración del sistema, controles y video fue guardada exitosamente.\n\n"
-            "Si cambiaste el motor gráfico, este se aplicará la próxima vez que inicies PlayNexus."
+            tr("settings.saved_title", "Settings Saved"),
+            tr(
+                "settings.saved_msg",
+                "System, controls, and video settings were saved successfully.\n\n"
+                "If you changed the graphics engine, it will take effect the next time you start PlayNexus."
+            ),
         )

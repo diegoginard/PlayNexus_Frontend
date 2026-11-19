@@ -11,7 +11,9 @@ def main():
     import playnexus  # Asegura configuración de FFmpeg/QtMultimedia antes de crear reproductores
     try:
         from playnexus.db import Database
+        from playnexus.i18n import init_i18n
         db = Database()
+        init_i18n(db)
         driver = db.get_setting("video_driver", "d3d11")
         if driver:
             os.environ["QSG_RHI_BACKEND"] = driver

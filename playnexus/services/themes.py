@@ -3,6 +3,8 @@ import os
 import random
 from pathlib import Path
 
+from playnexus.i18n import tr
+
 # Directorio raíz del proyecto PlayNexus (todo dentro de la carpeta de PlayNexus)
 if getattr(sys, "frozen", False):
     REPO_ROOT = Path(sys.executable).resolve().parent
@@ -76,11 +78,12 @@ def get_theme_info(theme_name: str) -> dict | None:
     return None
 
 
-GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
+_GENERIC_MEDIA_SPEC_DEFS: dict[str, list[dict]] = {
     "Grid": [
         {
             "key": "boxart",
-            "label": "Box Art / Carátulas",
+            "label_key": "svc.themes.media_boxart",
+            "label": "Box Art / Covers",
             "folder": "boxart",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": True
@@ -89,13 +92,15 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
     "Showcase": [
         {
             "key": "boxart",
-            "label": "Box Art / Carátulas",
+            "label_key": "svc.themes.media_boxart",
+            "label": "Box Art / Covers",
             "folder": "boxart",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": True
         },
         {
             "key": "video",
+            "label_key": "svc.themes.media_video",
             "label": "Video Snaps",
             "folder": "videos",
             "extensions": [".mp4", ".mkv", ".avi", ".webm"],
@@ -105,6 +110,7 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
     "Wheel": [
         {
             "key": "wheel",
+            "label_key": "svc.themes.media_wheel",
             "label": "Wheel Logos",
             "folder": "wheel",
             "extensions": [".png", ".webp"],
@@ -112,6 +118,7 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
         },
         {
             "key": "video",
+            "label_key": "svc.themes.media_video",
             "label": "Video Snaps",
             "folder": "videos",
             "extensions": [".mp4", ".mkv", ".avi", ".webm"],
@@ -119,7 +126,8 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
         },
         {
             "key": "boxart",
-            "label": "Box Art / Carátulas",
+            "label_key": "svc.themes.media_boxart",
+            "label": "Box Art / Covers",
             "folder": "boxart",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": False
@@ -128,14 +136,16 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
     "Banners": [
         {
             "key": "wheel",
-            "label": "Logos o Banners",
+            "label_key": "svc.themes.media_banners",
+            "label": "Logos or Banners",
             "folder": "wheel",
             "extensions": [".png", ".webp"],
             "required": True
         },
         {
             "key": "boxart",
-            "label": "Box Art / Carátulas",
+            "label_key": "svc.themes.media_boxart",
+            "label": "Box Art / Covers",
             "folder": "boxart",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": False
@@ -144,12 +154,32 @@ GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
     "Detalles": [
         {
             "key": "boxart",
-            "label": "Box Art / Carátulas",
+            "label_key": "svc.themes.media_boxart",
+            "label": "Box Art / Covers",
             "folder": "boxart",
             "extensions": [".png", ".jpg", ".jpeg", ".webp"],
             "required": True
         }
     ]
+}
+
+
+def _build_generic_media_spec(items: list[dict]) -> list[dict]:
+    return [
+        {
+            "key": item["key"],
+            "label": tr(item["label_key"], item["label"]),
+            "folder": item["folder"],
+            "extensions": list(item["extensions"]),
+            "required": item["required"],
+        }
+        for item in items
+    ]
+
+
+GENERIC_MEDIA_SPECS: dict[str, list[dict]] = {
+    name: _build_generic_media_spec(items)
+    for name, items in _GENERIC_MEDIA_SPEC_DEFS.items()
 }
 
 
@@ -168,14 +198,14 @@ def get_layout_media_spec(layout_name: str) -> list[dict]:
         return []
 
     cache_key = layout_name.lower().strip()
+
+    # 1. Layouts genéricos estándar (evaluados dinámicamente para reflejar el idioma activo)
+    for name, defs in _GENERIC_MEDIA_SPEC_DEFS.items():
+        if cache_key == name.lower():
+            return _build_generic_media_spec(defs)
+
     if cache_key in _LAYOUT_MEDIA_SPEC_CACHE:
         return _LAYOUT_MEDIA_SPEC_CACHE[cache_key]
-
-    # 1. Layouts genéricos estándar
-    for name, spec in GENERIC_MEDIA_SPECS.items():
-        if layout_name.lower() == name.lower():
-            _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = spec
-            return spec
 
     # 2. Temas autónomos: leer directamente desde ThemeLayout en theme_layout.py
     info = get_theme_info(layout_name)
@@ -201,7 +231,7 @@ def get_layout_media_spec(layout_name: str) -> list[dict]:
                     _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = []
                     return []
             except Exception as e:
-                print(f"[PlayNexus] Error al leer requerimientos de {th_file}: {e}")
+                print(tr("svc.themes.err_read_requirements", "[PlayNexus] Error reading requirements from {path}: {err}", path=th_file, err=e))
 
     _LAYOUT_MEDIA_SPEC_CACHE[cache_key] = []
     return []

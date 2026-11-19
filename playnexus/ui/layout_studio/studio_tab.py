@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QSlider, QFrame, QSizePolicy
 )
 
+from playnexus.i18n import tr
 from playnexus.services.themes import get_layouts_root, get_all_theme_layouts
 from playnexus.ui.layout_studio.models import LayoutProject, LayoutElement, CANONICAL_W, CANONICAL_H
 from playnexus.ui.layout_studio.templates import (
@@ -43,10 +44,10 @@ class NewLayoutDialog(QDialog):
     """Diálogo modal para crear un nuevo layout desde una plantilla o en blanco."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Nuevo Layout - PlayNexus Studio")
+        self.setWindowTitle(tr("studio.new_dialog.title", "New Layout - PlayNexus Studio"))
         self.resize(480, 360)
         self.selected_template = "Arcade Cabinet (Clásico)"
-        self.layout_name = "Mi Nuevo Layout"
+        self.layout_name = tr("studio.new_dialog.default_name", "My New Layout")
 
         self._init_ui()
 
@@ -55,13 +56,19 @@ class NewLayoutDialog(QDialog):
 
         form = QFormLayout()
         self.name_edit = QLineEdit(self.layout_name)
-        form.addRow("Nombre del Layout:", self.name_edit)
+        form.addRow(tr("studio.new_dialog.name_label", "Layout Name:"), self.name_edit)
         layout.addLayout(form)
 
-        layout.addWidget(QLabel("Selecciona una Plantilla Inicial:"))
+        layout.addWidget(QLabel(tr("studio.new_dialog.select_template", "Select a Starter Template:")))
         self.tpl_list = QListWidget()
+        template_labels = {
+            "Arcade Cabinet (Clásico)": tr("studio.template.arcade_cabinet", "Arcade Cabinet (Classic)"),
+            "Consola Retro (TV + Cartucho)": tr("studio.template.retro_console", "Retro Console (TV + Cartridge)"),
+            "Minimalista Fullscreen": tr("studio.template.minimalist_fullscreen", "Minimalist Fullscreen"),
+        }
         for tpl_name in TEMPLATES_LIBRARY.keys():
-            item = QListWidgetItem(f"📐  {tpl_name}")
+            display_name = template_labels.get(tpl_name, tpl_name)
+            item = QListWidgetItem(f"📐  {display_name}")
             item.setData(Qt.UserRole, tpl_name)
             self.tpl_list.addItem(item)
         self.tpl_list.setCurrentRow(0)
@@ -73,7 +80,7 @@ class NewLayoutDialog(QDialog):
         layout.addWidget(buttons)
 
     def get_result(self) -> tuple[str, str]:
-        name = self.name_edit.text().strip() or "Nuevo Layout"
+        name = self.name_edit.text().strip() or tr("studio.models.new_layout", "New Layout")
         item = self.tpl_list.currentItem()
         tpl = item.data(Qt.UserRole) if item else "Arcade Cabinet (Clásico)"
         return name, tpl
@@ -112,7 +119,7 @@ class LayoutStudioWidget(QWidget):
         row1_layout.setContentsMargins(0, 0, 0, 2)
         row1_layout.setSpacing(10)
 
-        lbl_select = QLabel("🎨 Layout Activo:")
+        lbl_select = QLabel(tr("studio.toolbar.active_layout", "🎨 Active Layout:"))
         lbl_select.setStyleSheet("font-weight: bold; color: #cbd5e1;")
         row1_layout.addWidget(lbl_select)
 
@@ -131,7 +138,7 @@ class LayoutStudioWidget(QWidget):
         self.cb_layouts.currentIndexChanged.connect(self._on_layout_combo_changed)
         row1_layout.addWidget(self.cb_layouts)
 
-        self.btn_new = QPushButton("➕ Nuevo Layout")
+        self.btn_new = QPushButton(tr("studio.toolbar.new_layout", "➕ New Layout"))
         self.btn_new.setStyleSheet("""
             QPushButton {
                 background: #0284c7;
@@ -149,8 +156,13 @@ class LayoutStudioWidget(QWidget):
         self.btn_new.clicked.connect(self._on_new_layout)
         row1_layout.addWidget(self.btn_new)
 
-        self.btn_save = QPushButton("💾 Guardar Cambios")
-        self.btn_save.setToolTip("Guarda los cambios en theme_layout.py generando previamente una copia de seguridad en /backups")
+        self.btn_save = QPushButton(tr("studio.toolbar.save_changes", "💾 Save Changes"))
+        self.btn_save.setToolTip(
+            tr(
+                "studio.toolbar.save_changes_tip",
+                "Saves changes to theme_layout.py after creating a backup copy in /backups",
+            )
+        )
         self.btn_save.setStyleSheet("""
             QPushButton {
                 background: #16a34a;
@@ -168,7 +180,7 @@ class LayoutStudioWidget(QWidget):
         self.btn_save.clicked.connect(self._on_save_layout)
         row1_layout.addWidget(self.btn_save)
 
-        self.btn_save_as = QPushButton("💾 Guardar Como...")
+        self.btn_save_as = QPushButton(tr("studio.toolbar.save_as", "💾 Save As..."))
         self.btn_save_as.setStyleSheet("""
             QPushButton {
                 background: #334155;
@@ -186,8 +198,13 @@ class LayoutStudioWidget(QWidget):
         self.btn_save_as.clicked.connect(self._on_save_as_layout)
         row1_layout.addWidget(self.btn_save_as)
 
-        self.btn_reset = QPushButton("🔄 Restablecer Cambios")
-        self.btn_reset.setToolTip("Descarta las modificaciones y restablece todos los elementos del layout a su posición, tamaño y forma originales")
+        self.btn_reset = QPushButton(tr("studio.toolbar.reset_changes", "🔄 Reset Changes"))
+        self.btn_reset.setToolTip(
+            tr(
+                "studio.toolbar.reset_changes_tip",
+                "Discards modifications and restores all layout elements to their original position, size, and shape",
+            )
+        )
         self.btn_reset.setStyleSheet("""
             QPushButton {
                 background: #be123c;
@@ -207,7 +224,7 @@ class LayoutStudioWidget(QWidget):
 
         row1_layout.addStretch()
 
-        self.btn_skew_mode = QPushButton("🔮 Deformación 4 Puntos")
+        self.btn_skew_mode = QPushButton(tr("studio.toolbar.skew_mode", "🔮 4-Point Warp"))
         self.btn_skew_mode.setCheckable(True)
         self.btn_skew_mode.setStyleSheet("""
             QPushButton {
@@ -237,7 +254,7 @@ class LayoutStudioWidget(QWidget):
         row2_layout.setContentsMargins(0, 2, 0, 2)
         row2_layout.setSpacing(10)
 
-        lbl_list = QLabel("📁 Lista:")
+        lbl_list = QLabel(tr("studio.toolbar.list_label", "📁 List:"))
         lbl_list.setStyleSheet("font-weight: bold; color: #cbd5e1;")
         row2_layout.addWidget(lbl_list)
 
@@ -256,7 +273,7 @@ class LayoutStudioWidget(QWidget):
         self.cb_lists.currentIndexChanged.connect(self._on_list_combo_changed)
         row2_layout.addWidget(self.cb_lists)
 
-        lbl_game = QLabel("🎮 Juego:")
+        lbl_game = QLabel(tr("studio.toolbar.game_label", "🎮 Game:"))
         lbl_game.setStyleSheet("font-weight: bold; color: #cbd5e1;")
         row2_layout.addWidget(lbl_game)
 
@@ -284,7 +301,9 @@ class LayoutStudioWidget(QWidget):
         row2_layout.addStretch()
 
         self.cb_sandbox_mode = QComboBox()
-        self.cb_sandbox_mode.setToolTip("Modo de visualización al probar en el Sandbox (Ventana o Pantalla Completa)")
+        self.cb_sandbox_mode.setToolTip(
+            tr("studio.sandbox.mode_tip", "Display mode when testing in Sandbox (Windowed or Fullscreen)")
+        )
         self.cb_sandbox_mode.setMinimumWidth(155)
         self.cb_sandbox_mode.setStyleSheet("""
             QComboBox {
@@ -296,14 +315,14 @@ class LayoutStudioWidget(QWidget):
                 font-weight: bold;
             }
         """)
-        self.cb_sandbox_mode.addItem("🪟 Modo Ventana", "windowed")
-        self.cb_sandbox_mode.addItem("🖥 Pantalla Completa", "fullscreen")
-        self.cb_sandbox_mode.addItem("🔲 Ventana sin Bordes", "borderless")
+        self.cb_sandbox_mode.addItem(tr("studio.sandbox.mode.windowed", "🪟 Windowed Mode"), "windowed")
+        self.cb_sandbox_mode.addItem(tr("studio.sandbox.mode.fullscreen", "🖥 Fullscreen"), "fullscreen")
+        self.cb_sandbox_mode.addItem(tr("studio.sandbox.mode.borderless", "🔲 Borderless Window"), "borderless")
         self.cb_sandbox_mode.currentIndexChanged.connect(self._on_sandbox_display_changed)
         row2_layout.addWidget(self.cb_sandbox_mode)
 
         self.cb_sandbox_res = QComboBox()
-        self.cb_sandbox_res.setToolTip("Resolución en la que se ejecutará la prueba del Sandbox")
+        self.cb_sandbox_res.setToolTip(tr("studio.sandbox.res_tip", "Resolution used when running the Sandbox test"))
         self.cb_sandbox_res.setMinimumWidth(180)
         self.cb_sandbox_res.setStyleSheet("""
             QComboBox {
@@ -315,27 +334,32 @@ class LayoutStudioWidget(QWidget):
             }
         """)
         sandbox_resolutions = [
-            ("1280 x 720 (HD 16:9)", "1280x720"),
-            ("1920 x 1080 (Full HD 16:9)", "1920x1080"),
-            ("1600 x 900 (HD+ 16:9)", "1600x900"),
-            ("1366 x 768 (Laptop 16:9)", "1366x768"),
-            ("2560 x 1440 (2K QHD 16:9)", "2560x1440"),
-            ("3840 x 2160 (4K UHD 16:9)", "3840x2160"),
-            ("1920 x 1200 (16:10)", "1920x1200"),
-            ("1280 x 800 (16:10)", "1280x800"),
-            ("1280 x 1024 (5:4)", "1280x1024"),
-            ("1024 x 768 (4:3 CRT/Arcade)", "1024x768"),
-            ("800 x 600 (4:3 SVGA)", "800x600"),
-            ("640 x 480 (4:3 VGA)", "640x480"),
-            ("Nativa del Monitor", "system"),
+            (tr("studio.sandbox.res.1280x720", "1280 x 720 (HD 16:9)"), "1280x720"),
+            (tr("studio.sandbox.res.1920x1080", "1920 x 1080 (Full HD 16:9)"), "1920x1080"),
+            (tr("studio.sandbox.res.1600x900", "1600 x 900 (HD+ 16:9)"), "1600x900"),
+            (tr("studio.sandbox.res.1366x768", "1366 x 768 (Laptop 16:9)"), "1366x768"),
+            (tr("studio.sandbox.res.2560x1440", "2560 x 1440 (2K QHD 16:9)"), "2560x1440"),
+            (tr("studio.sandbox.res.3840x2160", "3840 x 2160 (4K UHD 16:9)"), "3840x2160"),
+            (tr("studio.sandbox.res.1920x1200", "1920 x 1200 (16:10)"), "1920x1200"),
+            (tr("studio.sandbox.res.1280x800", "1280 x 800 (16:10)"), "1280x800"),
+            (tr("studio.sandbox.res.1280x1024", "1280 x 1024 (5:4)"), "1280x1024"),
+            (tr("studio.sandbox.res.1024x768", "1024 x 768 (4:3 CRT/Arcade)"), "1024x768"),
+            (tr("studio.sandbox.res.800x600", "800 x 600 (4:3 SVGA)"), "800x600"),
+            (tr("studio.sandbox.res.640x480", "640 x 480 (4:3 VGA)"), "640x480"),
+            (tr("studio.sandbox.res.system", "Monitor Native"), "system"),
         ]
         for label, val in sandbox_resolutions:
             self.cb_sandbox_res.addItem(label, val)
         self.cb_sandbox_res.currentIndexChanged.connect(self._on_sandbox_display_changed)
         row2_layout.addWidget(self.cb_sandbox_res)
 
-        self.btn_test = QPushButton("▶ Probar en Sandbox")
-        self.btn_test.setToolTip("Abre una previsualización interactiva con las modificaciones actuales del layout (Esc para cerrar, F11 para alternar pantalla completa)")
+        self.btn_test = QPushButton(tr("studio.sandbox.test_btn", "▶ Test in Sandbox"))
+        self.btn_test.setToolTip(
+            tr(
+                "studio.sandbox.test_btn_tip",
+                "Opens an interactive preview with your current layout edits (Esc to close, F11 to toggle fullscreen)",
+            )
+        )
         self.btn_test.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #8b5cf6, stop:1 #6d28d9);
@@ -389,12 +413,12 @@ class LayoutStudioWidget(QWidget):
         timeline_layout.setContentsMargins(4, 2, 4, 2)
         timeline_layout.setSpacing(8)
 
-        lbl_tl_title = QLabel("⏱ Animación:")
+        lbl_tl_title = QLabel(tr("studio.timeline.title", "⏱ Animation:"))
         lbl_tl_title.setStyleSheet("font-weight: bold; color: #38bdf8; font-size: 8.5pt;")
         timeline_layout.addWidget(lbl_tl_title)
 
         self.btn_tl_reset = QPushButton("🔄 0.0s")
-        self.btn_tl_reset.setToolTip("Reiniciar animación al inicio (0.0s)")
+        self.btn_tl_reset.setToolTip(tr("studio.timeline.reset_tip", "Reset animation to start (0.0s)"))
         self.btn_tl_reset.setStyleSheet("""
             QPushButton {
                 background: #1e293b; color: #94a3b8; border: 1px solid #334155;
@@ -406,7 +430,7 @@ class LayoutStudioWidget(QWidget):
         timeline_layout.addWidget(self.btn_tl_reset)
 
         self.btn_tl_step_back = QPushButton("⏪ -0.1s")
-        self.btn_tl_step_back.setToolTip("Retroceder 100 milisegundos")
+        self.btn_tl_step_back.setToolTip(tr("studio.timeline.step_back_tip", "Step backward 100 milliseconds"))
         self.btn_tl_step_back.setStyleSheet("""
             QPushButton {
                 background: #1e293b; color: #cbd5e1; border: 1px solid #334155;
@@ -417,8 +441,8 @@ class LayoutStudioWidget(QWidget):
         self.btn_tl_step_back.clicked.connect(lambda: self._on_timeline_step(-0.1))
         timeline_layout.addWidget(self.btn_tl_step_back)
 
-        self.btn_tl_play = QPushButton("▶ Play")
-        self.btn_tl_play.setToolTip("Reproducir / Pausar ciclo de animación (60 FPS)")
+        self.btn_tl_play = QPushButton(tr("studio.timeline.play", "▶ Play"))
+        self.btn_tl_play.setToolTip(tr("studio.timeline.play_tip", "Play / Pause animation cycle (60 FPS)"))
         self.btn_tl_play.setStyleSheet("""
             QPushButton {
                 background: #0284c7; color: #ffffff; border: 1px solid #0ea5e9;
@@ -430,7 +454,7 @@ class LayoutStudioWidget(QWidget):
         timeline_layout.addWidget(self.btn_tl_play)
 
         self.btn_tl_step_fwd = QPushButton("⏩ +0.1s")
-        self.btn_tl_step_fwd.setToolTip("Adelantar 100 milisegundos")
+        self.btn_tl_step_fwd.setToolTip(tr("studio.timeline.step_fwd_tip", "Step forward 100 milliseconds"))
         self.btn_tl_step_fwd.setStyleSheet("""
             QPushButton {
                 background: #1e293b; color: #cbd5e1; border: 1px solid #334155;
@@ -445,7 +469,9 @@ class LayoutStudioWidget(QWidget):
         self.slider_timeline = QSlider(Qt.Horizontal)
         self.slider_timeline.setRange(0, 500)
         self.slider_timeline.setValue(0)
-        self.slider_timeline.setToolTip("Arrastrar para posicionar la animación en cualquier momento (0.00s a 5.00s)")
+        self.slider_timeline.setToolTip(
+            tr("studio.timeline.slider_tip", "Drag to scrub animation to any moment (0.00s to 5.00s)")
+        )
         self.slider_timeline.setStyleSheet("""
             QSlider::groove:horizontal {
                 height: 6px;
@@ -502,11 +528,11 @@ class LayoutStudioWidget(QWidget):
         self.inspector.layer_visibility_changed.connect(self._on_layer_visibility_changed)
         self.inspector.skew_mode_toggled.connect(self.canvas.set_skew_mode)
         self.inspector.project_effects_changed.connect(self._on_project_effects_changed)
-        self.side_tabs.addTab(self.inspector, "🎨  Inspector Visual")
+        self.side_tabs.addTab(self.inspector, tr("studio.tabs.inspector", "🎨  Visual Inspector"))
 
         self.code_editor = LayoutCodeEditorWidget(self)
         self.code_editor.code_applied.connect(self._on_code_hot_reloaded)
-        self.side_tabs.addTab(self.code_editor, "💻  Código Python")
+        self.side_tabs.addTab(self.code_editor, tr("studio.tabs.code_editor", "💻  Python Code"))
 
         self.splitter.addWidget(self.side_tabs)
         self.splitter.setSizes([750, 450])
@@ -520,7 +546,7 @@ class LayoutStudioWidget(QWidget):
         """Alterna entre reproducir y pausar la animación del layout a 60 FPS."""
         self._timeline_playing = not self._timeline_playing
         if self._timeline_playing:
-            self.btn_tl_play.setText("⏸ Pausa")
+            self.btn_tl_play.setText(tr("studio.timeline.pause", "⏸ Pause"))
             self.btn_tl_play.setStyleSheet("""
                 QPushButton {
                     background: #f59e0b; color: #000000; border: 1px solid #fbbf24;
@@ -533,7 +559,7 @@ class LayoutStudioWidget(QWidget):
             self._timeline_timer.start()
         else:
             self._timeline_timer.stop()
-            self.btn_tl_play.setText("▶ Play")
+            self.btn_tl_play.setText(tr("studio.timeline.play", "▶ Play"))
             self.btn_tl_play.setStyleSheet("""
                 QPushButton {
                     background: #0284c7; color: #ffffff; border: 1px solid #0ea5e9;
@@ -587,10 +613,10 @@ class LayoutStudioWidget(QWidget):
         if lists:
             for l in lists:
                 count = l.get("game_count", 0)
-                name = l.get("name", "Lista")
+                name = l.get("name", tr("studio.list.fallback_name", "List"))
                 self.cb_lists.addItem(f"📁 {name} ({count})", l.get("id"))
         else:
-            self.cb_lists.addItem("📁 Lista Predeterminada (Ejemplo)", None)
+            self.cb_lists.addItem(tr("studio.list.default_sample", "📁 Default List (Sample)"), None)
 
         self.cb_lists.blockSignals(False)
 
@@ -620,11 +646,13 @@ class LayoutStudioWidget(QWidget):
 
         if self.current_list_games:
             for g in self.current_list_games:
-                title = g.get("title", "Sin Título")
+                title = g.get("title", tr("studio.game.untitled", "Untitled"))
                 year = g.get("year", "")
                 display = f"{title} ({year})" if year else title
                 self.cb_sample_games.addItem(display, g)
-            self.lbl_games_count.setText(f"✓ {len(self.current_list_games)} juegos disponibles")
+            self.lbl_games_count.setText(
+                tr("studio.game.available_count", "✓ {count} games available", count=len(self.current_list_games))
+            )
         else:
             mock = {
                 "id": 9999,
@@ -634,8 +662,8 @@ class LayoutStudioWidget(QWidget):
                 "genre": "Fighting",
             }
             self.current_list_games = [mock]
-            self.cb_sample_games.addItem("Street Fighter II (Ejemplo)", mock)
-            self.lbl_games_count.setText("(1 juego de ejemplo)")
+            self.cb_sample_games.addItem(tr("studio.game.sample_sf2", "Street Fighter II (Sample)"), mock)
+            self.lbl_games_count.setText(tr("studio.game.sample_count", "(1 sample game)"))
 
         # Configurar búsqueda interactiva / auto-completado
         completer = self.cb_sample_games.completer()
@@ -1113,7 +1141,11 @@ class LayoutStudioWidget(QWidget):
         self.canvas.set_layout_instance(inst)
         self.inspector.set_project(new_project)
         self._update_live_layout_engine(code, existing_inst=inst)
-        QMessageBox.information(self, "Hot Reload", "¡Layout recargado con éxito desde el código!")
+        QMessageBox.information(
+            self,
+            tr("studio.msg.hot_reload_title", "Hot Reload"),
+            tr("studio.msg.hot_reload_body", "Layout successfully reloaded from code!"),
+        )
 
     # -------------------------------------------------------------------------
     # ACCIONES: NUEVO, GUARDAR, PROBAR
@@ -1150,7 +1182,11 @@ class LayoutStudioWidget(QWidget):
         if idx >= 0:
             self.cb_layouts.setCurrentIndex(idx)
 
-        QMessageBox.information(self, "Nuevo Layout Creado", f"Se creó exitosamente el layout '{name}'.")
+        QMessageBox.information(
+            self,
+            tr("studio.msg.new_created_title", "New Layout Created"),
+            tr("studio.msg.new_created_body", "Layout '{name}' was created successfully.", name=name),
+        )
 
     def _on_save_layout(self):
         """Guarda los cambios en theme_layout.py generando previamente una copia de seguridad en /backups."""
@@ -1166,8 +1202,11 @@ class LayoutStudioWidget(QWidget):
             if not self.code_editor._validate_syntax():
                 res = QMessageBox.warning(
                     self,
-                    "Error de Sintaxis",
-                    "El código contiene errores de sintaxis Python.\n¿Deseas guardarlo de todos modos?",
+                    tr("studio.msg.syntax_error_title", "Syntax Error"),
+                    tr(
+                        "studio.msg.syntax_error_save_body",
+                        "The code contains Python syntax errors.\nDo you want to save it anyway?",
+                    ),
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No
                 )
@@ -1199,18 +1238,30 @@ class LayoutStudioWidget(QWidget):
             proj_name = self.current_project.name
             self.layout_saved.emit(proj_name)
 
-            msg = f"✓ Se guardaron los cambios de '{proj_name}' exitosamente."
+            msg = tr("studio.msg.saved_body", "✓ Changes to '{name}' saved successfully.", name=proj_name)
             if backup_path:
-                msg += f"\n\n📁 Copia de seguridad generada en:\nbackups/{backup_path.name}"
-            QMessageBox.information(self, "Layout Guardado", msg)
+                msg += "\n\n" + tr(
+                    "studio.msg.saved_backup",
+                    "📁 Backup created at:\nbackups/{filename}",
+                    filename=backup_path.name,
+                )
+            QMessageBox.information(self, tr("studio.msg.saved_title", "Layout Saved"), msg)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self, "Error al Guardar Layout", f"Ocurrió un error inesperado al guardar:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("studio.msg.save_error_title", "Error Saving Layout"),
+                tr("studio.msg.save_error_body", "An unexpected error occurred while saving:\n{error}", error=e),
+            )
 
     def _on_save_as_layout(self):
         """Guarda una copia del layout con un nuevo nombre."""
-        name, ok = QInputDialog.getText(self, "Guardar Como", "Nombre del nuevo layout:")
+        name, ok = QInputDialog.getText(
+            self,
+            tr("studio.msg.save_as_title", "Save As"),
+            tr("studio.msg.save_as_prompt", "New layout name:"),
+        )
         if not ok or not name.strip():
             return
         name = name.strip()
@@ -1228,7 +1279,11 @@ class LayoutStudioWidget(QWidget):
         if idx >= 0:
             self.cb_layouts.setCurrentIndex(idx)
 
-        QMessageBox.information(self, "Layout Guardado", f"Se creó una copia como '{name}'.")
+        QMessageBox.information(
+            self,
+            tr("studio.msg.saved_title", "Layout Saved"),
+            tr("studio.msg.save_as_body", "A copy was created as '{name}'.", name=name),
+        )
 
     def _on_reset_layout(self):
         """Restablece todos los elementos del layout a su posición, tamaño, forma y visibilidad originales."""
@@ -1330,9 +1385,22 @@ class LayoutStudioWidget(QWidget):
         scr_geo = screen.geometry() if screen else QRect(0, 0, 1920, 1080)
         avail_geo = screen.availableGeometry() if screen else scr_geo
 
+        mode_label = (
+            tr("studio.sandbox.window_mode.fullscreen", "Fullscreen")
+            if mode == "fullscreen"
+            else tr("studio.sandbox.window_mode.borderless", "Borderless")
+            if mode == "borderless"
+            else tr("studio.sandbox.window_mode.windowed", "Windowed")
+        )
         test_win.setWindowTitle(
-            f"Sandbox Preview: {self.current_project.name} — {target_w}x{target_h} "
-            f"({'Pantalla Completa' if mode == 'fullscreen' else 'Sin Bordes' if mode == 'borderless' else 'Ventana'}) [Esc: Salir | F11: Pantalla Completa]"
+            tr(
+                "studio.sandbox.window_title",
+                "Sandbox Preview: {name} — {w}x{h} ({mode}) [Esc: Exit | F11: Fullscreen]",
+                name=self.current_project.name,
+                w=target_w,
+                h=target_h,
+                mode=mode_label,
+            )
         )
 
         container_layout = test_win.centralWidget().layout() if test_win.centralWidget() else None
@@ -1415,7 +1483,11 @@ class LayoutStudioWidget(QWidget):
 
             folder = Path(self.current_project.folder_path) if self.current_project.folder_path else None
             if not folder or not folder.is_dir():
-                QMessageBox.warning(self, "Previsualización", "La carpeta del layout no existe en disco.")
+                QMessageBox.warning(
+                    self,
+                    tr("studio.msg.preview_title", "Preview"),
+                    tr("studio.msg.preview_missing_folder", "The layout folder does not exist on disk."),
+                )
                 return
 
             # Sincronizar y obtener código limpio para la instancia del Sandbox
@@ -1551,7 +1623,11 @@ class LayoutStudioWidget(QWidget):
             test_win.destroyed.connect(_cleanup)
             layout_widget.setFocus()
         except Exception as e:
-            QMessageBox.critical(self, "Error al Iniciar Previsualización", f"Error cargando el layout modificado:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("studio.msg.preview_error_title", "Error Launching Preview"),
+                tr("studio.msg.preview_error_body", "Error loading modified layout:\n{error}", error=e),
+            )
 
     def closeEvent(self, event):
         """Asegura la liberación de los motores y recursos en vivo del layout."""

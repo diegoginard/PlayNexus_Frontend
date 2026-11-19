@@ -17,6 +17,8 @@ import json
 from pathlib import Path
 import re
 
+from playnexus.i18n import tr
+
 # Carpeta raíz de PlayNexus (todo se guarda localmente dentro del proyecto, nada en AppData)
 if getattr(sys, "frozen", False):
     APP_DIR = Path(sys.executable).resolve().parent
@@ -26,6 +28,7 @@ else:
 CONFIG_DIR = APP_DIR / "config"
 EMULATORS_DIR = APP_DIR / "emulators"
 LISTS_DIR = APP_DIR / "lists"
+LANG_DIR = APP_DIR / "lang"
 
 # Alias de compatibilidad
 DATA_DIR = CONFIG_DIR
@@ -120,14 +123,16 @@ def format_play_time(seconds: object) -> str:
     """Formatea una duración acumulada en segundos a texto legible ('0 min', '42 min', '3h 15m')."""
     sec = _parse_nonneg_int(seconds)
     if sec <= 0:
-        return "0 min"
+        return tr("db.playtime.zero", "0 min")
     if sec < 60:
-        return f"{sec} s"
+        return tr("db.playtime.seconds", "{sec}s", sec=sec)
     if sec < 3600:
-        return f"{sec // 60} min"
+        return tr("db.playtime.minutes", "{mins} min", mins=sec // 60)
     hours = sec // 3600
     mins = (sec % 3600) // 60
-    return f"{hours}h {mins:02d}m" if mins else f"{hours}h"
+    if mins:
+        return tr("db.playtime.hours_mins", "{hours}h {mins}m", hours=hours, mins=f"{mins:02d}")
+    return tr("db.playtime.hours", "{hours}h", hours=hours)
 
 
 def _sort_games_in_place(items: list, sort_mode: str = "title") -> None:
@@ -766,7 +771,7 @@ class Database:
         clean_name = str(name or "").strip()
         for ex in self._store.emulators.values():
             if ex["name"].lower() == clean_name.lower():
-                raise ValueError(f"Ya existe un emulador con el nombre '{clean_name}'.")
+                raise ValueError(tr("db.err.emulator_exists", "An emulator named '{name}' already exists.", name=clean_name))
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         eid = self._store._next_emu_id
         self._store._next_emu_id += 1
@@ -795,7 +800,7 @@ class Database:
             new_name = str(updates["name"]).strip()
             for other_id, ex in self._store.emulators.items():
                 if other_id != eid and ex["name"].lower() == new_name.lower():
-                    raise ValueError(f"Ya existe un emulador con el nombre '{new_name}'.")
+                    raise ValueError(tr("db.err.emulator_exists", "An emulator named '{name}' already exists.", name=new_name))
             updates["name"] = new_name
         if "bezel_delay" in updates and updates["bezel_delay"] is not None:
             updates["bezel_delay"] = str(updates["bezel_delay"])
@@ -860,7 +865,7 @@ class Database:
         clean_name = str(fields.get("name") or "").strip()
         for ex in self._store.game_lists.values():
             if ex["name"].lower() == clean_name.lower():
-                raise ValueError(f"Ya existe una lista con el nombre '{clean_name}'.")
+                raise ValueError(tr("db.err.list_exists", "A list named '{name}' already exists.", name=clean_name))
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         lid = self._store._next_list_id
         self._store._next_list_id += 1
@@ -911,7 +916,7 @@ class Database:
             new_name = str(updates["name"]).strip()
             for other_id, ex in self._store.game_lists.items():
                 if other_id != lid and ex["name"].lower() == new_name.lower():
-                    raise ValueError(f"Ya existe una lista con el nombre '{new_name}'.")
+                    raise ValueError(tr("db.err.list_exists", "A list named '{name}' already exists.", name=new_name))
             updates["name"] = new_name
         for pk in ("media_path", "boxart_path", "flyer_path", "wheel_path", "video_path",
                    "cartart_path", "cabinet_path", "marquee_path", "bezel_path", "manual_path", "xml_path", "icon_path", "bezel_hud_path",
@@ -1051,7 +1056,7 @@ class Database:
                 d["effective_name"] = base_emu_name
                 d["source"] = "lista"
             else:
-                d["effective_name"] = "Sin emulador"
+                d["effective_name"] = tr("db.no_emulator", "No emulator")
                 d["source"] = "ninguno"
 
             out.append(d)

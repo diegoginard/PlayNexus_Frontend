@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from playnexus.i18n import tr
 from playnexus.services.controls import (
     ACTION_CLOSE_FRONTEND,
     ACTION_FRONTEND_MENU,
@@ -58,7 +59,7 @@ def _open_pdf_document_in_memory(raw_bytes: bytes, parent=None):
     ba = QByteArray(raw_bytes)
     buf = QBuffer(ba)
     if not buf.open(QIODevice.OpenModeFlag.ReadOnly):
-        raise IOError("No se pudo abrir QBuffer para el PDF.")
+        raise IOError(tr("manual.qbuffer_error", "Could not open QBuffer for the PDF."))
 
     doc = QPdfDocument(parent)
     doc.load(buf)
@@ -70,7 +71,7 @@ def _open_pdf_document_in_memory(raw_bytes: bytes, parent=None):
     ):
         doc.close()
         buf.close()
-        raise ValueError(f"PDF inválido o sin páginas (estado: {err}).")
+        raise ValueError(tr("manual.invalid_pdf_error", "Invalid or empty PDF (status: {status}).", status=err))
     return doc, buf, ba
 
 
@@ -161,11 +162,11 @@ class ManualViewerCoreWidget(QWidget):
         tb_lay.setContentsMargins(12, 8, 12, 8)
         tb_lay.setSpacing(8)
 
-        self.title_lbl = QLabel("📖 Manual del Juego")
+        self.title_lbl = QLabel(tr("manual.default_title", "📖 Game Manual"))
         self.title_lbl.setStyleSheet("color: #f8fafc; font-size: 12pt; font-weight: 700; border: none; background: transparent;")
         tb_lay.addWidget(self.title_lbl, 1)
 
-        self.btn_prev = QPushButton("◀ Anterior")
+        self.btn_prev = QPushButton(tr("manual.prev_btn", "◀ Previous"))
         self.btn_prev.setFocusPolicy(Qt.NoFocus)
         self.btn_prev.clicked.connect(self.prev_page)
         tb_lay.addWidget(self.btn_prev)
@@ -185,7 +186,7 @@ class ManualViewerCoreWidget(QWidget):
         self.page_total_lbl.setStyleSheet("color: #94a3b8; font-weight: 600; border: none; background: transparent;")
         tb_lay.addWidget(self.page_total_lbl)
 
-        self.btn_next = QPushButton("Siguiente ▶")
+        self.btn_next = QPushButton(tr("manual.next_btn", "Next ▶"))
         self.btn_next.setFocusPolicy(Qt.NoFocus)
         self.btn_next.clicked.connect(self.next_page)
         tb_lay.addWidget(self.btn_next)
@@ -193,47 +194,47 @@ class ManualViewerCoreWidget(QWidget):
         tb_lay.addSpacing(8)
 
         self.btn_zoom_out = QPushButton("🔍−")
-        self.btn_zoom_out.setToolTip("Alejar (-)")
+        self.btn_zoom_out.setToolTip(tr("manual.zoom_out_tip", "Zoom out (-)"))
         self.btn_zoom_out.setFocusPolicy(Qt.NoFocus)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
         tb_lay.addWidget(self.btn_zoom_out)
 
-        self.btn_fit_width = QPushButton("↔ Ancho")
-        self.btn_fit_width.setToolTip("Ajustar al ancho visible (W)")
+        self.btn_fit_width = QPushButton(tr("manual.fit_width_btn", "↔ Width"))
+        self.btn_fit_width.setToolTip(tr("manual.fit_width_tip", "Fit to visible width (W)"))
         self.btn_fit_width.setFocusPolicy(Qt.NoFocus)
         self.btn_fit_width.clicked.connect(lambda: self.set_fit_mode("width"))
         tb_lay.addWidget(self.btn_fit_width)
 
-        self.btn_fit_page = QPushButton("⛶ Página")
-        self.btn_fit_page.setToolTip("Ajustar página completa en pantalla (P)")
+        self.btn_fit_page = QPushButton(tr("manual.fit_page_btn", "⛶ Page"))
+        self.btn_fit_page.setToolTip(tr("manual.fit_page_tip", "Fit full page on screen (P)"))
         self.btn_fit_page.setFocusPolicy(Qt.NoFocus)
         self.btn_fit_page.clicked.connect(lambda: self.set_fit_mode("page"))
         tb_lay.addWidget(self.btn_fit_page)
 
         self.btn_zoom_in = QPushButton("🔍+")
-        self.btn_zoom_in.setToolTip("Acercar (+)")
+        self.btn_zoom_in.setToolTip(tr("manual.zoom_in_tip", "Zoom in (+)"))
         self.btn_zoom_in.setFocusPolicy(Qt.NoFocus)
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         tb_lay.addWidget(self.btn_zoom_in)
 
-        self.zoom_lbl = QLabel("Ancho")
+        self.zoom_lbl = QLabel(tr("manual.fit_width_label", "Width"))
         self.zoom_lbl.setStyleSheet("color: #a5b4fc; font-weight: 700; min-width: 56px; border: none; background: transparent;")
         self.zoom_lbl.setAlignment(Qt.AlignCenter)
         tb_lay.addWidget(self.zoom_lbl)
 
         if self._on_change_pdf is not None:
-            self.btn_change_pdf = QPushButton("📂 Cambiar PDF…")
+            self.btn_change_pdf = QPushButton(tr("manual.change_pdf_btn", "📂 Change PDF…"))
             self.btn_change_pdf.setFocusPolicy(Qt.NoFocus)
             self.btn_change_pdf.clicked.connect(self._handle_change_pdf_clicked)
             tb_lay.addWidget(self.btn_change_pdf)
 
-        self.btn_open_ext = QPushButton("↗ Externo")
-        self.btn_open_ext.setToolTip("Abrir el archivo PDF con el visor predeterminado del sistema")
+        self.btn_open_ext = QPushButton(tr("manual.open_ext_btn", "↗ External"))
+        self.btn_open_ext.setToolTip(tr("manual.open_ext_tip", "Open PDF file with the system default viewer"))
         self.btn_open_ext.setFocusPolicy(Qt.NoFocus)
         self.btn_open_ext.clicked.connect(self.open_in_external_viewer)
         tb_lay.addWidget(self.btn_open_ext)
 
-        self.btn_close = QPushButton("✕ Cerrar")
+        self.btn_close = QPushButton(tr("manual.close_btn", "✕ Close"))
         self.btn_close.setFocusPolicy(Qt.NoFocus)
         self.btn_close.setStyleSheet(
             "QPushButton { background-color: #4c1d2e; border-color: #be123c; color: #ffe4e6; border-radius: 6px; padding: 6px 12px; font-weight: 700; }"
@@ -251,7 +252,7 @@ class ManualViewerCoreWidget(QWidget):
         self.scroll_area.setStyleSheet(
             "QScrollArea { background-color: #0b0e17; border: 1px solid #262e45; border-radius: 10px; }"
         )
-        self.page_label = QLabel("Cargando manual PDF…")
+        self.page_label = QLabel(tr("manual.loading_msg", "Loading PDF manual…"))
         self.page_label.setAlignment(Qt.AlignCenter)
         self.page_label.setStyleSheet("background-color: #0b0e17; color: #cbd5e1;")
         self.scroll_area.setWidget(self.page_label)
@@ -272,7 +273,7 @@ class ManualViewerCoreWidget(QWidget):
         self.fallback_lbl.setStyleSheet("color: #e2e8f0; font-size: 11pt; border: none;")
         fb_lay.addWidget(self.fallback_lbl)
 
-        self.btn_fallback_ext = QPushButton("📖 Abrir manual en el visor PDF del sistema")
+        self.btn_fallback_ext = QPushButton(tr("manual.open_system_pdf_btn", "📖 Open manual in system PDF viewer"))
         self.btn_fallback_ext.setFixedHeight(40)
         self.btn_fallback_ext.clicked.connect(self.open_in_external_viewer)
         fb_lay.addWidget(self.btn_fallback_ext, 0, Qt.AlignCenter)
@@ -280,7 +281,10 @@ class ManualViewerCoreWidget(QWidget):
 
         # Pie con ayuda de teclado y gamepad
         self.hint_lbl = QLabel(
-            "Atajos: ◀ / ▶ o LB / RB / LT / RT para cambiar de página · ▲ / ▼ para desplazar · + / - Zoom · W / P Ajuste · Esc / Back Cerrar"
+            tr(
+                "manual.shortcuts_hint",
+                "Shortcuts: ◀ / ▶ or LB / RB / LT / RT to turn page · ▲ / ▼ to scroll · + / - Zoom · W / P Fit · Esc / Back Close",
+            )
         )
         self.hint_lbl.setAlignment(Qt.AlignCenter)
         self.hint_lbl.setStyleSheet("color: #94a3b8; font-size: 8.5pt; padding: 2px;")
@@ -315,23 +319,30 @@ class ManualViewerCoreWidget(QWidget):
         self._game_title = str(game_title or "").strip()
 
         p = Path(self._pdf_path) if self._pdf_path else None
-        fname = p.name if p else "Sin manual"
+        fname = p.name if p else tr("manual.no_manual_name", "No manual")
         prefix = f"📖 {self._game_title} — {fname}" if self._game_title else f"📖 {fname}"
         self.title_lbl.setText(prefix)
 
         if not p or not p.is_file():
             self._show_fallback(
-                "No se encontró un archivo de manual PDF válido para este juego.\n"
-                "Podés asignarlo desde la ficha del juego, en 'Carpetas de Medios' o desde el Rom Manager."
+                tr(
+                    "manual.not_found_msg",
+                    "No valid PDF manual file was found for this game.\n"
+                    "You can assign it from the game details, in 'Media Folders', or from the Rom Manager.",
+                )
             )
             self._sync_nav_controls()
             return False
 
         if not is_qtpdf_available():
             self._show_fallback(
-                f"El módulo opcional <b>PySide6.QtPdf</b> no está disponible en este entorno.\n\n"
-                f"Archivo encontrado: <b>{p.name}</b>\n"
-                f"Usá el botón inferior para abrir el manual en el lector PDF predeterminado de Windows."
+                tr(
+                    "manual.qtpdf_missing_msg",
+                    "The optional module <b>PySide6.QtPdf</b> is not available in this environment.\n\n"
+                    "Found file: <b>{filename}</b>\n"
+                    "Use the button below to open the manual in Windows' default PDF reader.",
+                    filename=p.name,
+                )
             )
             self._sync_nav_controls()
             return False
@@ -351,8 +362,12 @@ class ManualViewerCoreWidget(QWidget):
         except Exception as exc:
             self._close_document()
             self._show_fallback(
-                f"No se pudo renderizar el PDF internamente:\n{exc}\n\n"
-                f"Podés intentar abrirlo con el lector PDF del sistema operativo."
+                tr(
+                    "manual.render_error_msg",
+                    "Could not render the PDF internally:\n{error}\n\n"
+                    "You can try opening it with the operating system's PDF reader.",
+                    error=exc,
+                )
             )
             self._sync_nav_controls()
             return False
@@ -380,9 +395,9 @@ class ManualViewerCoreWidget(QWidget):
         self.btn_open_ext.setEnabled(bool(self._pdf_path and Path(self._pdf_path).is_file()))
 
         if self._fit_mode == "width":
-            self.zoom_lbl.setText("Ancho")
+            self.zoom_lbl.setText(tr("manual.fit_width_label", "Width"))
         elif self._fit_mode == "page":
-            self.zoom_lbl.setText("Página")
+            self.zoom_lbl.setText(tr("manual.fit_page_label", "Page"))
         else:
             self.zoom_lbl.setText(f"{int(round(self._zoom_factor * 100))}%")
 
@@ -599,7 +614,7 @@ class ManualViewerDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle(f"Manual PDF — {game_title or Path(pdf_path).stem}")
+        self.setWindowTitle(tr("manual.dialog_title", "PDF Manual — {title}", title=game_title or Path(pdf_path).stem))
         self.resize(980, 760)
         self.setMinimumSize(700, 520)
 

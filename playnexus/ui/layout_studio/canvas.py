@@ -13,6 +13,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
 
+from playnexus.i18n import tr
 from playnexus.ui.layout_studio.models import LayoutElement, LayoutProject, CANONICAL_W, CANONICAL_H
 from playnexus.ui.layout_studio.runtime_hook import (
     NATIVE_LAYER_IDS,
@@ -383,7 +384,11 @@ class LayoutCanvasWidget(QWidget):
         if not self.project:
             painter.setPen(QColor("#64748b"))
             painter.setFont(QFont("Segoe UI", 14))
-            painter.drawText(canvas_rect, Qt.AlignCenter, "Ningún Layout Cargado\nSelecciona uno o crea uno nuevo")
+            painter.drawText(
+                canvas_rect,
+                Qt.AlignCenter,
+                tr("studio.canvas.no_layout", "No Layout Loaded\nSelect one or create a new one"),
+            )
             return
 
         # 3. Renderizado Directo por Capas en Tiempo Real (respeta X, Y, W, H, 4 Esquinas, Z-Order y Visibilidad)
@@ -533,7 +538,11 @@ class LayoutCanvasWidget(QWidget):
                     painter.drawRoundedRect(r, 8, 8)
                     painter.setPen(QColor("#e2e8f0"))
                     painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
-                    painter.drawText(r, Qt.AlignCenter | Qt.TextWordWrap, f"🖼 {elem.name}\n(Sin arte en este juego)")
+                    painter.drawText(
+                        r,
+                        Qt.AlignCenter | Qt.TextWordWrap,
+                        tr("studio.canvas.no_art_for_game", "🖼 {name}\n(No artwork for this game)", name=elem.name),
+                    )
                     painter.restore()
             return
 
@@ -598,7 +607,7 @@ class LayoutCanvasWidget(QWidget):
                 painter.drawRect(badge_rect)
                 painter.setPen(QColor("#38bdf8"))
                 painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
-                painter.drawText(badge_rect, Qt.AlignCenter, "⏸ VIDEO SNAP")
+                painter.drawText(badge_rect, Qt.AlignCenter, tr("studio.canvas.video_snap_badge", "⏸ VIDEO SNAP"))
             else:
                 # Marco simulador de video CRT con scanlines y título del juego actual
                 painter.fillRect(rect, QColor("#050914"))
@@ -612,7 +621,11 @@ class LayoutCanvasWidget(QWidget):
                 painter.setPen(QColor("#38bdf8"))
                 painter.setFont(QFont("Segoe UI", 12, QFont.Bold))
                 title = self._sample_game.get("title", "VIDEO SNAP")
-                painter.drawText(rect, Qt.AlignCenter, f"⏸  VIDEO SNAP (PAUSADO)\n[{title}]")
+                painter.drawText(
+                    rect,
+                    Qt.AlignCenter,
+                    tr("studio.canvas.video_snap_paused", "⏸  VIDEO SNAP (PAUSED)\n[{title}]", title=title),
+                )
 
         elif elem.type in ("image", "marquee", "cabinet"):
             pix = self._resolve_pixmap(elem)
@@ -693,16 +706,20 @@ class LayoutCanvasWidget(QWidget):
                     painter.fillRect(item_rect, QColor(99, 102, 241, 150) if is_center else QColor(30, 41, 59, 120))
                     painter.setPen(QColor("#ffffff") if is_center else QColor("#cbd5e1"))
                     painter.setFont(QFont("Segoe UI", 11 if is_center else 9, QFont.Bold))
-                    painter.drawText(item_rect, Qt.AlignCenter | Qt.TextWordWrap, game.get("title", "Juego"))
+                    painter.drawText(
+                        item_rect,
+                        Qt.AlignCenter | Qt.TextWordWrap,
+                        game.get("title", tr("studio.canvas.default_game", "Game")),
+                    )
                 painter.restore()
 
         elif elem.type == "text":
             tpl = elem.text_template or "{title}"
             games = self._sample_games_list if self._sample_games_list else [self._sample_game]
             txt = tpl.format(
-                title=self._sample_game.get("title", "Juego de Muestra"),
+                title=self._sample_game.get("title", tr("studio.canvas.sample_game", "Sample Game")),
                 year=self._sample_game.get("year", "1995"),
-                manufacturer=self._sample_game.get("manufacturer", "Empresa"),
+                manufacturer=self._sample_game.get("manufacturer", tr("studio.canvas.sample_company", "Company")),
                 genre=self._sample_game.get("genre", "Arcade"),
                 index=1,
                 total=len(games),

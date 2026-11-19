@@ -5,6 +5,8 @@ import shlex
 import shutil
 import subprocess
 
+from playnexus.i18n import tr
+
 def resolve_emulator(db, game):
     """
     Determina qué emulador utilizar según la prioridad obligatoria:
@@ -48,8 +50,11 @@ def _launch_game_impl(db, game, layout=None, parent_window=None):
     emulator, source = resolve_emulator(db, game)
     if not emulator:
         raise RuntimeError(
-            "Este juego no tiene ningún emulador asignado.\n"
-            "Podés asignar un emulador predeterminado a la lista o asignarle uno específico a este juego."
+            tr(
+                "svc.launch.err_no_emulator",
+                "This game has no assigned emulator.\n"
+                "You can assign a default emulator to the list or assign a specific one to this game.",
+            )
         )
 
     exe_raw = (emulator["executable"] or "").strip()
@@ -60,11 +65,23 @@ def _launch_game_impl(db, game, layout=None, parent_window=None):
         if resolved_which:
             exe = Path(resolved_which)
         else:
-            raise FileNotFoundError(f"No se encontró el ejecutable del emulador en la ruta configurada:\n{exe_raw}")
+            raise FileNotFoundError(
+                tr(
+                    "svc.launch.err_emu_not_found",
+                    "Emulator executable not found at the configured path:\n{path}",
+                    path=exe_raw,
+                )
+            )
 
     rom = Path(game["rom_path"])
     if not rom.exists():
-        raise FileNotFoundError(f"No se encontró el archivo o carpeta del juego en el disco:\n{rom}")
+        raise FileNotFoundError(
+            tr(
+                "svc.launch.err_rom_not_found",
+                "Game file or folder not found on disk:\n{path}",
+                path=rom,
+            )
+        )
 
     # Rutas nativas normalizadas con barras invertidas para compatibilidad total en Windows
     rom_str = os.path.normpath(str(rom.resolve()))

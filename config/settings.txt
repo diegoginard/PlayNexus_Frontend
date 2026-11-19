@@ -1,4 +1,5 @@
 # Configuración del Sistema PlayNexus (Texto Plano)
+app_language = es
 control_close_emulator = F4
 control_close_frontend = Escape
 control_mute_video = M

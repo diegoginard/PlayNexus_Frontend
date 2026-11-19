@@ -50,6 +50,7 @@ from PySide6.QtOpenGL import (
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
+from playnexus.i18n import tr
 from playnexus.ui.particles import (
     _PRESET_PALETTES,
     ParticleSystem,
@@ -68,11 +69,29 @@ from playnexus.ui.shaders import (
 # Perfiles de backend y detección de entorno gráfico
 # ---------------------------------------------------------------------------
 
-RENDER_BACKEND_PROFILES: list[tuple[str, str]] = [
-    ("auto", "Automático (GPU OpenGL con respaldo Software)"),
-    ("gpu", "GPU OpenGL (Máxima fluidez)"),
-    ("software", "Software (QPainter clásico)"),
-]
+_RENDER_BACKEND_ALIASES: dict[str, str] = {
+    "automático (gpu opengl con respaldo software)": "auto",
+    "automatico (gpu opengl con respaldo software)": "auto",
+    "automatic (gpu opengl with software fallback)": "auto",
+    "gpu opengl (máxima fluidez)": "gpu",
+    "gpu opengl (maxima fluidez)": "gpu",
+    "gpu opengl (maximum smoothness)": "gpu",
+    "software (qpainter clásico)": "software",
+    "software (qpainter clasico)": "software",
+    "software (classic qpainter)": "software",
+}
+
+
+def get_render_backend_profiles() -> list[tuple[str, str]]:
+    """Devuelve la lista localizada de perfiles de renderizado `(id, etiqueta)`."""
+    return [
+        ("auto", tr("gpu.backend_auto", "Automatic (GPU OpenGL with Software fallback)")),
+        ("gpu", tr("gpu.backend_gpu", "GPU OpenGL (Maximum smoothness)")),
+        ("software", tr("gpu.backend_software", "Software (Classic QPainter)")),
+    ]
+
+
+RENDER_BACKEND_PROFILES: list[tuple[str, str]] = get_render_backend_profiles()
 
 VALID_RENDER_BACKENDS: set[str] = {key for key, _ in RENDER_BACKEND_PROFILES}
 RENDER_BACKEND_LABELS: dict[str, str] = dict(RENDER_BACKEND_PROFILES)
@@ -89,7 +108,9 @@ def normalize_render_backend(value: Any) -> str:
         return "gpu"
     if raw in ("cpu", "qpainter", "sw", "off"):
         return "software"
-    for key, label in RENDER_BACKEND_PROFILES:
+    if raw in _RENDER_BACKEND_ALIASES:
+        return _RENDER_BACKEND_ALIASES[raw]
+    for key, label in get_render_backend_profiles():
         if raw == label.strip().lower():
             return key
     return "auto"

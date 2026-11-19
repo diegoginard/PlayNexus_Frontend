@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from playnexus.db import Database
+from playnexus.i18n import tr
 from playnexus.services.rom_manager import (
     AuditSummary,
     MediaRequirementSpec,
@@ -80,7 +81,7 @@ class ScreenScraperLoginDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.config = config or load_scraper_config(db)
-        self.setWindowTitle("Iniciar sesión — ScreenScraper.fr")
+        self.setWindowTitle(tr("scraper_dlg.ss_login_title", "Sign In — ScreenScraper.fr"))
         self.setMinimumWidth(420)
         self._build_ui()
 
@@ -90,8 +91,11 @@ class ScreenScraperLoginDialog(QDialog):
         root.setSpacing(10)
 
         intro = QLabel(
-            "Ingresá tu <b>usuario</b> y <b>contraseña</b> de "
-            "<a href='https://www.screenscraper.fr'>screenscraper.fr</a> para continuar."
+            tr(
+                "scraper_dlg.ss_login_intro",
+                "Enter your <a href='https://www.screenscraper.fr'>screenscraper.fr</a> "
+                "<b>username</b> and <b>password</b> to continue.",
+            )
         )
         intro.setOpenExternalLinks(True)
         intro.setWordWrap(True)
@@ -101,19 +105,19 @@ class ScreenScraperLoginDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(8)
         self.ssid_edit = QLineEdit(self.config.ss_ssid)
-        self.ssid_edit.setPlaceholderText("Usuario de ScreenScraper")
+        self.ssid_edit.setPlaceholderText(tr("scraper_dlg.ss_user_placeholder", "ScreenScraper username"))
         self.sspass_edit = QLineEdit(self.config.ss_sspassword)
         self.sspass_edit.setEchoMode(QLineEdit.Password)
-        self.sspass_edit.setPlaceholderText("Contraseña de ScreenScraper")
+        self.sspass_edit.setPlaceholderText(tr("scraper_dlg.ss_pass_placeholder", "ScreenScraper password"))
 
-        form.addRow("Usuario:", self.ssid_edit)
-        form.addRow("Contraseña:", self.sspass_edit)
+        form.addRow(tr("scraper_dlg.ss_user_label", "Username:"), self.ssid_edit)
+        form.addRow(tr("scraper_dlg.ss_pass_label", "Password:"), self.sspass_edit)
         root.addLayout(form)
 
         opts = QHBoxLayout()
-        self.chk_remember = QCheckBox("Recordar usuario y contraseña")
+        self.chk_remember = QCheckBox(tr("scraper_dlg.ss_remember_cb", "Remember username and password"))
         self.chk_remember.setChecked(self.config.ss_remember)
-        self.chk_show_pass = QCheckBox("Mostrar contraseña")
+        self.chk_show_pass = QCheckBox(tr("scraper_dlg.ss_show_pass_cb", "Show password"))
         self.chk_show_pass.toggled.connect(
             lambda show: self.sspass_edit.setEchoMode(QLineEdit.Normal if show else QLineEdit.Password)
         )
@@ -124,9 +128,9 @@ class ScreenScraperLoginDialog(QDialog):
 
         btns = QHBoxLayout()
         btns.addStretch()
-        btn_cancel = QPushButton("Cancelar")
+        btn_cancel = QPushButton(tr("scraper_dlg.btn_cancel", "Cancel"))
         btn_cancel.clicked.connect(self.reject)
-        self.btn_accept = QPushButton("Continuar")
+        self.btn_accept = QPushButton(tr("scraper_dlg.btn_continue", "Continue"))
         self.btn_accept.setObjectName("primary")
         self.btn_accept.clicked.connect(self._on_accept)
         btns.addWidget(btn_cancel)
@@ -139,8 +143,8 @@ class ScreenScraperLoginDialog(QDialog):
         if not user or not pwd:
             QMessageBox.warning(
                 self,
-                "Datos incompletos",
-                "Ingresá tanto el usuario como la contraseña de ScreenScraper.",
+                tr("scraper_dlg.incomplete_data_title", "Incomplete Data"),
+                tr("scraper_dlg.ss_login_incomplete_msg", "Enter both the ScreenScraper username and password."),
             )
             return
         self.config = replace(
@@ -163,7 +167,7 @@ class ScraperSettingsDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self.config = current_config or load_scraper_config(db)
-        self.setWindowTitle("Configuración del Scraper Online")
+        self.setWindowTitle(tr("scraper_dlg.settings_title", "Online Scraper Settings"))
         self.setMinimumSize(500, 380)
         self._build_ui()
         self._load_values()
@@ -192,8 +196,11 @@ class ScraperSettingsDialog(QDialog):
         body.setSpacing(10)
 
         intro = QLabel(
-            "Configurá los proveedores online para descargar automáticamente la media declarada "
-            "en el <code>MEDIA_REQUIREMENTS</code> de cada layout y completar metadatos de juegos."
+            tr(
+                "scraper_dlg.settings_intro",
+                "Configure online providers to automatically download media declared "
+                "in each layout's <code>MEDIA_REQUIREMENTS</code> and fill in game metadata.",
+            )
         )
         intro.setWordWrap(True)
         intro.setMinimumWidth(0)
@@ -201,37 +208,49 @@ class ScraperSettingsDialog(QDialog):
         body.addWidget(intro)
 
         # Preferencias generales
-        gen_grp = QGroupBox("Preferencias generales")
+        gen_grp = QGroupBox(tr("scraper_dlg.general_prefs_group", "General Preferences"))
         form = QFormLayout(gen_grp)
         form.setSpacing(7)
 
         self.provider_combo = QComboBox()
-        self.provider_combo.addItem("Automático (ArcadeDB / ScreenScraper / Libretro)", "auto")
-        self.provider_combo.addItem("Libretro Thumbnails (Gratis, sin clave — Boxart y Wheel)", "libretro")
-        self.provider_combo.addItem("Arcade Database / ADB (Gratis — MAME / Arcade + Video)", "arcadedb")
-        self.provider_combo.addItem("ScreenScraper API v2 (Media completa + Metadatos)", "screenscraper")
-        form.addRow("Proveedor predeterminado:", self.provider_combo)
+        self.provider_combo.addItem(tr("scraper_dlg.prov_auto", "Automatic (ArcadeDB / ScreenScraper / Libretro)"), "auto")
+        self.provider_combo.addItem(tr("scraper_dlg.prov_libretro", "Libretro Thumbnails (Free, no key — Boxart & Wheel)"), "libretro")
+        self.provider_combo.addItem(tr("scraper_dlg.prov_arcadedb", "Arcade Database / ADB (Free — MAME / Arcade + Video)"), "arcadedb")
+        self.provider_combo.addItem(tr("scraper_dlg.prov_screenscraper", "ScreenScraper API v2 (Full Media + Metadata)"), "screenscraper")
+        form.addRow(tr("scraper_dlg.default_provider_label", "Default provider:"), self.provider_combo)
 
         self.regions_edit = QLineEdit()
         self.regions_edit.setPlaceholderText("us, wor, ss, eu, es, jp")
-        self.regions_edit.setToolTip("Orden de prioridad de regiones separado por comas (ej: es, eu, us, wor, jp)")
-        form.addRow("Prioridad de regiones:", self.regions_edit)
+        self.regions_edit.setToolTip(
+            tr("scraper_dlg.regions_tip", "Comma-separated region priority order (e.g., es, eu, us, wor, jp)")
+        )
+        form.addRow(tr("scraper_dlg.region_priority_label", "Region priority:"), self.regions_edit)
 
         self.lang_combo = QComboBox()
-        self.lang_combo.addItem("Español (es)", "es")
-        self.lang_combo.addItem("Inglés (en)", "en")
-        self.lang_combo.addItem("Francés (fr)", "fr")
-        form.addRow("Idioma de sinopsis/géneros:", self.lang_combo)
+        self.lang_combo.addItem(tr("scraper_dlg.lang_es", "Spanish (es)"), "es")
+        self.lang_combo.addItem(tr("scraper_dlg.lang_en", "English (en)"), "en")
+        self.lang_combo.addItem(tr("scraper_dlg.lang_fr", "French (fr)"), "fr")
+        form.addRow(tr("scraper_dlg.meta_lang_label", "Synopsis/genre language:"), self.lang_combo)
 
         self.workers_spin = QSpinBox()
         self.workers_spin.setRange(1, 4)
-        self.workers_spin.setToolTip("Cantidad de descargas simultáneas en modo lote (1 a 4)")
-        form.addRow("Hilos paralelos:", self.workers_spin)
+        self.workers_spin.setToolTip(
+            tr("scraper_dlg.workers_tip", "Number of simultaneous downloads in batch mode (1 to 4)")
+        )
+        form.addRow(tr("scraper_dlg.workers_label", "Parallel threads:"), self.workers_spin)
 
-        self.chk_hd_video = QCheckBox("Preferir videos HD cuando estén disponibles (ArcadeDB)")
-        self.chk_empty_meta = QCheckBox("Completar campos vacíos en la base de datos (año, género, notas…)")
-        self.chk_overwrite_meta = QCheckBox("Sobrescribir metadatos existentes al scrapear")
-        self.chk_cache = QCheckBox("Usar caché local en config/scraper_cache/ (acelera re-escaneos)")
+        self.chk_hd_video = QCheckBox(
+            tr("scraper_dlg.chk_hd_video", "Prefer HD videos when available (ArcadeDB)")
+        )
+        self.chk_empty_meta = QCheckBox(
+            tr("scraper_dlg.chk_empty_meta", "Fill empty database fields (year, genre, notes…)")
+        )
+        self.chk_overwrite_meta = QCheckBox(
+            tr("scraper_dlg.chk_overwrite_meta", "Overwrite existing metadata when scraping")
+        )
+        self.chk_cache = QCheckBox(
+            tr("scraper_dlg.chk_cache", "Use local cache in config/scraper_cache/ (speeds up rescans)")
+        )
 
         form.addRow("", self.chk_hd_video)
         form.addRow("", self.chk_empty_meta)
@@ -240,15 +259,18 @@ class ScraperSettingsDialog(QDialog):
         body.addWidget(gen_grp)
 
         # Credenciales ScreenScraper (Miembro + API Dev + Debug, cifrado portátil en config/.key)
-        ss_grp = QGroupBox("Cuenta y API de ScreenScraper.fr")
+        ss_grp = QGroupBox(tr("scraper_dlg.ss_group_title", "ScreenScraper.fr Account and API"))
         ss_vbox = QVBoxLayout(ss_grp)
         ss_vbox.setSpacing(6)
 
         ss_note = QLabel(
-            "ScreenScraper ofrece carátulas 3D/2D, wheels HD, cartuchos/discos, flyers, marquees, "
-            "bezels, videos y manuales PDF. Todas las credenciales se guardan cifradas en "
-            "<code>config/settings.txt</code> (clave portátil en <code>config/.key</code>). "
-            "Sin cuenta, <b>Libretro Thumbnails</b> y <b>ArcadeDB</b> siguen funcionando gratis."
+            tr(
+                "scraper_dlg.ss_note",
+                "ScreenScraper offers 3D/2D box art, HD wheels, carts/discs, flyers, marquees, "
+                "bezels, videos, and PDF manuals. All credentials are stored encrypted in "
+                "<code>config/settings.txt</code> (portable key in <code>config/.key</code>). "
+                "Without an account, <b>Libretro Thumbnails</b> and <b>ArcadeDB</b> still work for free.",
+            )
         )
         ss_note.setWordWrap(True)
         ss_note.setMinimumWidth(0)
@@ -258,40 +280,47 @@ class ScraperSettingsDialog(QDialog):
         ss_form = QFormLayout()
         ss_form.setSpacing(6)
         self.ss_ssid_edit = QLineEdit()
-        self.ss_ssid_edit.setPlaceholderText("Usuario de miembro (ssid)")
+        self.ss_ssid_edit.setPlaceholderText(tr("scraper_dlg.ss_ssid_placeholder", "Member username (ssid)"))
         self.ss_sspass_edit = QLineEdit()
         self.ss_sspass_edit.setEchoMode(QLineEdit.Password)
-        self.ss_sspass_edit.setPlaceholderText("Contraseña de miembro (sspassword)")
+        self.ss_sspass_edit.setPlaceholderText(tr("scraper_dlg.ss_sspass_placeholder", "Member password (sspassword)"))
 
         self.ss_devid_edit = QLineEdit()
-        self.ss_devid_edit.setPlaceholderText("Usuario Dev (devid) — cuenta de desarrollador")
+        self.ss_devid_edit.setPlaceholderText(
+            tr("scraper_dlg.ss_devid_placeholder", "Dev username (devid) — developer account")
+        )
         self.ss_devpass_edit = QLineEdit()
         self.ss_devpass_edit.setEchoMode(QLineEdit.Password)
-        self.ss_devpass_edit.setPlaceholderText("Contraseña Dev (devpassword)")
+        self.ss_devpass_edit.setPlaceholderText(tr("scraper_dlg.ss_devpass_placeholder", "Dev password (devpassword)"))
         self.ss_devdebug_edit = QLineEdit()
         self.ss_devdebug_edit.setEchoMode(QLineEdit.Password)
-        self.ss_devdebug_edit.setPlaceholderText("Contraseña Debug (devdebugpassword) — opcional")
+        self.ss_devdebug_edit.setPlaceholderText(
+            tr("scraper_dlg.ss_devdebug_placeholder", "Debug password (devdebugpassword) — optional")
+        )
 
         ss_opts_grid = QGridLayout()
         ss_opts_grid.setContentsMargins(0, 2, 0, 0)
         ss_opts_grid.setHorizontalSpacing(14)
         ss_opts_grid.setVerticalSpacing(4)
-        self.chk_remember_ss = QCheckBox("Recordar usuario y contraseña")
-        self.chk_show_pass = QCheckBox("Mostrar contraseñas")
+        self.chk_remember_ss = QCheckBox(tr("scraper_dlg.ss_remember_cb", "Remember username and password"))
+        self.chk_show_pass = QCheckBox(tr("scraper_dlg.ss_show_passwords_cb", "Show passwords"))
         self.chk_show_pass.toggled.connect(self._toggle_passwords)
-        self.chk_debug_mode = QCheckBox("Modo Debug API (máx. 100/día)")
+        self.chk_debug_mode = QCheckBox(tr("scraper_dlg.ss_debug_mode_cb", "API Debug Mode (max 100/day)"))
         self.chk_debug_mode.setToolTip(
-            "Envía devdebugpassword en las consultas de prueba y evita la caché local de ScreenScraper."
+            tr(
+                "scraper_dlg.ss_debug_mode_tip",
+                "Sends devdebugpassword in test queries and bypasses ScreenScraper local cache.",
+            )
         )
         ss_opts_grid.addWidget(self.chk_remember_ss, 0, 0)
         ss_opts_grid.addWidget(self.chk_show_pass, 0, 1)
         ss_opts_grid.addWidget(self.chk_debug_mode, 1, 0, 1, 2)
 
-        ss_form.addRow("Usuario:", self.ss_ssid_edit)
-        ss_form.addRow("Contraseña:", self.ss_sspass_edit)
-        ss_form.addRow("Usuario Dev (devid):", self.ss_devid_edit)
-        ss_form.addRow("Contraseña Dev:", self.ss_devpass_edit)
-        ss_form.addRow("Contraseña Debug:", self.ss_devdebug_edit)
+        ss_form.addRow(tr("scraper_dlg.ss_user_label", "Username:"), self.ss_ssid_edit)
+        ss_form.addRow(tr("scraper_dlg.ss_pass_label", "Password:"), self.ss_sspass_edit)
+        ss_form.addRow(tr("scraper_dlg.ss_devid_label", "Dev Username (devid):"), self.ss_devid_edit)
+        ss_form.addRow(tr("scraper_dlg.ss_devpass_label", "Dev Password:"), self.ss_devpass_edit)
+        ss_form.addRow(tr("scraper_dlg.ss_devdebug_label", "Debug Password:"), self.ss_devdebug_edit)
         ss_form.addRow("", ss_opts_grid)
         ss_vbox.addLayout(ss_form)
         body.addWidget(ss_grp)
@@ -302,7 +331,7 @@ class ScraperSettingsDialog(QDialog):
         self.cache_lbl.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
         self._refresh_cache_label()
 
-        btn_clear_cache = QPushButton("🧹 Limpiar caché")
+        btn_clear_cache = QPushButton(tr("scraper_dlg.btn_clear_cache", "🧹 Clear Cache"))
         btn_clear_cache.clicked.connect(self._on_clear_cache)
 
         bottom_row.addWidget(self.cache_lbl, 1)
@@ -316,9 +345,9 @@ class ScraperSettingsDialog(QDialog):
         # Botones siempre visibles al pie
         btns = QHBoxLayout()
         btns.addStretch()
-        btn_cancel = QPushButton("Cancelar")
+        btn_cancel = QPushButton(tr("scraper_dlg.btn_cancel", "Cancel"))
         btn_cancel.clicked.connect(self.reject)
-        btn_save = QPushButton("💾 Guardar configuración")
+        btn_save = QPushButton(tr("scraper_dlg.btn_save_settings", "💾 Save Settings"))
         btn_save.setObjectName("primary")
         btn_save.clicked.connect(self._on_save)
         btns.addWidget(btn_cancel)
@@ -333,15 +362,17 @@ class ScraperSettingsDialog(QDialog):
 
     def _refresh_cache_label(self):
         cnt, b = get_scraper_cache_stats()
-        self.cache_lbl.setText(f"Caché local: {cnt} archivo(s) ({format_file_size(b)})")
+        self.cache_lbl.setText(
+            tr("scraper_dlg.cache_status", "Local cache: {count} file(s) ({size})", count=cnt, size=format_file_size(b))
+        )
 
     def _on_clear_cache(self):
         cnt, b = clear_scraper_cache()
         self._refresh_cache_label()
         QMessageBox.information(
             self,
-            "Caché limpiada",
-            f"Se eliminaron {cnt} archivo(s) de caché ({format_file_size(b)}).",
+            tr("scraper_dlg.cache_cleared_title", "Cache Cleared"),
+            tr("scraper_dlg.cache_cleared_msg", "Deleted {count} cache file(s) ({size}).", count=cnt, size=format_file_size(b)),
         )
 
     def _load_values(self):
@@ -585,7 +616,7 @@ class BatchScrapeDialog(QDialog):
         self.has_metadata_changes = False
         self.has_folder_changes = False
 
-        self.setWindowTitle(f"Scrapear Media Online — {summary.list_name}")
+        self.setWindowTitle(tr("scraper_dlg.batch_title", "Scrape Online Media — {name}", name=summary.list_name))
         self.setMinimumSize(720, 620)
         self._build_ui()
         self._refresh_folder_warning()
@@ -603,13 +634,21 @@ class BatchScrapeDialog(QDialog):
         b_lay.setContentsMargins(8, 6, 8, 6)
         b_lay.setSpacing(4)
         lbl_head = QLabel(
-            f"<b>Lista:</b> {self.summary.list_name}  ·  <b>Layout:</b> {self.summary.layout_name}  ·  "
-            f"<b>ROMs totales:</b> {self.summary.total_roms}"
+            tr(
+                "scraper_dlg.batch_header",
+                "<b>List:</b> {list_name}  ·  <b>Layout:</b> {layout_name}  ·  <b>Total ROMs:</b> {total}",
+                list_name=self.summary.list_name,
+                layout_name=self.summary.layout_name,
+                total=self.summary.total_roms,
+            )
         )
         lbl_head.setStyleSheet("color: #e2e8f0; font-size: 9.5pt;")
         lbl_sub = QLabel(
-            "Se buscarán y descargarán <b>únicamente</b> los tipos de media declarados en "
-            "<code>MEDIA_REQUIREMENTS</code> del layout elegido."
+            tr(
+                "scraper_dlg.batch_sub",
+                "<b>Only</b> media types declared in the selected layout's "
+                "<code>MEDIA_REQUIREMENTS</code> will be searched and downloaded.",
+            )
         )
         lbl_sub.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
         lbl_sub.setWordWrap(True)
@@ -618,7 +657,7 @@ class BatchScrapeDialog(QDialog):
         root.addWidget(banner)
 
         # Configuración del trabajo
-        cfg_grp = QGroupBox("Parámetros de descarga")
+        cfg_grp = QGroupBox(tr("scraper_dlg.batch_cfg_group", "Download Parameters"))
         cfg_form = QFormLayout(cfg_grp)
         cfg_form.setSpacing(8)
 
@@ -635,24 +674,32 @@ class BatchScrapeDialog(QDialog):
         s_idx = self.system_combo.findData(detected_sys.key)
         if s_idx >= 0:
             self.system_combo.setCurrentIndex(s_idx)
-        cfg_form.addRow("Sistema detectado:", self.system_combo)
+        cfg_form.addRow(tr("scraper_dlg.detected_system_label", "Detected system:"), self.system_combo)
 
         prov_row = QHBoxLayout()
         self.provider_combo = QComboBox()
-        self.provider_combo.addItem("Automático (ArcadeDB + ScreenScraper + Libretro)", "auto")
-        self.provider_combo.addItem("Libretro Thumbnails (Gratis, sin clave — Boxart y Wheel)", "libretro")
-        self.provider_combo.addItem("Arcade Database / ADB (Gratis — MAME / Arcade + Video)", "arcadedb")
-        self.provider_combo.addItem("ScreenScraper.fr (Usuario y Contraseña)", "screenscraper")
+        self.provider_combo.addItem(
+            tr("scraper_dlg.batch_prov_auto", "Automatic (ArcadeDB + ScreenScraper + Libretro)"), "auto"
+        )
+        self.provider_combo.addItem(
+            tr("scraper_dlg.prov_libretro", "Libretro Thumbnails (Free, no key — Boxart & Wheel)"), "libretro"
+        )
+        self.provider_combo.addItem(
+            tr("scraper_dlg.prov_arcadedb", "Arcade Database / ADB (Free — MAME / Arcade + Video)"), "arcadedb"
+        )
+        self.provider_combo.addItem(
+            tr("scraper_dlg.batch_prov_ss", "ScreenScraper.fr (Username and Password)"), "screenscraper"
+        )
         p_idx = self.provider_combo.findData(self.config.preferred_provider)
         if p_idx >= 0:
             self.provider_combo.setCurrentIndex(p_idx)
         self.provider_combo.currentIndexChanged.connect(self._update_provider_hint)
 
-        self.btn_cfg = QPushButton("⚙ Credenciales…")
+        self.btn_cfg = QPushButton(tr("scraper_dlg.btn_credentials", "⚙ Credentials…"))
         self.btn_cfg.clicked.connect(self._open_settings)
         prov_row.addWidget(self.provider_combo, 1)
         prov_row.addWidget(self.btn_cfg)
-        cfg_form.addRow("Fuente online:", prov_row)
+        cfg_form.addRow(tr("scraper_dlg.online_source_label", "Online source:"), prov_row)
 
         self.provider_hint_lbl = QLabel()
         self.provider_hint_lbl.setWordWrap(True)
@@ -660,16 +707,18 @@ class BatchScrapeDialog(QDialog):
         cfg_form.addRow("", self.provider_hint_lbl)
 
         self.scope_combo = QComboBox()
-        self.scope_combo.addItem("Solo ROMs con media faltante en los slots elegidos", "missing")
         self.scope_combo.addItem(
-            f"Solo ROMs visibles con el filtro actual ({len(self.visible_roms)})",
+            tr("scraper_dlg.scope_missing", "Only ROMs missing media in selected slots"), "missing"
+        )
+        self.scope_combo.addItem(
+            tr("scraper_dlg.scope_filtered", "Only ROMs visible under current filter ({count})", count=len(self.visible_roms)),
             "filtered",
         )
         self.scope_combo.addItem(
-            f"Todas las ROMs de la lista ({len(self.summary.results)})",
+            tr("scraper_dlg.scope_all", "All ROMs in the list ({count})", count=len(self.summary.results)),
             "all",
         )
-        cfg_form.addRow("Alcance:", self.scope_combo)
+        cfg_form.addRow(tr("scraper_dlg.scope_label", "Scope:"), self.scope_combo)
 
         # Slots según MEDIA_REQUIREMENTS
         slots_widget = QWidget()
@@ -681,13 +730,22 @@ class BatchScrapeDialog(QDialog):
             tot = self.summary.slot_totals.get(spec.key, {})
             miss = int(tot.get("missing", 0))
             star = "★ " if spec.required else ""
-            folder_warn = " [Sin carpeta]" if not spec.folder_exists else ""
-            chk = QCheckBox(f"{star}{spec.label} (faltan {miss}){folder_warn}")
+            folder_warn = tr("scraper_dlg.slot_no_folder_tag", " [No folder]") if not spec.folder_exists else ""
+            chk = QCheckBox(
+                tr(
+                    "scraper_dlg.batch_slot_check",
+                    "{star}{label} (missing {miss}){folder_warn}",
+                    star=star,
+                    label=spec.label,
+                    miss=miss,
+                    folder_warn=folder_warn,
+                )
+            )
             chk.setChecked(miss > 0 or not spec.folder_exists)
             chk.toggled.connect(self._refresh_folder_warning)
             self._slot_checks[spec.key] = chk
             slots_grid.addWidget(chk, idx // 2, idx % 2)
-        cfg_form.addRow("Medios del layout:", slots_widget)
+        cfg_form.addRow(tr("scraper_dlg.layout_media_label", "Layout media:"), slots_widget)
 
         # Panel opcional de auto-creación de carpetas faltantes
         self.folder_box = QFrame()
@@ -698,8 +756,11 @@ class BatchScrapeDialog(QDialog):
         fb_lay.setContentsMargins(8, 6, 8, 6)
         fb_lay.setSpacing(6)
         fb_lbl = QLabel(
-            "⚠ Hay slots seleccionados sin carpeta configurada en la lista. "
-            "Indicá la carpeta base para crear automáticamente las subcarpetas:"
+            tr(
+                "scraper_dlg.folder_box_warning",
+                "⚠ Some selected slots have no folder configured in the list. "
+                "Specify the base folder to create subfolders automatically:",
+            )
         )
         fb_lbl.setWordWrap(True)
         fb_lbl.setStyleSheet("color: #fcd34d; font-size: 8.5pt;")
@@ -707,10 +768,12 @@ class BatchScrapeDialog(QDialog):
 
         fb_row = QHBoxLayout()
         self.media_root_edit = QLineEdit(suggest_media_root_for_list(self.list_row))
-        self.media_root_edit.setPlaceholderText("Ej: C:/Roms/SNES/media")
-        btn_pick_root = QPushButton("📁 Examinar…")
+        self.media_root_edit.setPlaceholderText(
+            tr("scraper_dlg.media_root_placeholder", "E.g.: C:/Roms/SNES/media")
+        )
+        btn_pick_root = QPushButton(tr("scraper_dlg.btn_browse_folder", "📁 Browse…"))
         btn_pick_root.clicked.connect(self._pick_media_root)
-        self.chk_auto_mkdir = QCheckBox("Crear subcarpetas al iniciar")
+        self.chk_auto_mkdir = QCheckBox(tr("scraper_dlg.chk_auto_mkdir", "Create subfolders on start"))
         self.chk_auto_mkdir.setChecked(True)
         fb_row.addWidget(self.media_root_edit, 1)
         fb_row.addWidget(btn_pick_root)
@@ -720,18 +783,18 @@ class BatchScrapeDialog(QDialog):
 
         # Opciones extra
         opts_row = QHBoxLayout()
-        self.chk_overwrite = QCheckBox("Sobrescribir archivos existentes")
-        self.chk_meta = QCheckBox("Completar metadatos vacíos")
+        self.chk_overwrite = QCheckBox(tr("scraper_dlg.chk_overwrite", "Overwrite existing files"))
+        self.chk_meta = QCheckBox(tr("scraper_dlg.chk_meta", "Fill empty metadata"))
         self.chk_meta.setChecked(self.config.update_empty_metadata)
         self.workers_spin = QSpinBox()
         self.workers_spin.setRange(1, 4)
         self.workers_spin.setValue(self.config.normalized_workers())
-        self.workers_spin.setPrefix("Hilos: ")
+        self.workers_spin.setPrefix(tr("scraper_dlg.workers_prefix", "Threads: "))
         opts_row.addWidget(self.chk_overwrite)
         opts_row.addWidget(self.chk_meta)
         opts_row.addStretch()
         opts_row.addWidget(self.workers_spin)
-        cfg_form.addRow("Opciones:", opts_row)
+        cfg_form.addRow(tr("scraper_dlg.options_label", "Options:"), opts_row)
 
         root.addWidget(cfg_grp)
 
@@ -739,10 +802,12 @@ class BatchScrapeDialog(QDialog):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFormat("Listo para iniciar")
+        self.progress_bar.setFormat(tr("scraper_dlg.progress_ready", "Ready to start"))
         root.addWidget(self.progress_bar)
 
-        self.status_lbl = QLabel("Configurá las opciones y presioná <b>Iniciar Scraping</b>.")
+        self.status_lbl = QLabel(
+            tr("scraper_dlg.batch_ready_hint", "Configure the options and press <b>Start Scraping</b>.")
+        )
         self.status_lbl.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
         root.addWidget(self.status_lbl)
 
@@ -757,12 +822,12 @@ class BatchScrapeDialog(QDialog):
 
         # Botonera inferior
         btns = QHBoxLayout()
-        self.btn_start = QPushButton("🚀 Iniciar Scraping")
+        self.btn_start = QPushButton(tr("scraper_dlg.btn_start_scrape", "🚀 Start Scraping"))
         self.btn_start.setObjectName("primary")
         self.btn_start.setMinimumHeight(34)
         self.btn_start.clicked.connect(self._on_start_clicked)
 
-        self.btn_cancel = QPushButton("Cerrar")
+        self.btn_cancel = QPushButton(tr("scraper_dlg.btn_close", "Close"))
         self.btn_cancel.clicked.connect(self._on_cancel_or_close)
 
         btns.addStretch()
@@ -776,28 +841,58 @@ class BatchScrapeDialog(QDialog):
         mode = str(self.provider_combo.currentData() or "auto")
         if mode == "screenscraper":
             if self.config.has_screenscraper_user_credentials:
-                rem_txt = "recordado" if self.config.ss_remember else "solo esta sesión"
+                rem_txt = (
+                    tr("scraper_dlg.ss_remembered", "remembered")
+                    if self.config.ss_remember
+                    else tr("scraper_dlg.ss_session_only", "this session only")
+                )
                 self.provider_hint_lbl.setText(
-                    f"✓ ScreenScraper listo — Usuario: <b>{self.config.ss_ssid}</b> ({rem_txt})."
+                    tr(
+                        "scraper_dlg.hint_ss_user_ready",
+                        "✓ ScreenScraper ready — User: <b>{user}</b> ({rem}).",
+                        user=self.config.ss_ssid,
+                        rem=rem_txt,
+                    )
                 )
                 self.provider_hint_lbl.setStyleSheet("color: #86efac; font-size: 8.5pt;")
             elif self.config.has_screenscraper_dev_credentials:
-                self.provider_hint_lbl.setText("✓ ScreenScraper listo con credenciales de API configuradas.")
+                self.provider_hint_lbl.setText(
+                    tr("scraper_dlg.hint_ss_dev_ready", "✓ ScreenScraper ready with configured API credentials.")
+                )
                 self.provider_hint_lbl.setStyleSheet("color: #86efac; font-size: 8.5pt;")
             else:
                 self.provider_hint_lbl.setText(
-                    "ℹ ScreenScraper solicita tu usuario y contraseña (te los pedirá al iniciar o desde '⚙ Credenciales…')."
+                    tr(
+                        "scraper_dlg.hint_ss_needs_login",
+                        "ℹ ScreenScraper requires your username and password (it will prompt on start or via '⚙ Credentials…').",
+                    )
                 )
                 self.provider_hint_lbl.setStyleSheet("color: #fcd34d; font-size: 8.5pt;")
         elif mode == "auto":
-            ss_state = "activo" if self.config.has_screenscraper_credentials else "sin sesión (usará ADB + Libretro)"
-            self.provider_hint_lbl.setText(f"Modo automático — ScreenScraper: {ss_state}.")
+            ss_state = (
+                tr("scraper_dlg.ss_state_active", "active")
+                if self.config.has_screenscraper_credentials
+                else tr("scraper_dlg.ss_state_inactive", "not signed in (will use ADB + Libretro)")
+            )
+            self.provider_hint_lbl.setText(
+                tr("scraper_dlg.hint_auto_mode", "Automatic mode — ScreenScraper: {state}.", state=ss_state)
+            )
             self.provider_hint_lbl.setStyleSheet("color: #93c5fd; font-size: 8.5pt;")
         elif mode == "libretro":
-            self.provider_hint_lbl.setText("Libretro descarga PNG gratuitos de carátulas (Boxart) y logos (Wheel) sin claves.")
+            self.provider_hint_lbl.setText(
+                tr(
+                    "scraper_dlg.hint_libretro",
+                    "Libretro downloads free PNG box art (Boxart) and logos (Wheel) without keys.",
+                )
+            )
             self.provider_hint_lbl.setStyleSheet("color: #86efac; font-size: 8.5pt;")
         else:
-            self.provider_hint_lbl.setText("ArcadeDB descarga media y videos MP4 de MAME/Arcade sin necesidad de cuenta.")
+            self.provider_hint_lbl.setText(
+                tr(
+                    "scraper_dlg.hint_arcadedb",
+                    "ArcadeDB downloads MAME/Arcade media and MP4 videos without needing an account.",
+                )
+            )
             self.provider_hint_lbl.setStyleSheet("color: #86efac; font-size: 8.5pt;")
 
     def _open_settings(self):
@@ -810,7 +905,11 @@ class BatchScrapeDialog(QDialog):
 
     def _pick_media_root(self):
         cur = self.media_root_edit.text().strip()
-        chosen = QFileDialog.getExistingDirectory(self, "Seleccionar carpeta raíz para media", cur)
+        chosen = QFileDialog.getExistingDirectory(
+            self,
+            tr("scraper_dlg.pick_media_root_title", "Select root folder for media"),
+            cur,
+        )
         if chosen:
             self.media_root_edit.setText(chosen.replace("\\", "/"))
 
@@ -850,7 +949,11 @@ class BatchScrapeDialog(QDialog):
     def _on_start_clicked(self):
         slot_keys = self._selected_slot_keys()
         if not slot_keys:
-            QMessageBox.information(self, "Slots requeridos", "Seleccioná al menos un tipo de medio para scrapear.")
+            QMessageBox.information(
+                self,
+                tr("scraper_dlg.slots_required_title", "Slots Required"),
+                tr("scraper_dlg.slots_required_msg", "Select at least one media type to scrape."),
+            )
             return
 
         # Crear carpetas faltantes si el usuario lo solicitó
@@ -863,8 +966,11 @@ class BatchScrapeDialog(QDialog):
                 if not base_root:
                     QMessageBox.warning(
                         self,
-                        "Carpeta raíz requerida",
-                        "Indicá una carpeta base válida para crear las subcarpetas de media faltantes.",
+                        tr("scraper_dlg.root_required_title", "Root Folder Required"),
+                        tr(
+                            "scraper_dlg.root_required_msg",
+                            "Specify a valid base folder to create the missing media subfolders.",
+                        ),
                     )
                     return
                 try:
@@ -877,24 +983,35 @@ class BatchScrapeDialog(QDialog):
                     )
                     if updated_fields:
                         self.has_folder_changes = True
-                        self.log_edit.appendPlainText(f"📁 Carpetas preparadas en: {base_root}")
+                        self.log_edit.appendPlainText(
+                            tr("scraper_dlg.log_folders_prepared", "📁 Folders prepared at: {path}", path=base_root)
+                        )
                 except Exception as exc:
-                    QMessageBox.critical(self, "Error creando carpetas", str(exc))
+                    QMessageBox.critical(
+                        self, tr("scraper_dlg.mkdir_error_title", "Error Creating Folders"), str(exc)
+                    )
                     return
             else:
                 names = ", ".join(sp.label for sp in missing_folder_specs)
                 QMessageBox.warning(
                     self,
-                    "Carpetas sin configurar",
-                    f"Los siguientes slots no tienen carpeta configurada y no serán descargados:\n{names}",
+                    tr("scraper_dlg.unconfigured_folders_title", "Unconfigured Folders"),
+                    tr(
+                        "scraper_dlg.unconfigured_folders_msg",
+                        "The following slots have no folder configured and will not be downloaded:\n{names}",
+                        names=names,
+                    ),
                 )
 
         targets = self._collect_target_roms(slot_keys)
         if not targets:
             QMessageBox.information(
                 self,
-                "Nada pendiente",
-                "Todas las ROMs del alcance seleccionado ya tienen completos los slots elegidos.",
+                tr("scraper_dlg.nothing_pending_title", "Nothing Pending"),
+                tr(
+                    "scraper_dlg.nothing_pending_msg",
+                    "All ROMs in the selected scope already have the chosen slots complete.",
+                ),
             )
             return
 
@@ -921,13 +1038,19 @@ class BatchScrapeDialog(QDialog):
         )
 
         self.btn_start.setEnabled(False)
-        self.btn_cancel.setText("⏹ Detener")
+        self.btn_cancel.setText(tr("scraper_dlg.btn_stop", "⏹ Stop"))
         self.progress_bar.setRange(0, len(targets))
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {len(targets)}")
         self.log_edit.clear()
         self.log_edit.appendPlainText(
-            f"🚀 Iniciando scraping de {len(targets)} ROM(s) | Sistema: {opts.system_key} | Proveedor: {provider_mode}"
+            tr(
+                "scraper_dlg.log_batch_start",
+                "🚀 Starting scraping of {count} ROM(s) | System: {sys} | Provider: {prov}",
+                count=len(targets),
+                sys=opts.system_key,
+                prov=provider_mode,
+            )
         )
 
         self._worker = BatchScrapeWorker(
@@ -956,7 +1079,15 @@ class BatchScrapeDialog(QDialog):
         self.progress_bar.setMaximum(max(1, total))
         self.progress_bar.setValue(min(cur, total))
         self.progress_bar.setFormat(f"{cur} / {total} ({int(round((cur / max(1, total)) * 100))}%)")
-        self.status_lbl.setText(f"Procesando {cur}/{total}: <b>{outcome.title}</b>")
+        self.status_lbl.setText(
+            tr(
+                "scraper_dlg.batch_processing",
+                "Processing {cur}/{total}: <b>{title}</b>",
+                cur=cur,
+                total=total,
+                title=outcome.title,
+            )
+        )
 
         if outcome.status == "downloaded":
             icon = "✅"
@@ -974,22 +1105,38 @@ class BatchScrapeDialog(QDialog):
 
     def _on_batch_finished(self, batch_sum: BatchScrapeSummary):
         self.btn_start.setEnabled(True)
-        self.btn_cancel.setText("Cerrar")
-        state_lbl = "Scraping cancelado por el usuario." if batch_sum.cancelled else "Scraping completado."
+        self.btn_cancel.setText(tr("scraper_dlg.btn_close", "Close"))
+        state_lbl = (
+            tr("scraper_dlg.batch_cancelled", "Scraping cancelled by user.")
+            if batch_sum.cancelled
+            else tr("scraper_dlg.batch_completed", "Scraping completed.")
+        )
         self.status_lbl.setText(
-            f"<b>{state_lbl}</b> Descargadas OK: <b>{batch_sum.downloaded_roms}</b> · "
-            f"Parciales: <b>{batch_sum.partial_roms}</b> · Sin coincidencia: <b>{batch_sum.not_found_roms}</b> · "
-            f"Archivos guardados: <b>{batch_sum.files_saved}</b>"
+            tr(
+                "scraper_dlg.batch_summary_html",
+                "<b>{state}</b> Downloaded OK: <b>{ok}</b> · Partial: <b>{partial}</b> · "
+                "No match: <b>{not_found}</b> · Files saved: <b>{saved}</b>",
+                state=state_lbl,
+                ok=batch_sum.downloaded_roms,
+                partial=batch_sum.partial_roms,
+                not_found=batch_sum.not_found_roms,
+                saved=batch_sum.files_saved,
+            )
         )
         self.log_edit.appendPlainText(
-            f"--- FIN: {batch_sum.files_saved} archivo(s) guardados, {batch_sum.metadata_enriched} juego(s) con metadatos ---"
+            tr(
+                "scraper_dlg.log_batch_end",
+                "--- END: {saved} file(s) saved, {meta} game(s) with metadata ---",
+                saved=batch_sum.files_saved,
+                meta=batch_sum.metadata_enriched,
+            )
         )
 
     def _on_batch_failed(self, err: str):
         self.btn_start.setEnabled(True)
-        self.btn_cancel.setText("Cerrar")
-        self.status_lbl.setText(f"<span style='color:#f87171;'>Error: {err}</span>")
-        self.log_edit.appendPlainText(f"❌ Error fatal: {err}")
+        self.btn_cancel.setText(tr("scraper_dlg.btn_close", "Close"))
+        self.status_lbl.setText(tr("scraper_dlg.batch_error_html", "<span style='color:#f87171;'>Error: {err}</span>", err=err))
+        self.log_edit.appendPlainText(tr("scraper_dlg.log_fatal_error", "❌ Fatal error: {err}", err=err))
 
     def _stop_worker_if_running(self):
         if self._worker and self._worker.isRunning():
@@ -999,7 +1146,7 @@ class BatchScrapeDialog(QDialog):
     def _on_cancel_or_close(self):
         if self._worker and self._worker.isRunning():
             self.btn_cancel.setEnabled(False)
-            self.btn_cancel.setText("Deteniendo…")
+            self.btn_cancel.setText(tr("scraper_dlg.btn_stopping", "Stopping…"))
             self._worker.cancel()
             return
         self.accept() if (self.has_media_changes or self.has_metadata_changes or self.has_folder_changes) else self.reject()
@@ -1045,7 +1192,7 @@ class SingleRomScrapeDialog(QDialog):
         self.downloaded_any = False
         self.metadata_updated = False
 
-        self.setWindowTitle(f"Buscar media online — {rom.title}")
+        self.setWindowTitle(tr("scraper_dlg.single_title", "Search online media — {title}", title=rom.title))
         self.setMinimumSize(860, 580)
         self._build_ui()
 
@@ -1058,7 +1205,7 @@ class SingleRomScrapeDialog(QDialog):
         search_bar = QHBoxLayout()
         search_bar.setSpacing(8)
         self.query_edit = QLineEdit(clean_rom_search_title(self.rom.title or self.rom.stem))
-        self.query_edit.setPlaceholderText("Nombre del juego a buscar…")
+        self.query_edit.setPlaceholderText(tr("scraper_dlg.single_query_placeholder", "Game title to search…"))
         self.query_edit.returnPressed.connect(self.start_search)
 
         emu_row = self.db.get_default_emulator_for_list(int(self.list_row["id"])) if self.db else None
@@ -1071,20 +1218,20 @@ class SingleRomScrapeDialog(QDialog):
             self.system_combo.setCurrentIndex(idx)
 
         self.provider_combo = QComboBox()
-        self.provider_combo.addItem("Todos (Auto)", "auto")
+        self.provider_combo.addItem(tr("scraper_dlg.single_prov_all", "All (Auto)"), "auto")
         self.provider_combo.addItem("Libretro", "libretro")
         self.provider_combo.addItem("ArcadeDB", "arcadedb")
         self.provider_combo.addItem("ScreenScraper", "screenscraper")
 
-        self.btn_cfg = QPushButton("⚙ Cuenta")
-        self.btn_cfg.setToolTip("Configurar usuario, contraseña y opciones de ScreenScraper")
+        self.btn_cfg = QPushButton(tr("scraper_dlg.btn_account", "⚙ Account"))
+        self.btn_cfg.setToolTip(tr("scraper_dlg.tip_account", "Configure ScreenScraper username, password, and options"))
         self.btn_cfg.clicked.connect(self._open_settings)
 
-        self.btn_search = QPushButton("🔎 Buscar")
+        self.btn_search = QPushButton(tr("scraper_dlg.btn_search", "🔎 Search"))
         self.btn_search.setObjectName("primary")
         self.btn_search.clicked.connect(self.start_search)
 
-        search_bar.addWidget(QLabel("<b>Buscar:</b>"))
+        search_bar.addWidget(QLabel(tr("scraper_dlg.search_label", "<b>Search:</b>")))
         search_bar.addWidget(self.query_edit, 2)
         search_bar.addWidget(self.system_combo, 1)
         search_bar.addWidget(self.provider_combo)
@@ -1093,7 +1240,11 @@ class SingleRomScrapeDialog(QDialog):
         root.addLayout(search_bar)
 
         self.status_lbl = QLabel(
-            f"ROM: <code>{self.rom.stem}</code> — Presioná <b>Buscar</b> para consultar candidatos online."
+            tr(
+                "scraper_dlg.single_ready_status",
+                "ROM: <code>{stem}</code> — Press <b>Search</b> to query online candidates.",
+                stem=self.rom.stem,
+            )
         )
         self.status_lbl.setStyleSheet("color: #94a3b8; font-size: 8.5pt;")
         root.addWidget(self.status_lbl)
@@ -1103,7 +1254,15 @@ class SingleRomScrapeDialog(QDialog):
 
         self.cand_table = QTableWidget()
         self.cand_table.setColumnCount(5)
-        self.cand_table.setHorizontalHeaderLabels(["Título", "Fuente", "Año", "Score", "Assets"])
+        self.cand_table.setHorizontalHeaderLabels(
+            [
+                tr("scraper_dlg.col_title", "Title"),
+                tr("scraper_dlg.col_source", "Source"),
+                tr("scraper_dlg.col_year", "Year"),
+                tr("scraper_dlg.col_score", "Score"),
+                tr("scraper_dlg.col_assets", "Assets"),
+            ]
+        )
         configure_details_table(
             self.cand_table,
             col_widths=(240, 130, 65, 70, 140),
@@ -1119,7 +1278,7 @@ class SingleRomScrapeDialog(QDialog):
         r_vbox.setContentsMargins(10, 10, 10, 10)
         r_vbox.setSpacing(8)
 
-        self.cand_title_lbl = QLabel("Sin candidato seleccionado")
+        self.cand_title_lbl = QLabel(tr("scraper_dlg.no_candidate_selected", "No candidate selected"))
         self.cand_title_lbl.setFont(QFont("Segoe UI", 10.5, QFont.Bold))
         self.cand_title_lbl.setWordWrap(True)
         r_vbox.addWidget(self.cand_title_lbl)
@@ -1131,13 +1290,13 @@ class SingleRomScrapeDialog(QDialog):
 
         # Selector rápido para previsualizar miniatura de imagen del candidato
         prev_ctrl = QHBoxLayout()
-        prev_ctrl.addWidget(QLabel("Vista previa:"))
+        prev_ctrl.addWidget(QLabel(tr("scraper_dlg.preview_label", "Preview:")))
         self.preview_slot_combo = QComboBox()
         self.preview_slot_combo.currentIndexChanged.connect(self._load_selected_asset_thumb)
         prev_ctrl.addWidget(self.preview_slot_combo, 1)
         r_vbox.addLayout(prev_ctrl)
 
-        self.thumb_lbl = QLabel("Sin vista previa")
+        self.thumb_lbl = QLabel(tr("scraper_dlg.no_preview", "No preview"))
         self.thumb_lbl.setAlignment(Qt.AlignCenter)
         self.thumb_lbl.setMinimumHeight(170)
         self.thumb_lbl.setStyleSheet(
@@ -1146,20 +1305,30 @@ class SingleRomScrapeDialog(QDialog):
         r_vbox.addWidget(self.thumb_lbl, 1)
 
         # Checkboxes de slots disponibles en el layout
-        slots_grp = QGroupBox("Slots a descargar en sus carpetas:")
+        slots_grp = QGroupBox(tr("scraper_dlg.slots_to_dl_group", "Slots to download into folders:"))
         sg_lay = QVBoxLayout(slots_grp)
         sg_lay.setSpacing(4)
         for sp in self.specs:
             slot_obj = self.rom.slots.get(sp.key)
             has_ok = bool(slot_obj and slot_obj.status == "ok")
-            state_tag = "(Ya OK)" if has_ok else ("(Sin carpeta)" if not sp.folder_exists else "(Falta)")
+            state_tag = (
+                tr("scraper_dlg.slot_tag_ok", "(Already OK)")
+                if has_ok
+                else (
+                    tr("scraper_dlg.slot_tag_no_folder", "(No folder)")
+                    if not sp.folder_exists
+                    else tr("scraper_dlg.slot_tag_missing", "(Missing)")
+                )
+            )
             chk = QCheckBox(f"{sp.label} {state_tag}")
             chk.setEnabled(False)
             self._slot_checks[sp.key] = chk
             sg_lay.addWidget(chk)
         r_vbox.addWidget(slots_grp)
 
-        self.chk_apply_meta = QCheckBox("Guardar también metadatos (Año, Fabricante, Género, Sinopsis)")
+        self.chk_apply_meta = QCheckBox(
+            tr("scraper_dlg.chk_apply_meta", "Also save metadata (Year, Manufacturer, Genre, Synopsis)")
+        )
         self.chk_apply_meta.setChecked(True)
         r_vbox.addWidget(self.chk_apply_meta)
 
@@ -1170,12 +1339,12 @@ class SingleRomScrapeDialog(QDialog):
         # Botonera
         btns = QHBoxLayout()
         btns.addStretch()
-        self.btn_download = QPushButton("⬇ Descargar seleccionados")
+        self.btn_download = QPushButton(tr("scraper_dlg.btn_download_selected", "⬇ Download Selected"))
         self.btn_download.setObjectName("primary")
         self.btn_download.setEnabled(False)
         self.btn_download.clicked.connect(self._on_download_clicked)
 
-        btn_close = QPushButton("Cerrar")
+        btn_close = QPushButton(tr("scraper_dlg.btn_close", "Close"))
         btn_close.clicked.connect(self._on_close)
         btns.addWidget(self.btn_download)
         btns.addWidget(btn_close)
@@ -1200,7 +1369,9 @@ class SingleRomScrapeDialog(QDialog):
 
         self.btn_search.setEnabled(False)
         self.btn_download.setEnabled(False)
-        self.status_lbl.setText("⏳ Buscando candidatos en los proveedores seleccionados…")
+        self.status_lbl.setText(
+            tr("scraper_dlg.searching_status", "⏳ Searching for candidates in selected providers…")
+        )
         self.cand_table.setRowCount(0)
         self._candidates.clear()
 
@@ -1232,7 +1403,7 @@ class SingleRomScrapeDialog(QDialog):
                 it2 = SortableTableWidgetItem(yr_raw or "—", sort_key=yr_key)
                 score_pct = int(round(cand.match_score * 100))
                 it3 = SortableTableWidgetItem(f"{score_pct}%", sort_key=float(cand.match_score))
-                it4 = SortableTableWidgetItem(", ".join(cand.assets.keys()) or "Solo meta")
+                it4 = SortableTableWidgetItem(", ".join(cand.assets.keys()) or tr("scraper_dlg.assets_meta_only", "Meta only"))
                 self.cand_table.setItem(r_idx, 0, it0)
                 self.cand_table.setItem(r_idx, 1, it1)
                 self.cand_table.setItem(r_idx, 2, it2)
@@ -1240,14 +1411,20 @@ class SingleRomScrapeDialog(QDialog):
                 self.cand_table.setItem(r_idx, 4, it4)
 
         if candidates:
-            self.status_lbl.setText(f"Se encontraron <b>{len(candidates)}</b> candidato(s).")
+            self.status_lbl.setText(
+                tr("scraper_dlg.search_found", "Found <b>{count}</b> candidate(s).", count=len(candidates))
+            )
             self.cand_table.selectRow(0)
         else:
-            self.status_lbl.setText("No se encontraron coincidencias. Probá acortando el término de búsqueda.")
+            self.status_lbl.setText(
+                tr("scraper_dlg.search_not_found", "No matches found. Try shortening the search term.")
+            )
 
     def _on_search_failed(self, err: str):
         self.btn_search.setEnabled(True)
-        self.status_lbl.setText(f"<span style='color:#f87171;'>Error al buscar: {err}</span>")
+        self.status_lbl.setText(
+            tr("scraper_dlg.search_error_html", "<span style='color:#f87171;'>Search error: {err}</span>", err=err)
+        )
 
     def _current_candidate(self) -> ScraperCandidate | None:
         row = self.cand_table.currentRow()
@@ -1268,7 +1445,7 @@ class SingleRomScrapeDialog(QDialog):
 
         self.cand_title_lbl.setText(f"{cand.title}  [{cand.provider_label}]")
         meta_parts = [p for p in (cand.year, cand.manufacturer, cand.genre, cand.rating) if p]
-        meta_head = " · ".join(meta_parts) if meta_parts else "Sin metadatos adicionales"
+        meta_head = " · ".join(meta_parts) if meta_parts else tr("scraper_dlg.no_extra_meta", "No additional metadata")
         notes_snip = f"\n{cand.notes[:220]}…" if cand.notes and len(cand.notes) > 220 else (f"\n{cand.notes}" if cand.notes else "")
         self.cand_meta_lbl.setText(meta_head + notes_snip)
 
@@ -1306,23 +1483,23 @@ class SingleRomScrapeDialog(QDialog):
         slot_k = self.preview_slot_combo.currentData()
         if not cand or not slot_k or slot_k not in cand.assets:
             self.thumb_lbl.setPixmap(QPixmap())
-            self.thumb_lbl.setText("Sin vista previa de imagen")
+            self.thumb_lbl.setText(tr("scraper_dlg.no_image_preview", "No image preview"))
             return
 
         url = cand.assets[slot_k].url
         self.thumb_lbl.setPixmap(QPixmap())
-        self.thumb_lbl.setText("Cargando miniatura…")
+        self.thumb_lbl.setText(tr("scraper_dlg.loading_thumb", "Loading thumbnail…"))
         self._thumb_worker = ThumbnailFetchWorker(url, timeout=10.0, parent=self)
         self._thumb_worker.image_ready.connect(self._on_thumb_ready)
         self._thumb_worker.start()
 
     def _on_thumb_ready(self, _url: str, data: bytes):
         if not data:
-            self.thumb_lbl.setText("No se pudo previsualizar esta imagen")
+            self.thumb_lbl.setText(tr("scraper_dlg.preview_failed", "Could not preview this image"))
             return
         pix = QPixmap()
         if not pix.loadFromData(data):
-            self.thumb_lbl.setText("Formato no válido en vista previa")
+            self.thumb_lbl.setText(tr("scraper_dlg.preview_invalid", "Invalid image format in preview"))
             return
         scaled = pix.scaled(self.thumb_lbl.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.thumb_lbl.setText("")
@@ -1334,7 +1511,11 @@ class SingleRomScrapeDialog(QDialog):
             return
         chosen_slots = [k for k, c in self._slot_checks.items() if c.isEnabled() and c.isChecked()]
         if not chosen_slots and not self.chk_apply_meta.isChecked():
-            QMessageBox.information(self, "Nada seleccionado", "Marcá al menos un medio o metadato para aplicar.")
+            QMessageBox.information(
+                self,
+                tr("scraper_dlg.nothing_selected_title", "Nothing Selected"),
+                tr("scraper_dlg.nothing_selected_msg", "Check at least one media or metadata item to apply."),
+            )
             return
 
         if self.release_media_cb:
@@ -1352,13 +1533,19 @@ class SingleRomScrapeDialog(QDialog):
                 self.metadata_updated = True
 
         if not chosen_slots:
-            QMessageBox.information(self, "Metadatos actualizados", "Se completaron los metadatos disponibles en la base.")
+            QMessageBox.information(
+                self,
+                tr("scraper_dlg.meta_updated_title", "Metadata Updated"),
+                tr("scraper_dlg.meta_updated_msg", "Available metadata has been updated in the database."),
+            )
             self.accept()
             return
 
         self.btn_download.setEnabled(False)
         self.btn_search.setEnabled(False)
-        self.status_lbl.setText(f"⬇ Descargando {len(chosen_slots)} archivo(s)…")
+        self.status_lbl.setText(
+            tr("scraper_dlg.downloading_status", "⬇ Downloading {count} file(s)…", count=len(chosen_slots))
+        )
 
         self._dl_worker = SingleRomDownloadWorker(
             candidate=cand,
@@ -1380,18 +1567,36 @@ class SingleRomScrapeDialog(QDialog):
             self.downloaded_any = True
         msg_parts = []
         if downloaded:
-            msg_parts.append(f"Descargados correctamente ({len(downloaded)}): {', '.join(downloaded.keys())}")
+            msg_parts.append(
+                tr(
+                    "scraper_dlg.dl_ok_part",
+                    "Successfully downloaded ({count}): {slots}",
+                    count=len(downloaded),
+                    slots=", ".join(downloaded.keys()),
+                )
+            )
         if failed:
             errs = "\n".join(f"• {k}: {v}" for k, v in failed.items())
-            msg_parts.append(f"No descargados ({len(failed)}):\n{errs}")
-        QMessageBox.information(self, "Resultado del Scraping", "\n\n".join(msg_parts) or "Sin cambios.")
+            msg_parts.append(
+                tr(
+                    "scraper_dlg.dl_fail_part",
+                    "Failed to download ({count}):\n{errs}",
+                    count=len(failed),
+                    errs=errs,
+                )
+            )
+        QMessageBox.information(
+            self,
+            tr("scraper_dlg.dl_result_title", "Scraping Result"),
+            "\n\n".join(msg_parts) or tr("scraper_dlg.dl_no_changes", "No changes."),
+        )
         if downloaded:
             self.accept()
 
     def _on_download_failed(self, err: str):
         self.btn_download.setEnabled(True)
         self.btn_search.setEnabled(True)
-        QMessageBox.critical(self, "Error descargando", err)
+        QMessageBox.critical(self, tr("scraper_dlg.dl_error_title", "Download Error"), err)
 
     def _stop_workers(self):
         for w in (self._search_worker, self._dl_worker, self._thumb_worker):

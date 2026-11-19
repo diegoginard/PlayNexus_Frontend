@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QFrame, QTabWidget, QCheckBox, QScrollArea, QSizePolicy
 )
 from playnexus.db import Database, format_play_time
+from playnexus.i18n import init_i18n, tr
 from playnexus.services.library import (
     scan_rom_folder, import_scanned_games, add_game, parse_extensions_list,
     parse_rom_xml, apply_xml_to_list, enrich_game_dict,
@@ -193,7 +194,9 @@ class MainWindow(QMainWindow):
         self.current_game_id = None
         self.games_cache = []
 
-        self.setWindowTitle(f"PlayNexus — Configurador {__version_full__}")
+        self.setWindowTitle(
+            tr("mw.window_title", "PlayNexus — Configurator {version}", version=__version_full__)
+        )
         self.resize(1300, 820)
         self.setMinimumSize(960, 640)
         self.setStyleSheet(DARK_STYLESHEET)
@@ -248,7 +251,7 @@ class MainWindow(QMainWindow):
                 logo_label.setStyleSheet("padding: 2px 0 6px 0;")
                 left_layout.addWidget(logo_label)
 
-        left_label = QLabel("LISTAS / PLATAFORMAS")
+        left_label = QLabel(tr("mw.left.header", "LISTS / PLATFORMS"))
         left_label.setStyleSheet("font-weight: bold; color: #8e9bb0; letter-spacing: 1px;")
         left_layout.addWidget(left_label)
 
@@ -260,12 +263,12 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.list_widget, 1)
 
         left_btns = QHBoxLayout()
-        btn_add_l = QPushButton("＋ Crear")
+        btn_add_l = QPushButton(tr("mw.left.create_btn", "＋ Create"))
         btn_add_l.clicked.connect(self.create_list)
-        btn_edit_l = QPushButton("✎ Editar")
+        btn_edit_l = QPushButton(tr("mw.left.edit_btn", "✎ Edit"))
         btn_edit_l.clicked.connect(self.edit_current_list)
         btn_del_l = QPushButton("🗑")
-        btn_del_l.setToolTip("Eliminar lista")
+        btn_del_l.setToolTip(tr("mw.left.delete_tip", "Delete list"))
         btn_del_l.setObjectName("danger")
         btn_del_l.clicked.connect(self.delete_current_list)
         left_btns.addWidget(btn_add_l)
@@ -288,29 +291,29 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(8, 8, 8, 8)
 
         h_top = QHBoxLayout()
-        self.list_title = QLabel("Seleccioná una lista")
+        self.list_title = QLabel(tr("mw.center.select_list", "Select a list"))
         self.list_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
         h_top.addWidget(self.list_title, 1)
 
         self.layout_combo = QComboBox()
         self.layout_combo.addItems(get_available_layouts())
         self.layout_combo.currentTextChanged.connect(self.save_layout)
-        h_top.addWidget(QLabel("Diseño visual:"))
+        h_top.addWidget(QLabel(tr("mw.center.visual_layout", "Visual layout:")))
         h_top.addWidget(self.layout_combo)
 
         # Control de sonido al probar layouts en configuración
-        self.sound_checkbox = QCheckBox("🔊 Sonido")
+        self.sound_checkbox = QCheckBox(tr("mw.center.sound_on", "🔊 Sound"))
         self.sound_checkbox.setFocusPolicy(Qt.NoFocus)
-        self.sound_checkbox.setToolTip("Activar o desactivar sonido y efectos al probar diseños visuales")
+        self.sound_checkbox.setToolTip(tr("mw.center.sound_tip", "Enable or disable sound and effects when previewing visual layouts"))
         self.sound_checkbox.setStyleSheet("margin-left: 10px; font-weight: 500;")
         sound_pref = self.db.get_setting("layout_preview_sound", "true").strip().lower() in ("true", "1")
         self.sound_checkbox.setChecked(sound_pref)
-        self.sound_checkbox.setText("🔊 Sonido" if sound_pref else "🔇 Sonido")
+        self.sound_checkbox.setText(tr("mw.center.sound_on", "🔊 Sound") if sound_pref else tr("mw.center.sound_off", "🔇 Sound"))
         self.sound_checkbox.toggled.connect(self._on_layout_sound_toggled)
         h_top.addWidget(self.sound_checkbox)
         header_layout.addLayout(h_top)
 
-        self.list_meta_label = QLabel("Extensiones admitidas: —")
+        self.list_meta_label = QLabel(tr("mw.center.exts_none", "Supported extensions: —"))
         self.list_meta_label.setStyleSheet("color: #9ba7bc; font-size: 9pt;")
         header_layout.addWidget(self.list_meta_label)
         center_layout.addWidget(header_card)
@@ -318,7 +321,7 @@ class MainWindow(QMainWindow):
         # Barra de búsqueda y conteo
         search_row = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Buscar por título o archivo…")
+        self.search.setPlaceholderText(tr("mw.center.search_placeholder", "Search by title or filename…"))
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(180)
@@ -326,7 +329,7 @@ class MainWindow(QMainWindow):
         self.search.textChanged.connect(lambda: self.search_timer.start())
         search_row.addWidget(self.search, 1)
 
-        self.game_count_label = QLabel("0 juegos")
+        self.game_count_label = QLabel(tr("mw.center.count_zero", "0 games"))
         self.game_count_label.setStyleSheet("color: #8e9bb0;")
         search_row.addWidget(self.game_count_label)
         center_layout.addLayout(search_row)
@@ -339,13 +342,13 @@ class MainWindow(QMainWindow):
 
         # Botones de acción inferior del centro
         center_btns = QHBoxLayout()
-        btn_scan = QPushButton("▣ Escanear carpeta")
+        btn_scan = QPushButton(tr("mw.center.scan_btn", "▣ Scan folder"))
         btn_scan.clicked.connect(self.scan_folder)
-        btn_add = QPushButton("＋ Agregar archivos")
+        btn_add = QPushButton(tr("mw.center.add_files_btn", "＋ Add files"))
         btn_add.clicked.connect(self.add_files)
-        btn_edit_g = QPushButton("✎ Editar juego")
+        btn_edit_g = QPushButton(tr("mw.center.edit_game_btn", "✎ Edit game"))
         btn_edit_g.clicked.connect(self.edit_selected_game)
-        btn_del_g = QPushButton("Quitar de biblioteca")
+        btn_del_g = QPushButton(tr("mw.center.remove_game_btn", "Remove from library"))
         btn_del_g.setObjectName("danger")
         btn_del_g.clicked.connect(self.remove_game)
 
@@ -375,7 +378,7 @@ class MainWindow(QMainWindow):
         scroll_layout.setContentsMargins(0, 0, 6, 4)
         scroll_layout.setSpacing(10)
 
-        details_group = QGroupBox("Detalles")
+        details_group = QGroupBox(tr("mw.details.group", "Details"))
         details_lay = QVBoxLayout(details_group)
         details_lay.setContentsMargins(12, 16, 12, 12)
         details_lay.setSpacing(9)
@@ -426,9 +429,9 @@ class MainWindow(QMainWindow):
         self.game_bezel_combo.setMinimumHeight(32)
         self.game_bezel_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.game_bezel_combo.setMinimumContentsLength(14)
-        self.game_bezel_combo.addItem("Heredar de la lista (por defecto)", "")
-        self.game_bezel_combo.addItem("Activar Bezel HUD (Forzar)", "enabled")
-        self.game_bezel_combo.addItem("Desactivar Bezel HUD", "disabled")
+        self.game_bezel_combo.addItem(tr("mw.details.bezel_inherit", "Inherit from list (default)"), "")
+        self.game_bezel_combo.addItem(tr("mw.details.bezel_enable", "Enable Bezel HUD (Force)"), "enabled")
+        self.game_bezel_combo.addItem(tr("mw.details.bezel_disable", "Disable Bezel HUD"), "disabled")
         self.game_bezel_combo.currentIndexChanged.connect(self.save_game_bezel_hud)
 
         self.game_tags_label = _prep_detail_label(QLabel("—"))
@@ -437,16 +440,16 @@ class MainWindow(QMainWindow):
         self.game_stats_label = _prep_detail_label(QLabel("—"))
         self.game_stats_label.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
 
-        _add_detail_field("Título", self.game_name)
-        _add_detail_field("ROM / Código", self.game_rom_code)
-        _add_detail_field("Propiedades", self.game_meta_info)
-        _add_detail_field("Etiquetas", self.game_tags_label)
-        _add_detail_field("Actividad", self.game_stats_label)
-        _add_detail_field("Archivo", self.game_path)
-        _add_detail_field("Tamaño", self.game_size)
-        _add_detail_field("Emulador activo", self.effective_emu)
-        _add_detail_field("Emulador individual", self.override_combo)
-        _add_detail_field("Bezel HUD", self.game_bezel_combo)
+        _add_detail_field(tr("mw.details.title", "Title"), self.game_name)
+        _add_detail_field(tr("mw.details.rom_code", "ROM / Code"), self.game_rom_code)
+        _add_detail_field(tr("mw.details.props", "Properties"), self.game_meta_info)
+        _add_detail_field(tr("mw.details.tags", "Tags"), self.game_tags_label)
+        _add_detail_field(tr("mw.details.activity", "Activity"), self.game_stats_label)
+        _add_detail_field(tr("mw.details.file", "File"), self.game_path)
+        _add_detail_field(tr("mw.details.size", "Size"), self.game_size)
+        _add_detail_field(tr("mw.details.effective_emu", "Active emulator"), self.effective_emu)
+        _add_detail_field(tr("mw.details.override_emu", "Custom emulator"), self.override_combo)
+        _add_detail_field(tr("mw.details.bezel_hud", "Bezel HUD"), self.game_bezel_combo)
 
         ra_row_w = QWidget()
         ra_row_lay = QHBoxLayout(ra_row_w)
@@ -454,30 +457,30 @@ class MainWindow(QMainWindow):
         ra_row_lay.setSpacing(6)
         self.game_ra_label = _prep_detail_label(QLabel("—"))
         self.game_ra_label.setStyleSheet("color: #fde047; font-weight: 600;")
-        self.ra_detail_btn = QPushButton("🏆 Logros")
+        self.ra_detail_btn = QPushButton(tr("mw.details.ra_btn", "🏆 Achievements"))
         self.ra_detail_btn.setMinimumHeight(30)
         self.ra_detail_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.ra_detail_btn.setEnabled(False)
-        self.ra_detail_btn.setToolTip("Ver o actualizar logros de RetroAchievements")
+        self.ra_detail_btn.setToolTip(tr("mw.details.ra_tip", "View or refresh RetroAchievements"))
         self.ra_detail_btn.clicked.connect(self._open_selected_game_ra)
         ra_row_lay.addWidget(self.game_ra_label, 1)
         ra_row_lay.addWidget(self.ra_detail_btn)
-        _add_detail_field("RetroAchievements", ra_row_w)
+        _add_detail_field(tr("mw.details.ra_field", "RetroAchievements"), ra_row_w)
 
         manual_row_w = QWidget()
         manual_row_lay = QHBoxLayout(manual_row_w)
         manual_row_lay.setContentsMargins(0, 0, 0, 0)
         manual_row_lay.setSpacing(6)
         self.game_manual_label = _prep_detail_label(QLabel("—"))
-        self.manual_view_btn = QPushButton("📖 Ver Manual")
+        self.manual_view_btn = QPushButton(tr("mw.details.manual_btn", "📖 View Manual"))
         self.manual_view_btn.setMinimumHeight(30)
         self.manual_view_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.manual_view_btn.setEnabled(False)
-        self.manual_view_btn.setToolTip("Abrir el manual PDF del juego")
+        self.manual_view_btn.setToolTip(tr("mw.details.manual_tip", "Open game PDF manual"))
         self.manual_view_btn.clicked.connect(self._open_selected_game_manual)
         manual_row_lay.addWidget(self.game_manual_label, 1)
         manual_row_lay.addWidget(self.manual_view_btn)
-        _add_detail_field("Manual PDF", manual_row_w)
+        _add_detail_field(tr("mw.details.manual_field", "PDF Manual"), manual_row_w)
 
         scroll_layout.addWidget(details_group)
         scroll_layout.addStretch()
@@ -485,13 +488,13 @@ class MainWindow(QMainWindow):
         details_scroll.setWidget(scroll_content)
         right_layout.addWidget(details_scroll, 1)
 
-        self.fav_toggle_btn = QPushButton("☆  Agregar a Favoritos")
+        self.fav_toggle_btn = QPushButton(tr("mw.details.fav_add", "☆  Add to Favorites"))
         self.fav_toggle_btn.setMinimumHeight(34)
         self.fav_toggle_btn.setEnabled(False)
         self.fav_toggle_btn.clicked.connect(self.toggle_selected_favorite)
         right_layout.addWidget(self.fav_toggle_btn)
 
-        self.launch_btn = QPushButton("▶  EJECUTAR JUEGO")
+        self.launch_btn = QPushButton(tr("mw.details.launch_btn", "▶  LAUNCH GAME"))
         self.launch_btn.setObjectName("primary")
         self.launch_btn.setMinimumHeight(46)
         self.launch_btn.clicked.connect(self.launch_selected)
@@ -506,7 +509,7 @@ class MainWindow(QMainWindow):
         # Contenedor con pestañas principales
         self.main_tabs = QTabWidget()
         self.main_tabs.setDocumentMode(True)
-        self.main_tabs.addTab(root, "🎮  Biblioteca de Juegos")
+        self.main_tabs.addTab(root, tr("mw.tabs.library", "🎮  Game Library"))
 
         # Carga perezosa de Rom Manager: no instanciar reproductor hasta abrir la pestaña
         self.rom_manager_tab = None
@@ -514,16 +517,16 @@ class MainWindow(QMainWindow):
         rm_container_layout = QVBoxLayout(self._rom_manager_container)
         rm_container_layout.setContentsMargins(0, 0, 0, 0)
         rm_container_layout.setSpacing(0)
-        self._rom_manager_tab_index = self.main_tabs.addTab(self._rom_manager_container, "🧰  Rom Manager")
+        self._rom_manager_tab_index = self.main_tabs.addTab(self._rom_manager_container, tr("mw.tabs.rom_manager", "🧰  Rom Manager"))
 
         self.emulator_tab = EmulatorManagerWidget(self.db, self)
         self.emulator_tab.emulators_changed.connect(self._on_emulators_changed)
-        self.main_tabs.addTab(self.emulator_tab, "🕹  Administrar Emuladores")
+        self.main_tabs.addTab(self.emulator_tab, tr("mw.tabs.emulators", "🕹  Manage Emulators"))
 
         self.frontend_tab = FrontendSettingsWidget(self.db, self)
         self.frontend_tab.layout_changed.connect(self._on_frontend_layout_changed)
         self.frontend_tab.launch_requested.connect(self.launch_frontend_player)
-        self.main_tabs.addTab(self.frontend_tab, "📺  Modo Frontend")
+        self.main_tabs.addTab(self.frontend_tab, tr("mw.tabs.frontend", "📺  Frontend Mode"))
 
         # Carga perezosa de Layout Studio: no instanciar motores pesados hasta abrir la pestaña
         self.layout_studio_tab = None
@@ -531,11 +534,11 @@ class MainWindow(QMainWindow):
         studio_container_layout = QVBoxLayout(self._layout_studio_container)
         studio_container_layout.setContentsMargins(0, 0, 0, 0)
         studio_container_layout.setSpacing(0)
-        self._layout_studio_tab_index = self.main_tabs.addTab(self._layout_studio_container, "🎨  Layout Studio")
+        self._layout_studio_tab_index = self.main_tabs.addTab(self._layout_studio_container, tr("mw.tabs.layout_studio", "🎨  Layout Studio"))
 
         self.settings_tab = SystemSettingsWidget(self.db, self)
         self.settings_tab.settings_saved.connect(self._on_settings_saved)
-        self.main_tabs.addTab(self.settings_tab, "⚙  Configuración del Sistema")
+        self.main_tabs.addTab(self.settings_tab, tr("mw.tabs.settings", "⚙  System Settings"))
 
         version_label = QLabel(f"{__version_full__}  ")
         version_label.setStyleSheet("color: #a78bfa; font-weight: bold; font-size: 9.5pt; padding-right: 12px;")
@@ -544,7 +547,7 @@ class MainWindow(QMainWindow):
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
 
         self.setCentralWidget(self.main_tabs)
-        self.statusBar().showMessage("PlayNexus listo.")
+        self.statusBar().showMessage(tr("mw.status.ready", "PlayNexus ready."))
 
     # -------------------------------------------------------------
     # GESTIÓN DE LISTAS
@@ -564,26 +567,32 @@ class MainWindow(QMainWindow):
                 item = QListWidgetItem(display_text)
                 item.setData(Qt.UserRole, row["id"])
                 item.setToolTip(
-                    f"🧭 Menú de Sistemas\n"
-                    f"Sistemas incluidos: {len(menu_items)}\n"
-                    f"Diseño: {row['layout']}"
+                    tr(
+                        "mw.list.menu_tip",
+                        "🧭 System Menu\nIncluded systems: {count}\nLayout: {layout}",
+                        count=len(menu_items), layout=row["layout"],
+                    )
                 )
             elif is_filtered:
                 src_id = row.get("source_list_id")
-                src_name = "Desconocida"
+                unknown_txt = tr("common.unknown", "Unknown")
+                src_name = unknown_txt
                 if src_id:
                     src_row = self.db.get_list(src_id)
                     if src_row:
-                        src_name = src_row.get("name", "Desconocida")
+                        src_name = src_row.get("name", unknown_txt)
                 display_text = f"⚡ {row['name']} ({row['game_count']})"
                 item = QListWidgetItem(display_text)
                 item.setData(Qt.UserRole, row["id"])
                 item.setToolTip(
-                    f"⚡ Lista Filtrada\n"
-                    f"Lista origen: {src_name}\n"
-                    f"Juegos coincidentes: {row['game_count']}\n"
-                    f"Plataforma: {row['platform'] or 'Sin definir'}\n"
-                    f"Diseño: {row['layout']}"
+                    tr(
+                        "mw.list.filtered_tip",
+                        "⚡ Filtered List\nSource list: {src}\nMatching games: {count}\nPlatform: {platform}\nLayout: {layout}",
+                        src=src_name,
+                        count=row["game_count"],
+                        platform=row["platform"] or tr("common.undefined", "Undefined"),
+                        layout=row["layout"],
+                    )
                 )
             else:
                 display_text = f"{row['name']} ({row['game_count']})"
@@ -591,16 +600,22 @@ class MainWindow(QMainWindow):
                 item.setData(Qt.UserRole, row["id"])
                 folders_list = parse_rom_folders(row["roms_path"] if "roms_path" in row.keys() else "")
                 if len(folders_list) > 1:
-                    folder_tip = "\nCarpetas:\n  • " + "\n  • ".join(folders_list)
+                    folder_tip = "\n" + tr("mw.list.folders_prefix", "Folders:") + "\n  • " + "\n  • ".join(folders_list)
                 elif len(folders_list) == 1:
-                    folder_tip = f"\nCarpeta: {folders_list[0]}"
+                    folder_tip = "\n" + tr("mw.list.folder_single", "Folder: {path}", path=folders_list[0])
                 else:
                     folder_tip = ""
                 xml_tip = f"\nXML: {Path(row['xml_path']).name}" if ("xml_path" in row.keys() and row["xml_path"]) else ""
                 item.setToolTip(
-                    f"Plataforma: {row['platform'] or 'Sin definir'}\n"
-                    f"Extensiones: {row['allowed_extensions'] or 'Sin extensiones'}\n"
-                    f"Diseño: {row['layout']}{folder_tip}{xml_tip}"
+                    tr(
+                        "mw.list.games_tip",
+                        "Platform: {platform}\nExtensions: {exts}\nLayout: {layout}{folder_tip}{xml_tip}",
+                        platform=row["platform"] or tr("common.undefined", "Undefined"),
+                        exts=row["allowed_extensions"] or tr("mw.list.no_extensions", "No extensions"),
+                        layout=row["layout"],
+                        folder_tip=folder_tip,
+                        xml_tip=xml_tip,
+                    )
                 )
             self.list_widget.addItem(item)
             # Icono personalizado de la lista (si tiene uno configurado)
@@ -623,8 +638,8 @@ class MainWindow(QMainWindow):
             self.on_list_changed(current)
         else:
             self.current_list_id = None
-            self.list_title.setText("No hay listas creadas")
-            self.list_meta_label.setText("Creá una lista para comenzar.")
+            self.list_title.setText(tr("mw.list.empty_title", "No lists created"))
+            self.list_meta_label.setText(tr("mw.list.empty_meta", "Create a list to get started."))
             self.refresh_games()
 
     def on_list_changed(self, current, previous=None):
@@ -641,7 +656,11 @@ class MainWindow(QMainWindow):
             menu_items = self.db.get_menu_items(self.current_list_id)
             self.list_title.setText(f"🧭 {row['name']}")
             self.list_meta_label.setText(
-                f"🧭 <b>Menú de Sistemas</b> · {len(menu_items)} sistema(s) vinculado(s) · Diseño: <b>{row['layout']}</b>"
+                tr(
+                    "mw.list.menu_meta",
+                    "🧭 <b>System Menu</b> · {count} linked system(s) · Layout: <b>{layout}</b>",
+                    count=len(menu_items), layout=row["layout"],
+                )
             )
         elif is_filtered:
             try:
@@ -649,31 +668,46 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
             src_id = row.get("source_list_id")
-            src_name = "Desconocida"
+            unknown_txt = tr("common.unknown", "Unknown")
+            src_name = unknown_txt
             if src_id:
                 src_row = self.db.get_list(src_id)
                 if src_row:
-                    src_name = src_row.get("name", "Desconocida")
+                    src_name = src_row.get("name", unknown_txt)
             self.list_title.setText(f"⚡ {row['name']}")
             g_count = self.db.count_games(self.current_list_id)
             current.setText(f"⚡ {row['name']} ({g_count})")
-            plat_text = f" · Plataforma: {row['platform']}" if row['platform'] else ""
+            plat_text = tr("mw.list.meta_platform", " · Platform: {platform}", platform=row["platform"]) if row["platform"] else ""
             self.list_meta_label.setText(
-                f"⚡ <b>Lista Filtrada</b> · Origen: <b>{src_name}</b> · {g_count} juego(s) coincidentes{plat_text} · Diseño: <b>{row['layout']}</b>"
+                tr(
+                    "mw.list.filtered_meta",
+                    "⚡ <b>Filtered List</b> · Source: <b>{src}</b> · {count} matching game(s){plat} · Layout: <b>{layout}</b>",
+                    src=src_name, count=g_count, plat=plat_text, layout=row["layout"],
+                )
             )
         else:
             self.list_title.setText(row["name"])
-            exts_text = row["allowed_extensions"] or "Sin configurar"
-            plat_text = f" · Plataforma: {row['platform']}" if row["platform"] else ""
+            exts_text = row["allowed_extensions"] or tr("common.not_configured", "Not configured")
+            plat_text = tr("mw.list.meta_platform", " · Platform: {platform}", platform=row["platform"]) if row["platform"] else ""
             folders_list = parse_rom_folders(row["roms_path"] if "roms_path" in row.keys() else "")
             if len(folders_list) > 1:
-                folder_text = f" · Carpetas ({len(folders_list)}): {folders_list[0]} (+{len(folders_list) - 1} más)"
+                folder_text = tr(
+                    "mw.list.meta_folders_multi",
+                    " · Folders ({count}): {first} (+{more} more)",
+                    count=len(folders_list), first=folders_list[0], more=len(folders_list) - 1,
+                )
             elif len(folders_list) == 1:
-                folder_text = f" · Carpeta: {folders_list[0]}"
+                folder_text = tr("mw.list.meta_folder_single", " · Folder: {path}", path=folders_list[0])
             else:
                 folder_text = ""
             xml_text = f" · XML: <b>{Path(row['xml_path']).name}</b>" if ("xml_path" in row.keys() and row["xml_path"]) else ""
-            self.list_meta_label.setText(f"Extensiones admitidas: <b>{exts_text}</b>{plat_text}{folder_text}{xml_text}")
+            self.list_meta_label.setText(
+                tr(
+                    "mw.list.games_meta",
+                    "Supported extensions: <b>{exts}</b>{plat}{folders}{xml}",
+                    exts=exts_text, plat=plat_text, folders=folder_text, xml=xml_text,
+                )
+            )
 
         # Sincronizar combo de layout y resetear selección previa
         layout_name = row["layout"] or "Grid"
@@ -748,12 +782,18 @@ class MainWindow(QMainWindow):
                 if list_type == "menu":
                     self.db.set_menu_items(list_id, selected_list_ids)
                     self.refresh_lists(select_id=list_id)
-                    self.statusBar().showMessage(f"Menú '{name}' creado con éxito con {len(selected_list_ids)} sistemas.", 4000)
+                    self.statusBar().showMessage(
+                        tr("mw.list.menu_created", "Menu '{name}' created successfully with {count} systems.", name=name, count=len(selected_list_ids)),
+                        4000,
+                    )
                     return
                 elif list_type == "filtered":
                     synced = sync_filtered_list_games(self.db, list_id)
                     self.refresh_lists(select_id=list_id)
-                    self.statusBar().showMessage(f"Lista filtrada '{name}' creada con {synced} juego(s) coincidentes.", 5000)
+                    self.statusBar().showMessage(
+                        tr("mw.list.filtered_created", "Filtered list '{name}' created with {count} matching game(s).", name=name, count=synced),
+                        5000,
+                    )
                     return
 
                 self.refresh_lists(select_id=list_id)
@@ -777,18 +817,33 @@ class MainWindow(QMainWindow):
                     progress_dlg.exec()
                     self.refresh_lists(select_id=list_id)
                     if progress_dlg.stats:
-                        self.statusBar().showMessage(f"Lista '{name}' creada con {progress_dlg.stats['added']} juego(s) importados.", 5000)
+                        self.statusBar().showMessage(
+                            tr("mw.list.created_scanned", "List '{name}' created with {count} imported game(s).", name=name, count=progress_dlg.stats["added"]),
+                            5000,
+                        )
                     elif progress_dlg.error_msg:
-                        QMessageBox.warning(self, "Aviso de escaneo", f"Se creó la lista pero ocurrió un error al escanear las carpetas:\n{progress_dlg.error_msg}")
+                        QMessageBox.warning(
+                            self,
+                            tr("mw.scan.warning_title", "Scan Warning"),
+                            tr("mw.list.create_scan_err", "The list was created, but an error occurred while scanning folders:\n{err}", err=progress_dlg.error_msg),
+                        )
                 else:
-                    msg = f"Lista '{name}' creada con éxito."
+                    msg = tr("mw.list.created", "List '{name}' created successfully.", name=name)
                     self.statusBar().showMessage(msg, 4000)
             except Exception as e:
-                QMessageBox.critical(self, "No se pudo crear la lista", f"Error al guardar:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("mw.list.create_err_title", "Could Not Create List"),
+                    tr("mw.list.save_err_msg", "Error while saving:\n{err}", err=e),
+                )
 
     def edit_current_list(self):
         if not self.current_list_id:
-            QMessageBox.information(self, "Seleccionar", "Seleccioná una lista para editar.")
+            QMessageBox.information(
+                self,
+                tr("common.select", "Select"),
+                tr("mw.list.select_to_edit", "Select a list to edit."),
+            )
             return
         self._edit_list_by_id(self.current_list_id, from_rom_manager=False)
 
@@ -880,12 +935,15 @@ class MainWindow(QMainWindow):
                 if list_type == "menu":
                     self.db.set_menu_items(list_id, selected_list_ids)
                     self._finish_edit_list_refresh(list_id, from_rom_manager)
-                    self.statusBar().showMessage(f"Menú '{name}' actualizado.", 4000)
+                    self.statusBar().showMessage(tr("mw.list.menu_updated", "Menu '{name}' updated.", name=name), 4000)
                     return
                 elif list_type == "filtered":
                     synced = sync_filtered_list_games(self.db, list_id)
                     self._finish_edit_list_refresh(list_id, from_rom_manager)
-                    self.statusBar().showMessage(f"Lista filtrada '{name}' sincronizada con {synced} juego(s) coincidentes.", 5000)
+                    self.statusBar().showMessage(
+                        tr("mw.list.filtered_synced", "Filtered list '{name}' synced with {count} matching game(s).", name=name, count=synced),
+                        5000,
+                    )
                     return
 
                 rom_folders = [f for f in parse_rom_folders(folder) if Path(f).is_dir()]
@@ -907,13 +965,23 @@ class MainWindow(QMainWindow):
                     progress_dlg.exec()
                     self._finish_edit_list_refresh(list_id, from_rom_manager)
                     if progress_dlg.stats:
-                        self.statusBar().showMessage(f"Lista '{name}' actualizada con {progress_dlg.stats['added']} juego(s).", 5000)
+                        self.statusBar().showMessage(
+                            tr("mw.list.updated_count", "List '{name}' updated with {count} game(s).", name=name, count=progress_dlg.stats["added"]),
+                            5000,
+                        )
                     elif progress_dlg.error_msg:
-                        QMessageBox.warning(self, "Aviso de escaneo", f"Se actualizó la lista pero ocurrió un error al escanear las carpetas:\n{progress_dlg.error_msg}")
+                        QMessageBox.warning(
+                            self,
+                            tr("mw.scan.warning_title", "Scan Warning"),
+                            tr("mw.list.update_scan_err", "The list was updated, but an error occurred while scanning folders:\n{err}", err=progress_dlg.error_msg),
+                        )
                 elif list_type == "games" and not rom_folders and (auto_scan or folders_changed):
                     self.db.clear_list_games(list_id)
                     self._finish_edit_list_refresh(list_id, from_rom_manager)
-                    self.statusBar().showMessage(f"Lista '{name}' actualizada (sin carpetas de ROMs).", 4000)
+                    self.statusBar().showMessage(
+                        tr("mw.list.updated_no_folders", "List '{name}' updated (no ROM folders).", name=name),
+                        4000,
+                    )
                 elif list_type == "games" and xml_path and Path(xml_path).is_file() and xml_changed:
                     try:
                         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -921,18 +989,26 @@ class MainWindow(QMainWindow):
                         QApplication.restoreOverrideCursor()
                         self._finish_edit_list_refresh(list_id, from_rom_manager)
                         self.statusBar().showMessage(
-                            f"Lista '{name}' actualizada. XML aplicado a {xml_res['matched']} juego(s).",
-                            5000
+                            tr("mw.list.updated_xml", "List '{name}' updated. XML applied to {count} game(s).", name=name, count=xml_res["matched"]),
+                            5000,
                         )
                     except Exception as xml_err:
                         QApplication.restoreOverrideCursor()
                         self._finish_edit_list_refresh(list_id, from_rom_manager)
-                        QMessageBox.warning(self, "Aviso de XML", f"Se actualizó la lista pero ocurrió un error al aplicar el XML:\n{xml_err}")
+                        QMessageBox.warning(
+                            self,
+                            tr("mw.xml.warning_title", "XML Warning"),
+                            tr("mw.list.update_xml_err", "The list was updated, but an error occurred while applying the XML:\n{err}", err=xml_err),
+                        )
                 else:
                     self._finish_edit_list_refresh(list_id, from_rom_manager)
-                    self.statusBar().showMessage(f"Lista '{name}' actualizada.", 4000)
+                    self.statusBar().showMessage(tr("mw.list.updated", "List '{name}' updated.", name=name), 4000)
             except Exception as e:
-                QMessageBox.critical(self, "No se pudo actualizar la lista", f"Error al actualizar:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("mw.list.update_err_title", "Could Not Update List"),
+                    tr("mw.list.update_err_msg", "Error while updating:\n{err}", err=e),
+                )
 
     def sync_xml_for_current_list(self):
         """Permite seleccionar o re-aplicar un archivo XML a los juegos de la lista actual."""
@@ -948,9 +1024,9 @@ class MainWindow(QMainWindow):
         initial_dir = str(Path(current_xml).parent) if (current_xml and Path(current_xml).parent.is_dir()) else first_folder
         path, _ = QFileDialog.getOpenFileName(
             self,
-            f"Seleccionar archivo XML para '{row['name']}'",
+            tr("mw.xml.pick_title", "Select XML file for '{name}'", name=row["name"]),
             initial_dir or "",
-            "Archivos XML / DAT (*.xml *.dat);;Todos los archivos (*.*)"
+            tr("mw.xml.file_filter", "XML / DAT Files (*.xml *.dat);;All Files (*.*)"),
         )
         if not path:
             return
@@ -963,20 +1039,32 @@ class MainWindow(QMainWindow):
             self.refresh_lists(select_id=self.current_list_id)
             QMessageBox.information(
                 self,
-                "XML aplicado",
-                f"Se vinculó el archivo XML a la lista '{row['name']}'.\n\n"
-                f"Juegos en la lista: {res['total_games']}\n"
-                f"ROMs asociadas con nombre completo y propiedades: {res['matched']}"
+                tr("mw.xml.applied_title", "XML Applied"),
+                tr(
+                    "mw.xml.applied_msg",
+                    "The XML file was linked to list '{name}'.\n\nGames in list: {total}\nROMs matched with full title and properties: {matched}",
+                    name=row["name"], total=res["total_games"], matched=res["matched"],
+                ),
             )
-            self.statusBar().showMessage(f"XML sincronizado: {res['matched']} juego(s) actualizados.", 4000)
+            self.statusBar().showMessage(
+                tr("mw.xml.synced_status", "XML synced: {count} game(s) updated.", count=res["matched"]),
+                4000,
+            )
         except Exception as e:
             QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Error al procesar XML", f"No se pudo aplicar el archivo XML:\n{e}")
-
+            QMessageBox.critical(
+                self,
+                tr("mw.xml.err_title", "XML Processing Error"),
+                tr("mw.xml.err_msg", "Could not apply the XML file:\n{err}", err=e),
+            )
 
     def delete_current_list(self):
         if not self.current_list_id:
-            QMessageBox.information(self, "Seleccionar", "Seleccioná una lista para eliminar.")
+            QMessageBox.information(
+                self,
+                tr("common.select", "Select"),
+                tr("mw.list.select_to_delete", "Select a list to delete."),
+            )
             return
 
         row = self.db.get_list(self.current_list_id)
@@ -986,18 +1074,26 @@ class MainWindow(QMainWindow):
         count = self.db.count_games(self.current_list_id)
         answer = QMessageBox.question(
             self,
-            "Eliminar lista",
-            f"¿Estás seguro de que deseas eliminar la lista '{row['name']}'?\n"
-            f"Se desvincularán los {count} juegos registrados en esta lista (los archivos en el disco NO se eliminarán).",
+            tr("mw.list.delete_title", "Delete List"),
+            tr(
+                "mw.list.delete_confirm",
+                "Are you sure you want to delete the list '{name}'?\n"
+                "The {count} games registered in this list will be unlinked (files on disk will NOT be deleted).",
+                name=row["name"], count=count,
+            ),
             QMessageBox.Yes | QMessageBox.No
         )
         if answer == QMessageBox.Yes:
             try:
                 self.db.delete_list(self.current_list_id)
                 self.refresh_lists()
-                self.statusBar().showMessage("Lista eliminada.", 3000)
+                self.statusBar().showMessage(tr("mw.list.deleted", "List deleted."), 3000)
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"No se pudo eliminar la lista:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("common.error", "Error"),
+                    tr("mw.list.delete_err_msg", "Could not delete the list:\n{err}", err=e),
+                )
 
     def sync_filtered_list(self):
         """Re-ejecuta los filtros de la lista filtrada actual contra su lista origen."""
@@ -1012,11 +1108,16 @@ class MainWindow(QMainWindow):
             QApplication.restoreOverrideCursor()
             self.refresh_lists(select_id=self.current_list_id)
             self.statusBar().showMessage(
-                f"Lista filtrada '{row['name']}' sincronizada: {count} juego(s) coincidentes.", 5000
+                tr("mw.list.filtered_synced_status", "Filtered list '{name}' synced: {count} matching game(s).", name=row["name"], count=count),
+                5000,
             )
         except Exception as e:
             QApplication.restoreOverrideCursor()
-            QMessageBox.critical(self, "Error de sincronización", f"No se pudo sincronizar la lista filtrada:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("mw.list.sync_err_title", "Sync Error"),
+                tr("mw.list.sync_err_msg", "Could not sync filtered list:\n{err}", err=e),
+            )
 
     def _show_list_context_menu(self, pos):
         item = self.list_widget.itemAt(pos)
@@ -1037,16 +1138,16 @@ class MainWindow(QMainWindow):
         xml_act = None
 
         if is_filtered:
-            sync_filt_act = menu.addAction("⚡ Sincronizar con lista origen…")
+            sync_filt_act = menu.addAction(tr("mw.list_ctx.sync_filtered", "⚡ Sync with source list…"))
         elif not is_menu:
-            scan_act = menu.addAction("▣ Escanear carpeta…")
-            add_act = menu.addAction("＋ Agregar archivos…")
-            xml_act = menu.addAction("📄 Asociar / Sincronizar XML…")
+            scan_act = menu.addAction(tr("mw.list_ctx.scan", "▣ Scan folder…"))
+            add_act = menu.addAction(tr("mw.list_ctx.add_files", "＋ Add files…"))
+            xml_act = menu.addAction(tr("mw.list_ctx.sync_xml", "📄 Link / Sync XML…"))
 
         menu.addSeparator()
-        rom_mgr_act = menu.addAction("🧰 Auditar media en Rom Manager…")
-        edit_act = menu.addAction("✎ Editar lista…")
-        del_act = menu.addAction("🗑 Eliminar lista")
+        rom_mgr_act = menu.addAction(tr("mw.list_ctx.audit_rom_mgr", "🧰 Audit media in Rom Manager…"))
+        edit_act = menu.addAction(tr("mw.list_ctx.edit", "✎ Edit list…"))
+        del_act = menu.addAction(tr("mw.list_ctx.delete", "🗑 Delete list"))
 
         action = menu.exec(self.list_widget.mapToGlobal(pos))
         if action == sync_filt_act:
@@ -1068,7 +1169,7 @@ class MainWindow(QMainWindow):
     # DISEÑOS VISUALES (LAYOUTS)
     # -------------------------------------------------------------
     def _on_layout_sound_toggled(self, checked: bool):
-        self.sound_checkbox.setText("🔊 Sonido" if checked else "🔇 Sonido")
+        self.sound_checkbox.setText(tr("mw.center.sound_on", "🔊 Sound") if checked else tr("mw.center.sound_off", "🔇 Sound"))
         self.db.set_setting("layout_preview_sound", "true" if checked else "false")
         muted = not checked
         for inst in list(getattr(self, "active_layouts", {}).values()):
@@ -1106,7 +1207,7 @@ class MainWindow(QMainWindow):
             self.db.update_list(self.current_list_id, layout=layout)
             if hasattr(self, "frontend_tab"):
                 self.frontend_tab.refresh_data()
-            self.statusBar().showMessage(f"Diseño guardado: {layout}", 2500)
+            self.statusBar().showMessage(tr("mw.layout.saved", "Layout saved: {layout}", layout=layout), 2500)
 
     def _get_or_create_layout(self, layout_name: str):
         """Obtiene una instancia del layout o la crea dinámicamente si es un tema de sistema."""
@@ -1218,7 +1319,7 @@ class MainWindow(QMainWindow):
                     "menu_video_path": menu_video_path,
                     "menu_boxart_path": menu_boxart_path,
                     "menu_cartart_path": menu_cartart_path,
-                    "effective_name": f"{g_count} juegos",
+                    "effective_name": tr("mw.count.games_simple", "{count} games", count=g_count),
                     "source": "menu",
                     "icon_path": t_dict.get("icon_path", ""),
                 })
@@ -1237,9 +1338,13 @@ class MainWindow(QMainWindow):
         count = len(self.games_cache)
         current_list = self.db.get_list(self.current_list_id) if self.current_list_id else None
         if current_list and ("list_type" in current_list.keys() and current_list["list_type"] == "menu"):
-            self.game_count_label.setText(f"{count} sistema{'s' if count != 1 else ''}")
+            key = "mw.count.system_singular" if count == 1 else "mw.count.system_plural"
+            fallback = "{count} system" if count == 1 else "{count} systems"
+            self.game_count_label.setText(tr(key, fallback, count=count))
         else:
-            self.game_count_label.setText(f"{count} juego{'s' if count != 1 else ''}")
+            key = "mw.count.game_singular" if count == 1 else "mw.count.game_plural"
+            fallback = "{count} game" if count == 1 else "{count} games"
+            self.game_count_label.setText(tr(key, fallback, count=count))
 
         matching_ids = {g["id"] for g in self.games_cache} if self.games_cache else set()
         if not self.current_game_id or self.current_game_id not in matching_ids:
@@ -1297,8 +1402,8 @@ class MainWindow(QMainWindow):
         selected_item = next((g for g in self.games_cache if g["id"] == game_id), None)
         if selected_item and selected_item.get("is_menu_target"):
             menu = QMenu(self)
-            open_act = menu.addAction("📂 Abrir lista de este sistema")
-            edit_act = menu.addAction("✎ Editar sistema…")
+            open_act = menu.addAction(tr("mw.game_ctx.open_system", "📂 Open system list"))
+            edit_act = menu.addAction(tr("mw.game_ctx.edit_system", "✎ Edit system…"))
             action = menu.exec(global_pos)
             if action == open_act:
                 self._on_game_activated(game_id)
@@ -1319,14 +1424,18 @@ class MainWindow(QMainWindow):
         manual_ctx = resolve_game_manual_pdf(game_row_ctx, list_row=list_row_ctx) if game_row_ctx else ""
 
         menu = QMenu(self)
-        play_act = menu.addAction("▶ Ejecutar juego")
-        fav_act = menu.addAction("☆ Quitar de Favoritos" if is_fav else "⭐ Agregar a Favoritos")
-        edit_act = menu.addAction("✎ Editar juego…")
-        ra_act = menu.addAction("🏆 RetroAchievements…")
-        manual_act = menu.addAction("📖 Ver Manual PDF…") if manual_ctx else None
-        loc_act = menu.addAction("📂 Abrir ubicación del archivo")
+        play_act = menu.addAction(tr("mw.game_ctx.launch", "▶ Launch game"))
+        fav_act = menu.addAction(
+            tr("mw.game_ctx.fav_remove", "☆ Remove from Favorites")
+            if is_fav
+            else tr("mw.game_ctx.fav_add", "⭐ Add to Favorites")
+        )
+        edit_act = menu.addAction(tr("mw.game_ctx.edit_game", "✎ Edit game…"))
+        ra_act = menu.addAction(tr("mw.game_ctx.ra", "🏆 RetroAchievements…"))
+        manual_act = menu.addAction(tr("mw.game_ctx.manual", "📖 View PDF Manual…")) if manual_ctx else None
+        loc_act = menu.addAction(tr("mw.game_ctx.open_loc", "📂 Open file location"))
         menu.addSeparator()
-        del_act = menu.addAction("🗑 Quitar de la biblioteca")
+        del_act = menu.addAction(tr("mw.game_ctx.remove", "🗑 Remove from library"))
 
         action = menu.exec(global_pos)
         if action == play_act:
@@ -1363,10 +1472,10 @@ class MainWindow(QMainWindow):
             self.game_tags_label.setText("—")
             self.game_stats_label.setText("—")
             self.fav_toggle_btn.setEnabled(False)
-            self.fav_toggle_btn.setText("☆  Favorito (no aplica a menú)")
+            self.fav_toggle_btn.setText(tr("mw.details.fav_menu_na", "☆  Favorite (not applicable to menu)"))
             self.fav_toggle_btn.setStyleSheet("")
-            self.game_path.setText(f"Plataforma: {selected_item['platform']}")
-            self.game_size.setText(f"Sistema vinculado ({selected_item.get('effective_name', '')})")
+            self.game_path.setText(tr("mw.details.platform_val", "Platform: {platform}", platform=selected_item["platform"]))
+            self.game_size.setText(tr("mw.details.linked_system", "Linked system ({info})", info=selected_item.get("effective_name", "")))
             self.override_combo.blockSignals(True)
             self.override_combo.setCurrentIndex(0)
             self.override_combo.blockSignals(False)
@@ -1386,8 +1495,10 @@ class MainWindow(QMainWindow):
         self.game_tags_label.setText(tags_txt or "—")
         plays_n = int(game.get("play_count") or 0)
         time_txt = format_play_time(game.get("play_time_seconds") or 0)
-        last_txt = str(game.get("last_played") or "").strip() or "Nunca"
-        self.game_stats_label.setText(f"{plays_n} partidas · {time_txt} · Última: {last_txt}")
+        last_txt = str(game.get("last_played") or "").strip() or tr("common.never", "Never")
+        self.game_stats_label.setText(
+            tr("mw.details.stats_fmt", "{plays} plays · {time} · Last: {last}", plays=plays_n, time=time_txt, last=last_txt)
+        )
         self._apply_fav_button_style(is_fav)
 
         rom_p = Path(game["rom_path"])
@@ -1397,23 +1508,23 @@ class MainWindow(QMainWindow):
         # Mostrar propiedades del XML si están disponibles
         meta_parts = []
         if game.get("year"):
-            meta_parts.append(f"<b>Año:</b> {game['year']}")
+            meta_parts.append(tr("mw.details.meta_year", "<b>Year:</b> {val}", val=game["year"]))
         if game.get("manufacturer"):
-            meta_parts.append(f"<b>Fabricante:</b> {game['manufacturer']}")
+            meta_parts.append(tr("mw.details.meta_manufacturer", "<b>Manufacturer:</b> {val}", val=game["manufacturer"]))
         if game.get("genre"):
-            meta_parts.append(f"<b>Género:</b> {game['genre']}")
+            meta_parts.append(tr("mw.details.meta_genre", "<b>Genre:</b> {val}", val=game["genre"]))
         if game.get("players"):
-            meta_parts.append(f"<b>Jugadores:</b> {game['players']}")
+            meta_parts.append(tr("mw.details.meta_players", "<b>Players:</b> {val}", val=game["players"]))
         if game.get("cloneof"):
-            meta_parts.append(f"<b>Clon de:</b> {game['cloneof']}")
+            meta_parts.append(tr("mw.details.meta_cloneof", "<b>Clone of:</b> {val}", val=game["cloneof"]))
         if game.get("rating"):
-            meta_parts.append(f"<b>Rating:</b> {game['rating']}")
+            meta_parts.append(tr("mw.details.meta_rating", "<b>Rating:</b> {val}", val=game["rating"]))
         if game.get("crc"):
-            meta_parts.append(f"<b>CRC:</b> {game['crc']}")
+            meta_parts.append(tr("mw.details.meta_crc", "<b>CRC:</b> {val}", val=game["crc"]))
         if game.get("sourcefile"):
-            meta_parts.append(f"<b>Driver:</b> {game['sourcefile']}")
+            meta_parts.append(tr("mw.details.meta_driver", "<b>Driver:</b> {val}", val=game["sourcefile"]))
         if is_game_vertical(game):
-            meta_parts.append("<span style='color: #38bdf8;'><b>Pantalla:</b> Vertical ↕</span>")
+            meta_parts.append(tr("mw.details.meta_vertical", "<span style='color: #38bdf8;'><b>Display:</b> Vertical ↕</span>"))
 
         if meta_parts:
             self.game_meta_info.setText(" · ".join(meta_parts))
@@ -1430,12 +1541,12 @@ class MainWindow(QMainWindow):
 
         if rom_p.exists():
             if rom_p.is_dir():
-                self.game_size.setText("Carpeta ROM (<DIR>)")
+                self.game_size.setText(tr("mw.details.rom_dir", "ROM Folder (<DIR>)"))
             else:
                 size_mb = rom_p.stat().st_size / (1024 * 1024)
                 self.game_size.setText(f"{size_mb:.2f} MB ({rom_p.suffix.lower()})")
         else:
-            self.game_size.setText("<span style='color: #ef4444;'>Archivo o carpeta no encontrada en disco</span>")
+            self.game_size.setText(tr("mw.details.not_found_disk", "<span style='color: #ef4444;'>File or folder not found on disk</span>"))
 
         # Configurar combo de emulador individual
         self.override_combo.blockSignals(True)
@@ -1452,24 +1563,28 @@ class MainWindow(QMainWindow):
 
         emu, source = resolve_emulator(self.db, game_row)
         if emu:
-            source_desc = "asignado a este juego" if source == "juego" else "predeterminado de la lista"
+            source_desc = (
+                tr("mw.details.emu_src_game", "assigned to this game")
+                if source == "juego"
+                else tr("mw.details.emu_src_list", "list default")
+            )
             self.effective_emu.setText(f"{emu['name']} ({source_desc})")
             self.effective_emu.setStyleSheet("font-weight: 600; color: #4ade80;")
         else:
-            self.effective_emu.setText("Sin emulador asignado")
+            self.effective_emu.setText(tr("mw.details.no_emu", "No emulator assigned"))
             self.effective_emu.setStyleSheet("font-weight: 600; color: #f87171;")
         self._refresh_selected_game_extras(game_id)
 
     def _apply_fav_button_style(self, is_fav: bool):
         self.fav_toggle_btn.setEnabled(True)
         if is_fav:
-            self.fav_toggle_btn.setText("⭐  En Favoritos (clic para quitar)")
+            self.fav_toggle_btn.setText(tr("mw.details.fav_active", "⭐  In Favorites (click to remove)"))
             self.fav_toggle_btn.setStyleSheet(
                 "QPushButton { background-color: #3f2f12; color: #fbbf24; border: 1px solid #d97706; font-weight: 600; }"
                 "QPushButton:hover { background-color: #523d17; }"
             )
         else:
-            self.fav_toggle_btn.setText("☆  Agregar a Favoritos")
+            self.fav_toggle_btn.setText(tr("mw.details.fav_add", "☆  Add to Favorites"))
             self.fav_toggle_btn.setStyleSheet("")
 
     def _refresh_selected_game_extras(self, game_id: int | None):
@@ -1488,7 +1603,7 @@ class MainWindow(QMainWindow):
         from playnexus.services.retroachievements import format_ra_badge_text, get_cached_ra_progress_summary
 
         ra_sum = get_cached_ra_progress_summary(self.db, game) if game else None
-        self.game_ra_label.setText(format_ra_badge_text(ra_sum) if ra_sum else "Sin sincronizar")
+        self.game_ra_label.setText(format_ra_badge_text(ra_sum) if ra_sum else tr("mw.details.ra_unsynced", "Not synced"))
         self.ra_detail_btn.setEnabled(bool(game))
 
         manual_pdf = resolve_game_manual_pdf(game, list_row=list_row) if game else ""
@@ -1497,7 +1612,7 @@ class MainWindow(QMainWindow):
             self.game_manual_label.setToolTip(manual_pdf)
             self.manual_view_btn.setEnabled(True)
         else:
-            self.game_manual_label.setText("Sin manual PDF")
+            self.game_manual_label.setText(tr("mw.details.no_manual", "No PDF manual"))
             self.game_manual_label.setToolTip("")
             self.manual_view_btn.setEnabled(False)
 
@@ -1533,7 +1648,11 @@ class MainWindow(QMainWindow):
         list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
         pdf = resolve_game_manual_pdf(game, list_row=list_row)
         if not pdf:
-            QMessageBox.information(self, "Sin manual", "Este juego no tiene un manual PDF asignado.")
+            QMessageBox.information(
+                self,
+                tr("mw.manual.none_title", "No Manual"),
+                tr("mw.manual.none_msg", "This game does not have an assigned PDF manual."),
+            )
             return
         ManualViewerDialog(pdf, game_title=game.get("title", ""), db=self.db, parent=self).exec()
 
@@ -1555,7 +1674,7 @@ class MainWindow(QMainWindow):
             self.refresh_lists(select_id=self.current_list_id)
         else:
             self._select_game_by_id(self.current_game_id)
-        msg = "⭐ Juego agregado a Favoritos." if new_state else "☆ Juego quitado de Favoritos."
+        msg = tr("mw.fav.added_status", "⭐ Game added to Favorites.") if new_state else tr("mw.fav.removed_status", "☆ Game removed from Favorites.")
         self.statusBar().showMessage(msg, 3000)
 
     def _on_telemetry_updated(self, game_id: int):
@@ -1574,7 +1693,7 @@ class MainWindow(QMainWindow):
         self.game_tags_label.setText("—")
         self.game_stats_label.setText("—")
         self.fav_toggle_btn.setEnabled(False)
-        self.fav_toggle_btn.setText("☆  Agregar a Favoritos")
+        self.fav_toggle_btn.setText(tr("mw.details.fav_add", "☆  Add to Favorites"))
         self.fav_toggle_btn.setStyleSheet("")
         self.game_path.setText("—")
         self.game_size.setText("—")
@@ -1597,21 +1716,25 @@ class MainWindow(QMainWindow):
         emu_id = self.override_combo.currentData()
         self.db.update_game(self.current_game_id, emulator_override_id=emu_id)
         self.refresh_games()
-        self.statusBar().showMessage("Emulador individual actualizado para este juego.", 3000)
+        self.statusBar().showMessage(tr("mw.details.override_updated", "Custom emulator updated for this game."), 3000)
 
     def save_game_bezel_hud(self, index):
         if not self.current_game_id:
             return
         mode = self.game_bezel_combo.currentData() or ""
         self.db.update_game(self.current_game_id, bezel_hud_mode=mode)
-        self.statusBar().showMessage("Configuración de Bezel HUD actualizada para este juego.", 3000)
+        self.statusBar().showMessage(tr("mw.details.bezel_updated", "Bezel HUD setting updated for this game."), 3000)
 
     # -------------------------------------------------------------
     # ESCANEO Y ADICIÓN DE JUEGOS
     # -------------------------------------------------------------
     def scan_folder(self):
         if not self.current_list_id:
-            QMessageBox.information(self, "Lista no seleccionada", "Seleccioná o creá una lista primero.")
+            QMessageBox.information(
+                self,
+                tr("mw.scan.no_list_title", "No List Selected"),
+                tr("mw.scan.no_list_msg", "Select or create a list first."),
+            )
             return
 
         row = self.db.get_list(self.current_list_id)
@@ -1621,10 +1744,14 @@ class MainWindow(QMainWindow):
         if row.get("list_type") == "filtered":
             answer = QMessageBox.question(
                 self,
-                "Lista Filtrada",
-                f"'{row['name']}' es una lista filtrada vinculada a una lista origen.\n"
-                "Para actualizar sus juegos, debes sincronizarla con su origen.\n\n"
-                "¿Deseas sincronizar los juegos ahora?",
+                tr("mw.scan.filtered_title", "Filtered List"),
+                tr(
+                    "mw.scan.filtered_msg",
+                    "'{name}' is a filtered list linked to a source list.\n"
+                    "To update its games, you must sync it with its source.\n\n"
+                    "Do you want to sync the games now?",
+                    name=row["name"],
+                ),
                 QMessageBox.Yes | QMessageBox.No
             )
             if answer == QMessageBox.Yes:
@@ -1635,10 +1762,14 @@ class MainWindow(QMainWindow):
         if not allowed_str:
             answer = QMessageBox.question(
                 self,
-                "Sin extensiones configuradas",
-                f"La lista '{row['name']}' todavía no tiene extensiones de archivo configuradas.\n"
-                "Para poder escanear, es obligatorio indicar qué extensiones buscar.\n\n"
-                "¿Deseas editar la lista y configurar las extensiones ahora?",
+                tr("mw.scan.no_exts_title", "No Extensions Configured"),
+                tr(
+                    "mw.scan.no_exts_msg",
+                    "The list '{name}' does not have file extensions configured yet.\n"
+                    "Before scanning, you must specify which extensions to look for.\n\n"
+                    "Do you want to edit the list and configure extensions now?",
+                    name=row["name"],
+                ),
                 QMessageBox.Yes | QMessageBox.No
             )
             if answer == QMessageBox.Yes:
@@ -1650,16 +1781,22 @@ class MainWindow(QMainWindow):
 
         if configured_folders:
             msg_box = QMessageBox(self)
-            msg_box.setWindowTitle(f"Escanear carpetas — {row['name']}")
+            msg_box.setWindowTitle(tr("mw.scan.folders_title", "Scan Folders — {name}", name=row["name"]))
             folders_bullet = "\n".join(f"• {f}" for f in configured_folders)
             msg_box.setText(
-                f"La lista '{row['name']}' tiene {len(configured_folders)} carpeta(s) de ROMs configurada(s):\n\n"
-                f"{folders_bullet}\n\n"
-                "¿Deseas escanear todas las carpetas configuradas o agregar una nueva carpeta a la lista?"
+                tr(
+                    "mw.scan.folders_prompt",
+                    "The list '{name}' has {count} configured ROM folder(s):\n\n{folders}\n\n"
+                    "Do you want to scan all configured folders or add a new folder to the list?",
+                    name=row["name"], count=len(configured_folders), folders=folders_bullet,
+                )
             )
-            btn_scan_existing = msg_box.addButton(f"Escanear configuradas ({len(configured_folders)})", QMessageBox.AcceptRole)
-            btn_add_new = msg_box.addButton("＋ Agregar nueva carpeta…", QMessageBox.ActionRole)
-            btn_cancel = msg_box.addButton("Cancelar", QMessageBox.RejectRole)
+            btn_scan_existing = msg_box.addButton(
+                tr("mw.scan.btn_scan_existing", "Scan configured ({count})", count=len(configured_folders)),
+                QMessageBox.AcceptRole,
+            )
+            btn_add_new = msg_box.addButton(tr("mw.scan.btn_add_folder", "＋ Add new folder…"), QMessageBox.ActionRole)
+            btn_cancel = msg_box.addButton(tr("common.cancel", "Cancel"), QMessageBox.RejectRole)
             msg_box.setDefaultButton(btn_scan_existing)
             msg_box.exec()
 
@@ -1672,7 +1809,7 @@ class MainWindow(QMainWindow):
                 initial_dir = str(Path(configured_folders[-1]).parent) if Path(configured_folders[-1]).parent.is_dir() else configured_folders[-1]
                 new_folder = QFileDialog.getExistingDirectory(
                     self,
-                    f"Agregar y escanear carpeta de juegos para '{row['name']}'",
+                    tr("mw.scan.add_folder_dlg", "Add and scan games folder for '{name}'", name=row["name"]),
                     initial_dir
                 )
                 if not new_folder:
@@ -1688,7 +1825,7 @@ class MainWindow(QMainWindow):
         else:
             folder = QFileDialog.getExistingDirectory(
                 self,
-                f"Seleccionar carpeta de juegos para '{row['name']}'",
+                tr("mw.scan.pick_folder_dlg", "Select games folder for '{name}'", name=row["name"]),
                 ""
             )
             if not folder:
@@ -1718,17 +1855,21 @@ class MainWindow(QMainWindow):
             self.refresh_lists(select_id=self.current_list_id)
             if progress_dlg.stats:
                 self.statusBar().showMessage(
-                    f"Escaneo finalizado: {progress_dlg.stats['added']} juego(s) en la lista.",
+                    tr("mw.scan.done_status", "Scan finished: {count} game(s) in the list.", count=progress_dlg.stats["added"]),
                     5000
                 )
             elif progress_dlg.error_msg:
-                QMessageBox.critical(self, "Error durante el escaneo", progress_dlg.error_msg)
+                QMessageBox.warning(self, tr("mw.scan.error_title", "Scan Error"), progress_dlg.error_msg)
         except Exception as e:
-            QMessageBox.critical(self, "Error durante el escaneo", str(e))
+            QMessageBox.critical(self, tr("mw.scan.error_title", "Scan Error"), str(e))
 
     def add_files(self):
         if not self.current_list_id:
-            QMessageBox.information(self, "Lista no seleccionada", "Seleccioná o creá una lista primero.")
+            QMessageBox.information(
+                self,
+                tr("mw.scan.no_list_title", "No List Selected"),
+                tr("mw.scan.no_list_msg", "Select or create a list first."),
+            )
             return
 
         row = self.db.get_list(self.current_list_id)
@@ -1738,9 +1879,13 @@ class MainWindow(QMainWindow):
         if row.get("list_type") == "filtered":
             QMessageBox.information(
                 self,
-                "Lista Filtrada",
-                f"'{row['name']}' es una lista filtrada vinculada a una lista origen.\n"
-                "Para incorporar juegos, agrégalos a la lista de origen y luego sincroniza esta lista."
+                tr("mw.scan.filtered_title", "Filtered List"),
+                tr(
+                    "mw.add_files.filtered_msg",
+                    "'{name}' is a filtered list linked to a source list.\n"
+                    "To add games, add them to the source list and then sync this list.",
+                    name=row["name"],
+                ),
             )
             return
 
@@ -1748,13 +1893,17 @@ class MainWindow(QMainWindow):
         exts_list = parse_extensions_list(row["allowed_extensions"])
         if exts_list:
             filter_exts = " ".join(f"*{e}" for e in exts_list)
-            filter_str = f"Extensiones de la lista ({filter_exts});;Todos los archivos (*.*)"
+            filter_str = tr(
+                "mw.add_files.filter_exts",
+                "List extensions ({exts});;All files (*.*)",
+                exts=filter_exts,
+            )
         else:
-            filter_str = "Todos los archivos (*.*)"
+            filter_str = tr("common.filter_all_files", "All files (*.*)")
 
         paths, _ = QFileDialog.getOpenFileNames(
             self,
-            f"Agregar juegos a '{row['name']}'",
+            tr("mw.add_files.dlg_title", "Add games to '{name}'", name=row["name"]),
             "",
             filter_str
         )
@@ -1775,7 +1924,10 @@ class MainWindow(QMainWindow):
                 added += 1
 
         self.refresh_lists(select_id=self.current_list_id)
-        self.statusBar().showMessage(f"Se procesaron los archivos. Agregados a la biblioteca: {added}", 4000)
+        self.statusBar().showMessage(
+            tr("mw.add_files.done_status", "Files processed. Added to library: {count}", count=added),
+            4000,
+        )
 
     def edit_selected_game(self):
         if not self.current_game_id:
@@ -1785,7 +1937,11 @@ class MainWindow(QMainWindow):
                 if selected_id:
                     self._select_game_by_id(selected_id)
         if not self.current_game_id:
-            QMessageBox.information(self, "Seleccionar juego", "Elegí un juego para editar sus datos.")
+            QMessageBox.information(
+                self,
+                tr("mw.game.select_title", "Select Game"),
+                tr("mw.game.select_edit_msg", "Choose a game to edit its details."),
+            )
             return
         game = self.db.get_game(self.current_game_id)
         if not game:
@@ -1798,7 +1954,7 @@ class MainWindow(QMainWindow):
                 pass
             self.refresh_lists(select_id=self.current_list_id)
             self._select_game_by_id(game["id"])
-            self.statusBar().showMessage("Juego actualizado.", 3000)
+            self.statusBar().showMessage(tr("mw.game.updated_status", "Game updated."), 3000)
 
     def remove_game(self):
         if not self.current_game_id:
@@ -1808,22 +1964,29 @@ class MainWindow(QMainWindow):
                 if selected_id:
                     self._select_game_by_id(selected_id)
         if not self.current_game_id:
-            QMessageBox.information(self, "Seleccionar juego", "Elegí un juego de la biblioteca.")
+            QMessageBox.information(
+                self,
+                tr("mw.game.select_title", "Select Game"),
+                tr("mw.game.select_from_lib", "Choose a game from the library."),
+            )
             return
         game = self.db.get_game(self.current_game_id)
         if not game:
             return
         answer = QMessageBox.question(
             self,
-            "Quitar juego",
-            f"¿Quitar '{game['title']}' de esta lista?\n"
-            "El archivo ROM en el disco NO se eliminará.",
+            tr("mw.game.remove_title", "Remove Game"),
+            tr(
+                "mw.game.remove_confirm",
+                "Remove '{title}' from this list?\nThe ROM file on disk will NOT be deleted.",
+                title=game["title"],
+            ),
             QMessageBox.Yes | QMessageBox.No
         )
         if answer == QMessageBox.Yes:
             self.db.delete_game(self.current_game_id)
             self.refresh_lists(select_id=self.current_list_id)
-            self.statusBar().showMessage("Juego quitado de la biblioteca.", 3000)
+            self.statusBar().showMessage(tr("mw.game.removed_status", "Game removed from library."), 3000)
 
     def open_rom_location(self):
         if not self.current_game_id:
@@ -1841,7 +2004,11 @@ class MainWindow(QMainWindow):
         if p.exists():
             subprocess.run(["explorer", f"/select,{str(p.resolve())}"])
         else:
-            QMessageBox.warning(self, "No encontrado", f"El archivo no existe en el disco:\n{p}")
+            QMessageBox.warning(
+                self,
+                tr("common.not_found_title", "Not Found"),
+                tr("mw.game.file_missing_msg", "The file does not exist on disk:\n{path}", path=p),
+            )
 
     def _show_game_context_menu(self, pos):
         if not self.current_game_id:
@@ -1852,13 +2019,13 @@ class MainWindow(QMainWindow):
         manual_ctx = resolve_game_manual_pdf(game_row_ctx, list_row=list_row_ctx) if game_row_ctx else ""
 
         menu = QMenu(self)
-        play_act = menu.addAction("▶ Ejecutar juego")
-        edit_act = menu.addAction("✎ Editar juego…")
-        ra_act = menu.addAction("🏆 RetroAchievements…")
-        manual_act = menu.addAction("📖 Ver Manual PDF…") if manual_ctx else None
-        loc_act = menu.addAction("📂 Abrir ubicación del archivo")
+        play_act = menu.addAction(tr("mw.game_ctx.launch", "▶ Launch game"))
+        edit_act = menu.addAction(tr("mw.game_ctx.edit_game", "✎ Edit game…"))
+        ra_act = menu.addAction(tr("mw.game_ctx.ra", "🏆 RetroAchievements…"))
+        manual_act = menu.addAction(tr("mw.game_ctx.manual", "📖 View PDF Manual…")) if manual_ctx else None
+        loc_act = menu.addAction(tr("mw.game_ctx.open_loc", "📂 Open file location"))
         menu.addSeparator()
-        del_act = menu.addAction("🗑 Quitar de la biblioteca")
+        del_act = menu.addAction(tr("mw.game_ctx.remove", "🗑 Remove from library"))
 
         sender = self.sender()
         action = menu.exec(sender.mapToGlobal(pos))
@@ -1882,7 +2049,7 @@ class MainWindow(QMainWindow):
         emulators = self.db.get_emulators()
         self.override_combo.blockSignals(True)
         self.override_combo.clear()
-        self.override_combo.addItem("Heredar emulador de la lista (por defecto)", None)
+        self.override_combo.addItem(tr("mw.details.emu_inherit", "Inherit list emulator (default)"), None)
         for emu in emulators:
             self.override_combo.addItem(emu["name"], emu["id"])
         self.override_combo.blockSignals(False)
@@ -1901,7 +2068,11 @@ class MainWindow(QMainWindow):
 
     def launch_selected(self, *args):
         if not self.current_game_id:
-            QMessageBox.information(self, "Seleccionar juego", "Elegí un juego de la biblioteca para ejecutar.")
+            QMessageBox.information(
+                self,
+                tr("mw.game.select_title", "Select Game"),
+                tr("mw.game.select_launch_msg", "Choose a game from the library to launch."),
+            )
             return
 
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
@@ -1931,8 +2102,15 @@ class MainWindow(QMainWindow):
                         pass
                 return
             name, source = result
-            source_desc = "asignación individual del juego" if source == "juego" else "predeterminado de la lista"
-            self.statusBar().showMessage(f"Iniciando con {name} ({source_desc})…", 6000)
+            source_desc = (
+                tr("mw.launch.src_game", "game custom assignment")
+                if source == "juego"
+                else tr("mw.launch.src_list", "list default")
+            )
+            self.statusBar().showMessage(
+                tr("mw.launch.starting_status", "Starting with {name} ({source})…", name=name, source=source_desc),
+                6000,
+            )
             # Ceder pantalla completa/escritorio al emulador minimizando el Configurador
             # para evitar que tape al juego lanzado desde la Biblioteca.
             self.showMinimized()
@@ -1944,7 +2122,7 @@ class MainWindow(QMainWindow):
                     active_layout.resume_media()
                 except Exception:
                     pass
-            QMessageBox.critical(self, "No se pudo iniciar el juego", str(e))
+            QMessageBox.critical(self, tr("mw.launch.error_title", "Could Not Launch Game"), str(e))
 
     def open_system_settings_tab(self):
         """Abre directamente la pestaña de Configuración del Sistema."""
@@ -2219,7 +2397,7 @@ class MainWindow(QMainWindow):
         current_layout = self.layout_stack.currentWidget()
         if current_layout:
             current_layout.db = self.db
-        self.statusBar().showMessage("Configuración del sistema actualizada correctamente.", 3500)
+        self.statusBar().showMessage(tr("mw.settings.saved_status", "System settings updated successfully."), 3500)
 
     def keyPressEvent(self, event):
         """Reenvía la navegación por teclado al layout visual activo en la Biblioteca de Juegos."""
@@ -2309,6 +2487,7 @@ class MainWindow(QMainWindow):
 def run():
     try:
         db = Database()
+        init_i18n(db)
         driver = db.get_setting("video_driver", "d3d11")
         if driver:
             os.environ["QSG_RHI_BACKEND"] = driver

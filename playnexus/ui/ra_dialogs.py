@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from playnexus.i18n import tr
 from playnexus.services.retroachievements import (
     RAConfig,
     RetroAchievementsClient,
@@ -150,7 +151,7 @@ class RACredentialsDialog(QDialog):
         super().__init__(parent)
         self.db = db
         self._test_worker: _RATestWorker | None = None
-        self.setWindowTitle("Configurar RetroAchievements")
+        self.setWindowTitle(tr("ra_dlg.credentials_title", "Configure RetroAchievements"))
         self.setMinimumWidth(520)
         self._build_ui()
         self._load()
@@ -160,9 +161,12 @@ class RACredentialsDialog(QDialog):
         root.setSpacing(10)
 
         hint = QLabel(
-            "Ingresá tu usuario y <b>Web API Key</b> de RetroAchievements "
-            "(disponible en retroachievements.org → Settings → Keys → Web API Key).\n"
-            "La clave se almacena codificada localmente y solo realiza consultas de lectura."
+            tr(
+                "ra_dlg.credentials_hint",
+                "Enter your RetroAchievements username and <b>Web API Key</b> "
+                "(available at retroachievements.org → Settings → Keys → Web API Key).\n"
+                "The key is stored locally encoded and only performs read-only queries.",
+            )
         )
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
@@ -172,13 +176,13 @@ class RACredentialsDialog(QDialog):
         form.setSpacing(8)
 
         self.user_edit = QLineEdit()
-        self.user_edit.setPlaceholderText("Usuario exacto de RetroAchievements")
-        form.addRow("Usuario RA:", self.user_edit)
+        self.user_edit.setPlaceholderText(tr("ra_dlg.user_placeholder", "Exact RetroAchievements username"))
+        form.addRow(tr("ra_dlg.user_label", "RA Username:"), self.user_edit)
 
         key_row = QHBoxLayout()
         self.key_edit = QLineEdit()
         self.key_edit.setEchoMode(QLineEdit.Password)
-        self.key_edit.setPlaceholderText("Web API Key personal")
+        self.key_edit.setPlaceholderText(tr("ra_dlg.api_key_placeholder", "Personal Web API Key"))
         self.btn_toggle_key = QPushButton("👁")
         self.btn_toggle_key.setCheckable(True)
         self.btn_toggle_key.setFixedWidth(36)
@@ -187,14 +191,16 @@ class RACredentialsDialog(QDialog):
         )
         key_row.addWidget(self.key_edit, 1)
         key_row.addWidget(self.btn_toggle_key)
-        form.addRow("Web API Key:", key_row)
+        form.addRow(tr("ra_dlg.api_key_label", "Web API Key:"), key_row)
 
-        self.badge_cb = QCheckBox("Mostrar progreso/badges en Biblioteca, Tabla y Menú Rápido Arcade")
+        self.badge_cb = QCheckBox(
+            tr("ra_dlg.show_badge_cb", "Show progress/badges in Library, Table, and Arcade Quick Menu")
+        )
         form.addRow("", self.badge_cb)
         root.addLayout(form)
 
         test_row = QHBoxLayout()
-        self.btn_test = QPushButton("🔌 Probar Conexión")
+        self.btn_test = QPushButton(tr("ra_dlg.test_btn", "🔌 Test Connection"))
         self.btn_test.clicked.connect(self._test_connection)
         self.test_status_lbl = QLabel("")
         self.test_status_lbl.setWordWrap(True)
@@ -203,6 +209,10 @@ class RACredentialsDialog(QDialog):
         root.addLayout(test_row)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        if btn_save := buttons.button(QDialogButtonBox.Save):
+            btn_save.setText(tr("ra_dlg.btn_save", "Save"))
+        if btn_cancel := buttons.button(QDialogButtonBox.Cancel):
+            btn_cancel.setText(tr("ra_dlg.btn_cancel", "Cancel"))
         buttons.accepted.connect(self._save_and_accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -223,10 +233,14 @@ class RACredentialsDialog(QDialog):
     def _test_connection(self):
         cfg = self._draft_config()
         if not cfg.is_configured:
-            QMessageBox.warning(self, "Datos incompletos", "Completá Usuario y Web API Key primero.")
+            QMessageBox.warning(
+                self,
+                tr("ra_dlg.incomplete_data_title", "Incomplete Data"),
+                tr("ra_dlg.incomplete_data_msg", "Please enter both Username and Web API Key first."),
+            )
             return
         self.btn_test.setEnabled(False)
-        self.test_status_lbl.setText("Conectando con retroachievements.org…")
+        self.test_status_lbl.setText(tr("ra_dlg.connecting_status", "Connecting to retroachievements.org…"))
         self._test_worker = _RATestWorker(self.db, cfg, parent=self)
         self._test_worker.completed.connect(self._on_test_done)
         self._test_worker.start()
@@ -236,8 +250,13 @@ class RACredentialsDialog(QDialog):
         if ok:
             self.test_status_lbl.setStyleSheet("color: #4ade80; font-weight: 600;")
             self.test_status_lbl.setText(
-                f"✅ Conectado como {info.get('user')} · Puntos: {info.get('total_points', 0)} "
-                f"(Softcore: {info.get('softcore_points', 0)})"
+                tr(
+                    "ra_dlg.connected_status",
+                    "✅ Connected as {user} · Points: {points} (Softcore: {softcore})",
+                    user=info.get("user"),
+                    points=info.get("total_points", 0),
+                    softcore=info.get("softcore_points", 0),
+                )
             )
         else:
             self.test_status_lbl.setStyleSheet("color: #f87171;")
@@ -261,7 +280,8 @@ class RAGameDetailDialog(QDialog):
         self._worker: _RASingleSyncWorker | None = None
         self._detail: dict | None = None
 
-        self.setWindowTitle(f"RetroAchievements — {self.game_row.get('title') or 'Juego'}")
+        game_title = self.game_row.get("title") or tr("ra_dlg.default_game_name", "Game")
+        self.setWindowTitle(tr("ra_dlg.detail_window_title", "RetroAchievements — {title}", title=game_title))
         self.resize(860, 620)
         self._build_ui()
         self._load_cached()
@@ -276,19 +296,20 @@ class RAGameDetailDialog(QDialog):
         h_lay.setContentsMargins(12, 10, 12, 10)
 
         top_row = QHBoxLayout()
-        self.header_title = QLabel(f"🏆 {self.game_row.get('title') or 'Juego'}")
+        game_title = self.game_row.get("title") or tr("ra_dlg.default_game_name", "Game")
+        self.header_title = QLabel(f"🏆 {game_title}")
         self.header_title.setStyleSheet("color: #f8fafc; font-size: 13pt; font-weight: 700; border: none;")
         top_row.addWidget(self.header_title, 1)
 
         self.filter_combo = QComboBox()
-        self.filter_combo.addItem("Todos los logros", "all")
-        self.filter_combo.addItem("Desbloqueados ✅", "unlocked")
-        self.filter_combo.addItem("Pendientes 🔒", "locked")
+        self.filter_combo.addItem(tr("ra_dlg.filter_all", "All achievements"), "all")
+        self.filter_combo.addItem(tr("ra_dlg.filter_unlocked", "Unlocked ✅"), "unlocked")
+        self.filter_combo.addItem(tr("ra_dlg.filter_locked", "Locked 🔒"), "locked")
         self.filter_combo.currentIndexChanged.connect(self._refresh_table)
         top_row.addWidget(self.filter_combo)
         h_lay.addLayout(top_row)
 
-        self.summary_lbl = QLabel("Sin datos en caché.")
+        self.summary_lbl = QLabel(tr("ra_dlg.no_cached_data", "No cached data."))
         self.summary_lbl.setStyleSheet("color: #cbd5e1; border: none; font-size: 9.5pt;")
         h_lay.addWidget(self.summary_lbl)
 
@@ -300,7 +321,15 @@ class RAGameDetailDialog(QDialog):
         root.addWidget(header)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Estado", "Logro", "Descripción", "Puntos", "Desbloqueo"])
+        self.table.setHorizontalHeaderLabels(
+            [
+                tr("ra_dlg.col_status", "Status"),
+                tr("ra_dlg.col_achievement", "Achievement"),
+                tr("ra_dlg.col_description", "Description"),
+                tr("ra_dlg.col_points", "Points"),
+                tr("ra_dlg.col_unlocked_date", "Unlocked"),
+            ]
+        )
         configure_details_table(
             self.table,
             col_widths=(90, 210, 320, 75, 145),
@@ -308,12 +337,12 @@ class RAGameDetailDialog(QDialog):
         root.addWidget(self.table, 1)
 
         actions = QHBoxLayout()
-        self.btn_cfg = QPushButton("⚙ Credenciales RA…")
+        self.btn_cfg = QPushButton(tr("ra_dlg.btn_ra_creds", "⚙ RA Credentials…"))
         self.btn_cfg.clicked.connect(self._open_credentials)
-        self.btn_sync = QPushButton("🔄 Actualizar Logros Ahora")
+        self.btn_sync = QPushButton(tr("ra_dlg.btn_sync_now", "🔄 Refresh Achievements Now"))
         self.btn_sync.setStyleSheet("font-weight: 700;")
         self.btn_sync.clicked.connect(self._sync_now)
-        self.btn_close = QPushButton("Cerrar")
+        self.btn_close = QPushButton(tr("ra_dlg.btn_close", "Close"))
         self.btn_close.clicked.connect(self.accept)
 
         actions.addWidget(self.btn_cfg)
@@ -330,7 +359,10 @@ class RAGameDetailDialog(QDialog):
         d = self._detail
         if not d:
             self.summary_lbl.setText(
-                "No hay logros almacenados en caché para este juego. Pulsá 'Actualizar Logros Ahora'."
+                tr(
+                    "ra_dlg.no_cached_for_game",
+                    "No cached achievements for this game. Click 'Refresh Achievements Now'.",
+                )
             )
             self.pct_bar.setValue(0)
             self.table.setRowCount(0)
@@ -338,7 +370,11 @@ class RAGameDetailDialog(QDialog):
 
         if not d.get("matched", True):
             self.summary_lbl.setText(
-                f"Juego no catalogado o hash no reconocido en RetroAchievements (método: {d.get('match_method', 'N/A')})."
+                tr(
+                    "ra_dlg.unrecognized_game",
+                    "Game not cataloged or unrecognized hash in RetroAchievements (method: {method}).",
+                    method=d.get("match_method", "N/A"),
+                )
             )
             self.pct_bar.setValue(0)
             self.table.setRowCount(0)
@@ -352,9 +388,20 @@ class RAGameDetailDialog(QDialog):
         method = str(d.get("match_method") or "")
         ra_id = d.get("ra_game_id") or 0
         self.summary_lbl.setText(
-            f"RA ID: <b>{ra_id}</b> ({d.get('console_name') or 'Sistema'}) · "
-            f"<b>{unlocked}/{total}</b> logros (<b>{pct:.1f}%</b>) · "
-            f"Puntos: <b>{pts_e}/{pts_t}</b> · Emparejamiento: <code>{method}</code>"
+            tr(
+                "ra_dlg.summary_stats",
+                "RA ID: <b>{ra_id}</b> ({console}) · "
+                "<b>{unlocked}/{total}</b> achievements (<b>{pct:.1f}%</b>) · "
+                "Points: <b>{pts_e}/{pts_t}</b> · Match: <code>{method}</code>",
+                ra_id=ra_id,
+                console=d.get("console_name") or tr("ra_dlg.default_system_name", "System"),
+                unlocked=unlocked,
+                total=total,
+                pct=pct,
+                pts_e=pts_e,
+                pts_t=pts_t,
+                method=method,
+            )
         )
         self.pct_bar.setValue(int(round(pct)))
         self._refresh_table()
@@ -375,7 +422,11 @@ class RAGameDetailDialog(QDialog):
                 r = self.table.rowCount()
                 self.table.insertRow(r)
                 is_hc = bool(ach.get("hardcore"))
-                st_txt = "🏆 HC" if is_hc else ("✅ Sí" if earned else "🔒")
+                st_txt = (
+                    tr("ra_dlg.status_hc", "🏆 HC")
+                    if is_hc
+                    else (tr("ra_dlg.status_yes", "✅ Yes") if earned else "🔒")
+                )
                 st_key = 2 if is_hc else (1 if earned else 0)
                 pts_val = int(ach.get("points") or 0)
                 self.table.setItem(r, 0, SortableTableWidgetItem(st_txt, sort_key=st_key))
@@ -403,14 +454,17 @@ class RAGameDetailDialog(QDialog):
         if cid <= 0:
             QMessageBox.information(
                 self,
-                "Sistema no detectado",
-                "No se pudo detectar automáticamente la consola RA de esta lista.\n"
-                "Usá el sincronizador por lotes ('🏆 RetroAchievements…' en Rom Manager) para elegir la consola manualmente.",
+                tr("ra_dlg.system_not_detected_title", "System Not Detected"),
+                tr(
+                    "ra_dlg.system_not_detected_msg",
+                    "Could not automatically detect the RA console for this list.\n"
+                    "Use the batch sync tool ('🏆 RetroAchievements…' in Rom Manager) to choose the console manually.",
+                ),
             )
             return
 
         self.btn_sync.setEnabled(False)
-        self.summary_lbl.setText("Consultando RetroAchievements…")
+        self.summary_lbl.setText(tr("ra_dlg.querying_ra", "Querying RetroAchievements…"))
         self._worker = _RASingleSyncWorker(self.db, self.game_row, sys_key, cid, parent=self)
         self._worker.completed.connect(self._on_sync_done)
         self._worker.start()
@@ -419,7 +473,7 @@ class RAGameDetailDialog(QDialog):
         self.btn_sync.setEnabled(True)
         if not ok:
             self.summary_lbl.setText(f"❌ {err}")
-            QMessageBox.warning(self, "Error RetroAchievements", err)
+            QMessageBox.warning(self, tr("ra_dlg.error_title", "RetroAchievements Error"), err)
             return
         self._detail = detail
         self._render_detail()
@@ -438,7 +492,8 @@ class RABatchSyncDialog(QDialog):
         self.games = [dict(g) for g in (games or [])]
         self._worker: _RABatchWorker | None = None
 
-        self.setWindowTitle(f"RetroAchievements — {self.list_row.get('name') or 'Lista'}")
+        list_label = self.list_row.get("name") or tr("ra_dlg.default_list_name", "List")
+        self.setWindowTitle(tr("ra_dlg.batch_window_title", "RetroAchievements — {name}", name=list_label))
         self.resize(900, 650)
         self._build_ui()
 
@@ -446,7 +501,7 @@ class RABatchSyncDialog(QDialog):
         root = QVBoxLayout(self)
         root.setSpacing(10)
 
-        cfg_box = QGroupBox("Configuración de Sincronización")
+        cfg_box = QGroupBox(tr("ra_dlg.sync_cfg_group", "Sync Configuration"))
         form = QFormLayout(cfg_box)
 
         emu = self.db.get_default_emulator_for_list(self.list_row.get("id")) if self.list_row.get("id") else None
@@ -454,32 +509,34 @@ class RABatchSyncDialog(QDialog):
         self._detected_sys_key = sys_key
 
         self.console_combo = QComboBox()
-        self.console_combo.addItem("Seleccionar consola RA…", 0)
+        self.console_combo.addItem(tr("ra_dlg.select_console", "Select RA console…"), 0)
         for cid, label in _RA_CONSOLE_CHOICES:
             self.console_combo.addItem(label, cid)
         if detected_cid > 0:
             idx = self.console_combo.findData(detected_cid)
             if idx >= 0:
                 self.console_combo.setCurrentIndex(idx)
-        form.addRow("Consola RetroAchievements:", self.console_combo)
+        form.addRow(tr("ra_dlg.console_label", "RetroAchievements Console:"), self.console_combo)
 
         opts = QHBoxLayout()
-        self.only_missing_cb = QCheckBox("Omitir juegos ya cacheados")
+        self.only_missing_cb = QCheckBox(tr("ra_dlg.only_missing_cb", "Skip already cached games"))
         self.only_missing_cb.setChecked(True)
-        self.refresh_catalog_cb = QCheckBox("Forzar recarga de catálogo de hashes")
+        self.refresh_catalog_cb = QCheckBox(tr("ra_dlg.refresh_catalog_cb", "Force hash catalog reload"))
         opts.addWidget(self.only_missing_cb)
         opts.addWidget(self.refresh_catalog_cb)
         opts.addStretch()
-        form.addRow("Opciones:", opts)
+        form.addRow(tr("ra_dlg.options_label", "Options:"), opts)
         root.addWidget(cfg_box)
 
         ctrl = QHBoxLayout()
-        self.btn_creds = QPushButton("⚙ Credenciales RA…")
+        self.btn_creds = QPushButton(tr("ra_dlg.btn_ra_creds", "⚙ RA Credentials…"))
         self.btn_creds.clicked.connect(self._edit_creds)
-        self.btn_start = QPushButton(f"🏆 Sincronizar {len(self.games)} juego(s)")
+        self.btn_start = QPushButton(
+            tr("ra_dlg.btn_sync_count", "🏆 Sync {count} game(s)", count=len(self.games))
+        )
         self.btn_start.setStyleSheet("font-weight: 700;")
         self.btn_start.clicked.connect(self._start_sync)
-        self.btn_cancel = QPushButton("⏹ Cancelar")
+        self.btn_cancel = QPushButton(tr("ra_dlg.btn_cancel_icon", "⏹ Cancel"))
         self.btn_cancel.setEnabled(False)
         self.btn_cancel.clicked.connect(self._cancel_sync)
         ctrl.addWidget(self.btn_creds)
@@ -492,12 +549,21 @@ class RABatchSyncDialog(QDialog):
         self.progress_bar.setVisible(False)
         root.addWidget(self.progress_bar)
 
-        self.status_lbl = QLabel("Configurá tu API Key (solo la primera vez) y presioná 'Sincronizar'.")
+        self.status_lbl = QLabel(
+            tr("ra_dlg.batch_ready_status", "Configure your API Key (first time only) and press 'Sync'.")
+        )
         self.status_lbl.setStyleSheet("color: #93c5fd; font-weight: 600;")
         root.addWidget(self.status_lbl)
 
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Juego", "Estado", "Progreso RA", "Método / Hash"])
+        self.table.setHorizontalHeaderLabels(
+            [
+                tr("ra_dlg.col_game", "Game"),
+                tr("ra_dlg.col_status", "Status"),
+                tr("ra_dlg.col_ra_progress", "RA Progress"),
+                tr("ra_dlg.col_method_hash", "Method / Hash"),
+            ]
+        )
         configure_details_table(
             self.table,
             col_widths=(320, 140, 180, 180),
@@ -506,7 +572,7 @@ class RABatchSyncDialog(QDialog):
 
         footer = QHBoxLayout()
         footer.addStretch()
-        btn_close = QPushButton("Cerrar")
+        btn_close = QPushButton(tr("ra_dlg.btn_close", "Close"))
         btn_close.clicked.connect(self.accept)
         footer.addWidget(btn_close)
         root.addLayout(footer)
@@ -525,7 +591,11 @@ class RABatchSyncDialog(QDialog):
 
         cid = int(self.console_combo.currentData() or 0)
         if cid <= 0:
-            QMessageBox.warning(self, "Consola requerida", "Seleccioná la consola de RetroAchievements.")
+            QMessageBox.warning(
+                self,
+                tr("ra_dlg.console_required_title", "Console Required"),
+                tr("ra_dlg.console_required_msg", "Please select the RetroAchievements console."),
+            )
             return
         if not self.games or (self._worker and self._worker.isRunning()):
             return
@@ -544,7 +614,7 @@ class RABatchSyncDialog(QDialog):
         self.progress_bar.setVisible(True)
         self.btn_start.setEnabled(False)
         self.btn_cancel.setEnabled(True)
-        self.status_lbl.setText("Descargando/cargando catálogo de hashes de la consola…")
+        self.status_lbl.setText(tr("ra_dlg.loading_hashes", "Downloading/loading console hash catalog…"))
 
         self._worker = _RABatchWorker(
             self.db,
@@ -571,27 +641,33 @@ class RABatchSyncDialog(QDialog):
             self.table.insertRow(r)
             self.table.setItem(r, 0, SortableTableWidgetItem(title))
             if item.get("error"):
-                self.table.setItem(r, 1, SortableTableWidgetItem("❌ Error", sort_key=2))
+                self.table.setItem(r, 1, SortableTableWidgetItem(tr("ra_dlg.batch_status_error", "❌ Error"), sort_key=2))
                 self.table.setItem(r, 2, SortableTableWidgetItem(str(item.get("error")), sort_key=-2.0))
                 self.table.setItem(r, 3, SortableTableWidgetItem("—"))
             elif item.get("matched"):
-                self.table.setItem(r, 1, SortableTableWidgetItem("✅ Emparejado", sort_key=0))
+                self.table.setItem(r, 1, SortableTableWidgetItem(tr("ra_dlg.batch_status_matched", "✅ Matched"), sort_key=0))
                 self.table.setItem(r, 2, SortableTableWidgetItem(format_ra_badge_text(item), sort_key=float(item.get("pct") or 0.0)))
                 self.table.setItem(r, 3, SortableTableWidgetItem(str(item.get("match_method") or "")))
             else:
-                self.table.setItem(r, 1, SortableTableWidgetItem("— Sin match", sort_key=1))
-                self.table.setItem(r, 2, SortableTableWidgetItem("No catalogado", sort_key=-1.0))
+                self.table.setItem(r, 1, SortableTableWidgetItem(tr("ra_dlg.batch_status_unmatched", "— No match"), sort_key=1))
+                self.table.setItem(r, 2, SortableTableWidgetItem(tr("ra_dlg.batch_progress_uncataloged", "Uncataloged"), sort_key=-1.0))
                 self.table.setItem(r, 3, SortableTableWidgetItem(str(item.get("hash_method") or "")))
 
     def _on_finished(self, summary: dict):
         self.table.setSortingEnabled(True)
         self.btn_start.setEnabled(True)
         self.btn_cancel.setEnabled(False)
-        extra = " (cancelado)" if summary.get("cancelled") else ""
+        extra = tr("ra_dlg.cancelled_suffix", " (cancelled)") if summary.get("cancelled") else ""
         self.status_lbl.setText(
-            f"Completado{extra}: {summary.get('matched', 0)} emparejados · "
-            f"{summary.get('unmatched', 0)} sin coincidencia · "
-            f"{summary.get('skipped_cached', 0)} desde caché · {summary.get('errors', 0)} errores."
+            tr(
+                "ra_dlg.batch_finished_status",
+                "Completed{extra}: {matched} matched · {unmatched} unmatched · {skipped} from cache · {errors} errors.",
+                extra=extra,
+                matched=summary.get("matched", 0),
+                unmatched=summary.get("unmatched", 0),
+                skipped=summary.get("skipped_cached", 0),
+                errors=summary.get("errors", 0),
+            )
         )
         self.sync_finished.emit()
 
@@ -599,5 +675,5 @@ class RABatchSyncDialog(QDialog):
         self.table.setSortingEnabled(True)
         self.btn_start.setEnabled(True)
         self.btn_cancel.setEnabled(False)
-        self.status_lbl.setText(f"❌ Error: {err}")
-        QMessageBox.warning(self, "Error RetroAchievements", err)
+        self.status_lbl.setText(tr("ra_dlg.failed_status", "❌ Error: {err}", err=err))
+        QMessageBox.warning(self, tr("ra_dlg.error_title", "RetroAchievements Error"), err)

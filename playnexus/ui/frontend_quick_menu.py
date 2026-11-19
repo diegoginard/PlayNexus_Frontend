@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from playnexus.db import format_play_time
+from playnexus.i18n import tr
 from playnexus.services.controls import (
     ACTION_CLOSE_FRONTEND, ACTION_FRONTEND_MENU, ACTION_MUTE, ACTION_NAV_BACK,
     ACTION_NAV_DOWN, ACTION_NAV_LETTER_BACK, ACTION_NAV_LETTER_FWD,
@@ -26,27 +27,44 @@ from playnexus.services.controls import (
     ACTION_PAGE_UP, ACTION_SELECT, ACTION_TOGGLE_FAVORITE,
     get_all_bindings, matches_action,
 )
-from playnexus.ui.shaders import SHADER_PRESETS
-from playnexus.ui.particles import PARTICLE_PRESETS
-
-QUICK_SHADER_OPTIONS: list[tuple[str, str]] = [("layout", "Del Layout")] + list(SHADER_PRESETS)
-QUICK_PARTICLE_OPTIONS: list[tuple[str, str]] = [("layout", "Del Layout")] + list(PARTICLE_PRESETS)
+from playnexus.ui.shaders import SHADER_PRESETS, get_shader_presets
+from playnexus.ui.particles import PARTICLE_PRESETS, get_particle_presets
 
 
-QUICK_FILTER_OPTIONS: list[tuple[str, str]] = [
-    ("all", "Todos los juegos"),
-    ("favorites", "⭐ Solo Favoritos"),
-    ("unplayed", "🧭 Sin jugar (0 partidas)"),
-    ("played", "🎮 Ya jugados"),
-]
+def _get_quick_shader_options() -> list[tuple[str, str]]:
+    return [("layout", tr("qmenu.from_layout", "From Layout"))] + list(get_shader_presets())
 
-QUICK_SORT_OPTIONS: list[tuple[str, str]] = [
-    ("title", "Alfabético (A-Z)"),
-    ("favorites_first", "Favoritos primero"),
-    ("play_count_desc", "Más jugados"),
-    ("last_played_desc", "Recién jugados"),
-    ("year_desc", "Por Año (más nuevos)"),
-]
+
+def _get_quick_particle_options() -> list[tuple[str, str]]:
+    return [("layout", tr("qmenu.from_layout", "From Layout"))] + list(get_particle_presets())
+
+
+def _get_quick_filter_options() -> list[tuple[str, str]]:
+    return [
+        ("all", tr("qmenu.filter_all", "All games")),
+        ("favorites", tr("qmenu.filter_favorites", "⭐ Favorites Only")),
+        ("unplayed", tr("qmenu.filter_unplayed", "🧭 Unplayed (0 plays)")),
+        ("played", tr("qmenu.filter_played", "🎮 Played")),
+    ]
+
+
+def _get_quick_sort_options() -> list[tuple[str, str]]:
+    return [
+        ("title", tr("qmenu.sort_title", "Alphabetical (A-Z)")),
+        ("favorites_first", tr("qmenu.sort_favorites_first", "Favorites first")),
+        ("play_count_desc", tr("qmenu.sort_most_played", "Most played")),
+        ("last_played_desc", tr("qmenu.sort_recently_played", "Recently played")),
+        ("year_desc", tr("qmenu.sort_year_desc", "By Year (newest)")),
+    ]
+
+
+QUICK_SHADER_OPTIONS: list[tuple[str, str]] = [("layout", tr("qmenu.from_layout", "From Layout"))] + list(SHADER_PRESETS)
+QUICK_PARTICLE_OPTIONS: list[tuple[str, str]] = [("layout", tr("qmenu.from_layout", "From Layout"))] + list(PARTICLE_PRESETS)
+
+
+QUICK_FILTER_OPTIONS: list[tuple[str, str]] = _get_quick_filter_options()
+
+QUICK_SORT_OPTIONS: list[tuple[str, str]] = _get_quick_sort_options()
 
 
 def _parse_year_num(raw_year: object) -> int:
@@ -216,7 +234,7 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
 
         # Cabecera del menú rápido
         header_row = QHBoxLayout()
-        self.title_lbl = QLabel("🕹  MENÚ RÁPIDO ARCADE")
+        self.title_lbl = QLabel(tr("qmenu.title", "🕹  ARCADE QUICK MENU"))
         self.title_lbl.setStyleSheet("color: #f8fafc; font-size: 16pt; font-weight: 800; letter-spacing: 0.5px;")
         self.subtitle_lbl = QLabel("")
         self.subtitle_lbl.setStyleSheet("color: #a5b4fc; font-size: 10pt; font-weight: 600;")
@@ -266,7 +284,10 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         self.stack.addWidget(info_page)
 
         self.hint_lbl = QLabel(
-            "▲▼ Navegar   ·   ◀▶ Cambiar Filtro / Orden / Layout   ·   Enter / A Confirmar   ·   Back / B / Tab Volver"
+            tr(
+                "qmenu.hint",
+                "▲▼ Navigate   ·   ◀▶ Change Filter / Sort / Layout   ·   Enter / A Confirm   ·   Back / B / Tab Return",
+            )
         )
         self.hint_lbl.setAlignment(Qt.AlignCenter)
         self.hint_lbl.setStyleSheet("color: #94a3b8; font-size: 9pt; padding-top: 4px;")
@@ -300,7 +321,7 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         self._shader_preset = shader_preset or "layout"
         self._particle_preset = particle_preset or "layout"
         self._pending_power_action = None
-        self.subtitle_lbl.setText(f"Lista: {list_name or 'Frontend'}")
+        self.subtitle_lbl.setText(tr("qmenu.list_subtitle", "List: {name}", name=list_name or "Frontend"))
         self._show_page("main")
 
     def _label_for(self, options: list[tuple[str, str]], key: str) -> str:
@@ -309,7 +330,7 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
     def _show_page(self, page: str, keep_row: int = 0):
         self._page = page
         if page == "info":
-            self.title_lbl.setText("📖  FICHA DEL JUEGO Y CONTROLES")
+            self.title_lbl.setText(tr("qmenu.info_title", "📖  GAME DETAILS & CONTROLS"))
             self._populate_info_page()
             self.stack.setCurrentIndex(1)
             return
@@ -318,56 +339,72 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         self.menu_list.clear()
 
         if page == "main":
-            self.title_lbl.setText("🕹  MENÚ RÁPIDO ARCADE")
+            self.title_lbl.setText(tr("qmenu.title", "🕹  ARCADE QUICK MENU"))
             if not self._is_menu_list and self._current_game:
                 is_fav = int(self._current_game.get("is_favorite") or 0) == 1
-                fav_txt = "⭐  Quitar de Favoritos" if is_fav else "☆  Agregar a Favoritos"
+                fav_txt = (
+                    tr("qmenu.remove_favorite", "⭐  Remove from Favorites")
+                    if is_fav
+                    else tr("qmenu.add_favorite", "☆  Add to Favorites")
+                )
                 self._add_action_item("toggle_fav", fav_txt)
-            self._add_action_item("random_game", "🎲  Juego Aleatorio (Ruleta de la Suerte)")
-            self._add_action_item("quick_search", "🔍  Búsqueda Rápida en Lista")
+            self._add_action_item("random_game", tr("qmenu.random_game", "🎲  Random Game (Lucky Wheel)"))
+            self._add_action_item("quick_search", tr("qmenu.quick_search", "🔍  Quick Search in List"))
 
-            f_lbl = self._label_for(QUICK_FILTER_OPTIONS, self._filter_mode)
-            s_lbl = self._label_for(QUICK_SORT_OPTIONS, self._sort_mode)
+            f_lbl = self._label_for(_get_quick_filter_options(), self._filter_mode)
+            s_lbl = self._label_for(_get_quick_sort_options(), self._sort_mode)
             if not self._is_menu_list:
-                self._add_action_item("cycle_filter", f"⚡  Filtro rápido:   ◀  {f_lbl}  ▶")
-                self._add_action_item("cycle_sort", f"⇅   Orden de lista:  ◀  {s_lbl}  ▶")
+                self._add_action_item("cycle_filter", tr("qmenu.cycle_filter", "⚡  Quick Filter:   ◀  {label}  ▶", label=f_lbl))
+                self._add_action_item("cycle_sort", tr("qmenu.cycle_sort", "⇅   List Order:  ◀  {label}  ▶", label=s_lbl))
 
-            self._add_action_item("pick_layout", f"🎨  Cambiar Layout:   ◀  {self._active_layout_name}  ▶")
-            sh_lbl = self._label_for(QUICK_SHADER_OPTIONS, self._shader_preset)
-            pt_lbl = self._label_for(QUICK_PARTICLE_OPTIONS, self._particle_preset)
-            self._add_action_item("cycle_shader", f"📺  Shader GPU:       ◀  {sh_lbl}  ▶")
-            self._add_action_item("cycle_particle", f"✨  Partículas:       ◀  {pt_lbl}  ▶")
+            self._add_action_item("pick_layout", tr("qmenu.pick_layout", "🎨  Change Layout:   ◀  {layout}  ▶", layout=self._active_layout_name))
+            sh_lbl = self._label_for(_get_quick_shader_options(), self._shader_preset)
+            pt_lbl = self._label_for(_get_quick_particle_options(), self._particle_preset)
+            self._add_action_item("cycle_shader", tr("qmenu.cycle_shader", "📺  GPU Shader:       ◀  {label}  ▶", label=sh_lbl))
+            self._add_action_item("cycle_particle", tr("qmenu.cycle_particle", "✨  Particles:       ◀  {label}  ▶", label=pt_lbl))
             if not self._is_menu_list and self._current_game:
-                manual_txt = "📘  Manual PDF del Juego" if getattr(self, "_has_manual", False) else "📘  Manual PDF (Sin asignar)"
+                manual_txt = (
+                    tr("qmenu.manual_available", "📘  Game PDF Manual")
+                    if getattr(self, "_has_manual", False)
+                    else tr("qmenu.manual_unassigned", "📘  PDF Manual (Unassigned)")
+                )
                 self._add_action_item("view_manual", manual_txt)
-            self._add_action_item("info_controls", "📖  Info del Juego y Controles del Sistema")
-            self._add_action_item("system_menu", "⚙   Opciones del Sistema / Energía")
-            self._add_action_item("close_menu", "✕   Reanudar Frontend")
+            self._add_action_item("info_controls", tr("qmenu.info_controls", "📖  Game Info & System Controls"))
+            self._add_action_item("system_menu", tr("qmenu.system_menu", "⚙   System / Power Options"))
+            self._add_action_item("close_menu", tr("qmenu.close_menu", "✕   Resume Frontend"))
 
         elif page == "layout":
-            self.title_lbl.setText("🎨  SELECCIONAR LAYOUT VISUAL")
+            self.title_lbl.setText(tr("qmenu.select_layout_title", "🎨  SELECT VISUAL LAYOUT"))
             sel_idx = 0
             for idx, lname in enumerate(self._available_layouts):
                 mark = "✓  " if lname == self._active_layout_name else "    "
                 self._add_action_item(f"set_layout:{lname}", f"{mark}{lname}")
                 if lname == self._active_layout_name:
                     sel_idx = idx
-            self._add_action_item("back_main", "←  Volver al Menú Rápido")
+            self._add_action_item("back_main", tr("qmenu.back_main", "←  Back to Quick Menu"))
             keep_row = sel_idx
 
         elif page == "system":
-            self.title_lbl.setText("⚙  SISTEMA Y ENERGÍA")
-            self._add_action_item("sys:return_configurator", "🛠  Volver al Configurador")
-            self._add_action_item("sys:exit_frontend", "🚪  Salir de PlayNexus (Escritorio)")
-            self._add_action_item("sys:ask_restart_pc", "🔄  Reiniciar PC…")
-            self._add_action_item("sys:ask_shutdown_pc", "⏻   Apagar PC…")
-            self._add_action_item("back_main", "←  Volver al Menú Rápido")
+            self.title_lbl.setText(tr("qmenu.system_title", "⚙  SYSTEM & POWER"))
+            self._add_action_item("sys:return_configurator", tr("qmenu.sys_return_configurator", "🛠  Return to Configurator"))
+            self._add_action_item("sys:exit_frontend", tr("qmenu.sys_exit_frontend", "🚪  Exit PlayNexus (Desktop)"))
+            self._add_action_item("sys:ask_restart_pc", tr("qmenu.sys_restart_pc", "🔄  Restart PC…"))
+            self._add_action_item("sys:ask_shutdown_pc", tr("qmenu.sys_shutdown_pc", "⏻   Shut Down PC…"))
+            self._add_action_item("back_main", tr("qmenu.back_main", "←  Back to Quick Menu"))
 
         elif page == "confirm_power":
             is_shut = self._pending_power_action == "shutdown_pc"
-            self.title_lbl.setText("⏻  CONFIRMAR APAGADO" if is_shut else "🔄  CONFIRMAR REINICIO")
-            self._add_action_item("back_system", "✕  No, cancelar y volver")
-            confirm_lbl = "⏻  Sí, apagar el equipo ahora" if is_shut else "🔄  Sí, reiniciar el equipo ahora"
+            self.title_lbl.setText(
+                tr("qmenu.confirm_shutdown_title", "⏻  CONFIRM SHUTDOWN")
+                if is_shut
+                else tr("qmenu.confirm_restart_title", "🔄  CONFIRM RESTART")
+            )
+            self._add_action_item("back_system", tr("qmenu.confirm_cancel", "✕  No, cancel and go back"))
+            confirm_lbl = (
+                tr("qmenu.confirm_shutdown_exec", "⏻  Yes, shut down PC now")
+                if is_shut
+                else tr("qmenu.confirm_restart_exec", "🔄  Yes, restart PC now")
+            )
             self._add_action_item("confirm_power_exec", confirm_lbl)
             keep_row = 0
 
@@ -382,37 +419,70 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
     def _populate_info_page(self):
         g = self._current_game
         if g and not g.get("is_menu_target"):
-            title = g.get("title") or "Sin título"
+            title = g.get("title") or tr("qmenu.untitled", "Untitled")
             year = g.get("year") or "—"
             maker = g.get("manufacturer") or "—"
             genre = g.get("genre") or "—"
             players = g.get("players") or "—"
             plays = int(g.get("play_count") or 0)
             ptime = format_play_time(g.get("play_time_seconds") or 0)
-            last = str(g.get("last_played") or "").strip() or "Nunca"
+            last = str(g.get("last_played") or "").strip() or tr("qmenu.never", "Never")
             tags = str(g.get("tags") or "").strip() or "—"
-            fav_badge = "⭐ Favorito" if int(g.get("is_favorite") or 0) == 1 else "Estándar"
+            fav_badge = (
+                tr("qmenu.badge_favorite", "⭐ Favorite")
+                if int(g.get("is_favorite") or 0) == 1
+                else tr("qmenu.badge_standard", "Standard")
+            )
             from playnexus.services.retroachievements import format_ra_badge_text, get_cached_ra_progress_summary
             ra_sum = get_cached_ra_progress_summary(self.db, g)
-            ra_txt = format_ra_badge_text(ra_sum) if ra_sum else "Sin sincronizar"
-            manual_badge = "Disponible (PDF)" if getattr(self, "_has_manual", False) else "No asignado"
+            ra_txt = format_ra_badge_text(ra_sum) if ra_sum else tr("qmenu.ra_unsynced", "Not synced")
+            manual_badge = (
+                tr("qmenu.manual_badge_available", "Available (PDF)")
+                if getattr(self, "_has_manual", False)
+                else tr("qmenu.manual_badge_none", "Not assigned")
+            )
             self.info_game_lbl.setText(
-                f"<b style='font-size:12pt; color:#f8fafc;'>{title}</b>   "
-                f"<span style='color:#fbbf24;'>[{fav_badge}]</span><br>"
-                f"<b>Año:</b> {year}  ·  <b>Fabricante:</b> {maker}  ·  <b>Género:</b> {genre}  ·  <b>Jugadores:</b> {players}<br>"
-                f"<b>Actividad:</b> {plays} partidas  ·  {ptime} acumulado  ·  <b>Última vez:</b> {last}<br>"
-                f"<b>RetroAchievements:</b> <span style='color:#fde047;'>{ra_txt}</span>  ·  <b>Manual:</b> {manual_badge}<br>"
-                f"<b>Etiquetas:</b> {tags}"
+                tr(
+                    "qmenu.info_game_html",
+                    "<b style='font-size:12pt; color:#f8fafc;'>{title}</b>   "
+                    "<span style='color:#fbbf24;'>[{fav_badge}]</span><br>"
+                    "<b>Year:</b> {year}  ·  <b>Manufacturer:</b> {maker}  ·  <b>Genre:</b> {genre}  ·  <b>Players:</b> {players}<br>"
+                    "<b>Activity:</b> {plays} plays  ·  {ptime} total  ·  <b>Last played:</b> {last}<br>"
+                    "<b>RetroAchievements:</b> <span style='color:#fde047;'>{ra_txt}</span>  ·  <b>Manual:</b> {manual_badge}<br>"
+                    "<b>Tags:</b> {tags}",
+                    title=title,
+                    fav_badge=fav_badge,
+                    year=year,
+                    maker=maker,
+                    genre=genre,
+                    players=players,
+                    plays=plays,
+                    ptime=ptime,
+                    last=last,
+                    ra_txt=ra_txt,
+                    manual_badge=manual_badge,
+                    tags=tags,
+                )
             )
         else:
-            self.info_game_lbl.setText("<b>Vista de Menú / Lista</b> — Seleccioná un juego para ver sus estadísticas.")
+            self.info_game_lbl.setText(
+                tr("qmenu.info_menu_view", "<b>Menu / List View</b> — Select a game to view its stats.")
+            )
 
         bindings = get_all_bindings(self.db)
         rows_html = []
         for b in bindings:
             key_s = b.get("key") or "—"
             pad_s = b.get("pad") or "—"
-            rows_html.append(f"• <b>{b['name']}:</b> Teclado <code>{key_s}</code> | Mando <code>{pad_s}</code>")
+            rows_html.append(
+                tr(
+                    "qmenu.control_binding_row",
+                    "• <b>{name}:</b> Keyboard <code>{key}</code> | Gamepad <code>{pad}</code>",
+                    name=b["name"],
+                    key=key_s,
+                    pad=pad_s,
+                )
+            )
         self.info_controls_lbl.setText("<br>".join(rows_html))
 
     def _cycle_option(self, options: list[tuple[str, str]], current: str, delta: int) -> str:
@@ -606,8 +676,18 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
         [("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"), ("5", "5"), ("6", "6"), ("7", "7"), ("8", "8"), ("9", "9"), ("0", "0")],
         [("Q", "Q"), ("W", "W"), ("E", "E"), ("R", "R"), ("T", "T"), ("Y", "Y"), ("U", "U"), ("I", "I"), ("O", "O"), ("P", "P")],
         [("A", "A"), ("S", "S"), ("D", "D"), ("F", "F"), ("G", "G"), ("H", "H"), ("J", "J"), ("K", "K"), ("L", "L"), ("⌫", "BKSP")],
-        [("Z", "Z"), ("X", "X"), ("C", "C"), ("V", "V"), ("B", "B"), ("N", "N"), ("M", "M"), ("ESPACIO", "SPACE"), ("LIMPIAR", "CLEAR"), ("IR ✓", "GO")],
+        [("Z", "Z"), ("X", "X"), ("C", "C"), ("V", "V"), ("B", "B"), ("N", "N"), ("M", "M"), (tr("qmenu.osk_space", "SPACE"), "SPACE"), (tr("qmenu.osk_clear", "CLEAR"), "CLEAR"), (tr("qmenu.osk_go", "GO ✓"), "GO")],
     ]
+
+    @staticmethod
+    def _osk_label_for(token: str, default_lbl: str) -> str:
+        if token == "SPACE":
+            return tr("qmenu.osk_space", "SPACE")
+        if token == "CLEAR":
+            return tr("qmenu.osk_clear", "CLEAR")
+        if token == "GO":
+            return tr("qmenu.osk_go", "GO ✓")
+        return default_lbl
 
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -636,16 +716,16 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
         lay.setSpacing(12)
 
         top = QHBoxLayout()
-        title_lbl = QLabel("🔍  BÚSQUEDA RÁPIDA EN LISTA")
+        title_lbl = QLabel(tr("qmenu.search_title", "🔍  QUICK SEARCH IN LIST"))
         title_lbl.setStyleSheet("color: #f8fafc; font-size: 15pt; font-weight: 800;")
-        self.count_lbl = QLabel("0 juegos")
+        self.count_lbl = QLabel(tr("qmenu.search_count_zero", "0 games"))
         self.count_lbl.setStyleSheet("color: #a5b4fc; font-size: 10.5pt; font-weight: 600;")
         top.addWidget(title_lbl)
         top.addStretch()
         top.addWidget(self.count_lbl)
         lay.addLayout(top)
 
-        self.query_display = QLabel("Escribe o usá el teclado arcade…")
+        self.query_display = QLabel(tr("qmenu.search_placeholder", "Type or use the arcade keyboard…"))
         self.query_display.setStyleSheet(
             "background-color: rgba(8, 10, 18, 0.9); color: #f8fafc; "
             "border: 2px solid #7c3aed; border-radius: 10px; padding: 10px 14px; "
@@ -671,7 +751,7 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
         for r_idx, row_spec in enumerate(self._OSK_ROWS):
             btn_row: list[QPushButton] = []
             for c_idx, (lbl, token) in enumerate(row_spec):
-                btn = QPushButton(lbl)
+                btn = QPushButton(self._osk_label_for(token, lbl))
                 btn.setFocusPolicy(Qt.NoFocus)
                 btn.setMinimumHeight(40)
                 btn.clicked.connect(lambda _=False, t=token: self._apply_osk_token(t))
@@ -681,8 +761,11 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
         lay.addWidget(osk_box)
 
         hint = QLabel(
-            "D-Pad / Flechas: Mover cursor · A: Pulsar tecla · RB/LB: Cambiar entre Teclado y Resultados · "
-            "X: Borrar · Y: Limpiar · Enter: Ir al seleccionado · Esc/B: Cerrar"
+            tr(
+                "qmenu.search_hint",
+                "D-Pad / Arrows: Move cursor · A: Press key · RB/LB: Switch between Keyboard and Results · "
+                "X: Backspace · Y: Clear · Enter: Go to selected · Esc/B: Close",
+            )
         )
         hint.setWordWrap(True)
         hint.setAlignment(Qt.AlignCenter)
@@ -711,7 +794,7 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
                 "font-size: 15pt; font-weight: 700;"
             )
         else:
-            self.query_display.setText("🔍  Escribe o usá el teclado arcade…")
+            self.query_display.setText(f"🔍  {tr('qmenu.search_placeholder', 'Type or use the arcade keyboard…')}")
             self.query_display.setStyleSheet(
                 "background-color: rgba(8, 10, 18, 0.9); color: #94a3b8; "
                 "border: 2px solid #5d48d9; border-radius: 10px; padding: 10px 14px; "
@@ -729,14 +812,19 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
             if not q or q in hay:
                 matches.append(g)
 
+        game_fallback = tr("qmenu.game_fallback", "Game")
         for g in matches[:40]:
             star = "⭐ " if int(g.get("is_favorite") or 0) == 1 else ""
             yr = f" ({g['year']})" if g.get("year") else ""
-            item = QListWidgetItem(f"{star}{g.get('title', 'Juego')}{yr}")
+            item = QListWidgetItem(f"{star}{g.get('title') or game_fallback}{yr}")
             item.setData(Qt.UserRole, g.get("id"))
             self.results_list.addItem(item)
 
-        self.count_lbl.setText(f"{len(matches)} coincidencia{'s' if len(matches) != 1 else ''}")
+        cnt = len(matches)
+        if cnt == 1:
+            self.count_lbl.setText(tr("qmenu.search_match_one", "{count} match", count=cnt))
+        else:
+            self.count_lbl.setText(tr("qmenu.search_match_many", "{count} matches", count=cnt))
         if self.results_list.count() > 0:
             self.results_list.setCurrentRow(0)
 

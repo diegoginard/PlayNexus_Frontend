@@ -1,25 +1,46 @@
 from __future__ import annotations
 
 from typing import Any
+from playnexus.i18n import tr
 from playnexus.ui.layout_studio.models import LayoutElement, LayoutProject, CANONICAL_W, CANONICAL_H
 
 
-def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
+def create_arcade_cabinet_template(name: str | None = None) -> LayoutProject:
     """Crea una plantilla de Mueble Arcade con Video Snap CRT, Marquee y Ruleta."""
+    if not name:
+        name = tr("studio.templates.default_arcade_name", "My Arcade")
     proj = LayoutProject(
         name=name,
-        description="Layout de Mueble Arcade interactivo con Marquee y Ruleta vertical",
+        description=tr(
+            "studio.templates.arcade.description",
+            "Interactive Arcade Cabinet layout with Marquee and vertical Wheel",
+        ),
         media_requirements=[
-            {"key": "video", "label": "Video Snaps", "extensions": [".mp4", ".mkv", ".avi", ".webm"], "required": True},
-            {"key": "wheel", "label": "Wheel Logos", "extensions": [".png", ".webp"], "required": True},
-            {"key": "marquee", "label": "Marquee", "extensions": [".png", ".jpg", ".webp"], "required": False},
+            {
+                "key": "video",
+                "label": tr("studio.media.video_snaps", "Video Snaps"),
+                "extensions": [".mp4", ".mkv", ".avi", ".webm"],
+                "required": True,
+            },
+            {
+                "key": "wheel",
+                "label": tr("studio.media.wheel_logos", "Wheel Logos"),
+                "extensions": [".png", ".webp"],
+                "required": True,
+            },
+            {
+                "key": "marquee",
+                "label": tr("studio.media.marquee", "Marquee"),
+                "extensions": [".png", ".jpg", ".webp"],
+                "required": False,
+            },
         ],
     )
 
     # 1. Fondo
     proj.add_element(LayoutElement(
         id="bg_image",
-        name="Fondo / Wallpaper",
+        name=tr("studio.elem.bg_wallpaper", "Background / Wallpaper"),
         type="image",
         x=0, y=0, w=CANONICAL_W, h=CANONICAL_H,
         z_index=1,
@@ -29,7 +50,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     # 2. Video Snap (Pantalla CRT del mueble)
     proj.add_element(LayoutElement(
         id="video_snap",
-        name="Video Snap (Pantalla CRT)",
+        name=tr("studio.elem.video_snap_crt", "Video Snap (CRT Screen)"),
         type="video",
         x=330, y=340, w=640, h=480,
         z_index=5,
@@ -39,7 +60,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     # 3. Efecto Scanlines sobre la pantalla
     proj.add_element(LayoutElement(
         id="screen_scanlines",
-        name="Efecto Scanlines CRT",
+        name=tr("studio.elem.scanlines_effect", "CRT Scanlines Effect"),
         type="effect",
         x=330, y=340, w=640, h=480,
         z_index=6,
@@ -51,7 +72,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     # 4. Bezel / Marco de la pantalla
     proj.add_element(LayoutElement(
         id="bezel",
-        name="Bezel / Marco Pantalla",
+        name=tr("studio.elem.screen_bezel", "Screen Bezel / Frame"),
         type="image",
         x=280, y=290, w=740, h=580,
         z_index=10,
@@ -61,7 +82,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     # 5. Marquee Iluminado superior
     proj.add_element(LayoutElement(
         id="marquee",
-        name="Marquee Superior",
+        name=tr("studio.elem.top_marquee", "Top Marquee"),
         type="marquee",
         x=290, y=50, w=720, h=200,
         z_index=12,
@@ -72,7 +93,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     # 6. Ruleta de Ruedas lateral
     proj.add_element(LayoutElement(
         id="wheel_list",
-        name="Ruleta de Juegos",
+        name=tr("studio.elem.game_wheel", "Game Wheel"),
         type="wheel",
         x=1380, y=60, w=500, h=960,
         z_index=20,
@@ -85,7 +106,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     # 7. Contador y Título inferior
     proj.add_element(LayoutElement(
         id="title_text",
-        name="Título del Juego",
+        name=tr("studio.elem.game_title", "Game Title"),
         type="text",
         x=100, y=960, w=900, h=60,
         z_index=25,
@@ -96,7 +117,7 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
 
     proj.add_element(LayoutElement(
         id="counter_text",
-        name="Contador de Juegos",
+        name=tr("studio.elem.game_counter", "Game Counter"),
         type="text",
         x=1400, y=1020, w=450, h=40,
         z_index=25,
@@ -109,23 +130,48 @@ def create_arcade_cabinet_template(name: str = "Mi Arcade") -> LayoutProject:
     return proj
 
 
-def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
+def create_retro_console_template(name: str | None = None) -> LayoutProject:
     """Crea una plantilla de Consola de Videojuegos con TV y Cartucho."""
+    if not name:
+        name = tr("studio.templates.default_console_name", "My Console")
     proj = LayoutProject(
         name=name,
-        description="Layout temático de Consola Retro con TV a la izquierda y Ruleta Conveyor a la derecha",
+        description=tr(
+            "studio.templates.console.description",
+            "Retro Console themed layout with TV on the left and Conveyor Wheel on the right",
+        ),
         media_requirements=[
-            {"key": "video", "label": "Video Snaps", "extensions": [".mp4", ".mkv", ".avi", ".webm"], "required": True},
-            {"key": "wheel", "label": "Wheel Logos", "extensions": [".png", ".webp"], "required": True},
-            {"key": "cartart", "label": "Cartuchos", "extensions": [".png", ".webp"], "required": True},
-            {"key": "boxart", "label": "Box Art / Cajas", "extensions": [".png", ".jpg", ".jpeg", ".webp"], "required": False},
+            {
+                "key": "video",
+                "label": tr("studio.media.video_snaps", "Video Snaps"),
+                "extensions": [".mp4", ".mkv", ".avi", ".webm"],
+                "required": True,
+            },
+            {
+                "key": "wheel",
+                "label": tr("studio.media.wheel_logos", "Wheel Logos"),
+                "extensions": [".png", ".webp"],
+                "required": True,
+            },
+            {
+                "key": "cartart",
+                "label": tr("studio.media.cartridges", "Cartridges"),
+                "extensions": [".png", ".webp"],
+                "required": True,
+            },
+            {
+                "key": "boxart",
+                "label": tr("studio.media.boxart", "Box Art / Boxes"),
+                "extensions": [".png", ".jpg", ".jpeg", ".webp"],
+                "required": False,
+            },
         ],
     )
 
     # Fondo
     proj.add_element(LayoutElement(
         id="bg_image",
-        name="Fondo de Sala Retro",
+        name=tr("studio.elem.retro_room_bg", "Retro Room Background"),
         type="image",
         x=0, y=0, w=CANONICAL_W, h=CANONICAL_H,
         z_index=1,
@@ -135,7 +181,7 @@ def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
     # TV Snap Video
     proj.add_element(LayoutElement(
         id="tv_video",
-        name="Pantalla TV (Video Snap)",
+        name=tr("studio.elem.tv_screen_video", "TV Screen (Video Snap)"),
         type="video",
         x=100, y=200, w=620, h=470,
         z_index=5,
@@ -145,7 +191,7 @@ def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
     # Mueble TV
     proj.add_element(LayoutElement(
         id="tv_bezel",
-        name="Televisor de Tubo (TV Bezel)",
+        name=tr("studio.elem.crt_tv_bezel", "CRT Television (TV Bezel)"),
         type="image",
         x=60, y=140, w=710, h=600,
         z_index=10,
@@ -155,7 +201,7 @@ def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
     # Consola
     proj.add_element(LayoutElement(
         id="console_art",
-        name="Consola",
+        name=tr("studio.elem.console", "Console"),
         type="image",
         x=820, y=600, w=450, h=400,
         z_index=12,
@@ -165,7 +211,7 @@ def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
     # Ruleta Curva
     proj.add_element(LayoutElement(
         id="wheel_list",
-        name="Ruleta de Logos",
+        name=tr("studio.elem.logo_wheel", "Logo Wheel"),
         type="wheel",
         x=1360, y=50, w=520, h=980,
         z_index=20,
@@ -178,7 +224,7 @@ def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
     # Título
     proj.add_element(LayoutElement(
         id="title_text",
-        name="Título del Juego",
+        name=tr("studio.elem.game_title", "Game Title"),
         type="text",
         x=80, y=940, w=670, h=50,
         z_index=25,
@@ -190,21 +236,36 @@ def create_retro_console_template(name: str = "Mi Consola") -> LayoutProject:
     return proj
 
 
-def create_minimalist_fullscreen_template(name: str = "Minimalista Fullscreen") -> LayoutProject:
+def create_minimalist_fullscreen_template(name: str | None = None) -> LayoutProject:
     """Crea una plantilla minimalista de video a pantalla completa con scanlines y rueda flotante."""
+    if not name:
+        name = tr("studio.templates.default_minimalist_name", "Minimalist Fullscreen")
     proj = LayoutProject(
         name=name,
-        description="Layout minimalista con video snap a pantalla completa y ruleta estilizada",
+        description=tr(
+            "studio.templates.minimalist.description",
+            "Minimalist layout with fullscreen video snap and stylized wheel",
+        ),
         media_requirements=[
-            {"key": "video", "label": "Video Snaps", "extensions": [".mp4", ".mkv", ".avi", ".webm"], "required": True},
-            {"key": "wheel", "label": "Wheel Logos", "extensions": [".png", ".webp"], "required": True},
+            {
+                "key": "video",
+                "label": tr("studio.media.video_snaps", "Video Snaps"),
+                "extensions": [".mp4", ".mkv", ".avi", ".webm"],
+                "required": True,
+            },
+            {
+                "key": "wheel",
+                "label": tr("studio.media.wheel_logos", "Wheel Logos"),
+                "extensions": [".png", ".webp"],
+                "required": True,
+            },
         ],
     )
 
     # Video fullscreen
     proj.add_element(LayoutElement(
         id="fullscreen_video",
-        name="Video Snap Pantalla Completa",
+        name=tr("studio.elem.fullscreen_video", "Fullscreen Video Snap"),
         type="video",
         x=0, y=0, w=CANONICAL_W, h=CANONICAL_H,
         z_index=1,
@@ -214,7 +275,7 @@ def create_minimalist_fullscreen_template(name: str = "Minimalista Fullscreen") 
     # Scanlines globales
     proj.add_element(LayoutElement(
         id="scanlines_overlay",
-        name="Scanlines CRT",
+        name=tr("studio.elem.crt_scanlines", "CRT Scanlines"),
         type="effect",
         x=0, y=0, w=CANONICAL_W, h=CANONICAL_H,
         z_index=5,
@@ -226,7 +287,7 @@ def create_minimalist_fullscreen_template(name: str = "Minimalista Fullscreen") 
     # Viñeta oscura perimetral
     proj.add_element(LayoutElement(
         id="vignette_overlay",
-        name="Viñeta Sombra Perimetral",
+        name=tr("studio.elem.vignette_overlay", "Perimeter Shadow Vignette"),
         type="effect",
         x=0, y=0, w=CANONICAL_W, h=CANONICAL_H,
         z_index=6,
@@ -238,7 +299,7 @@ def create_minimalist_fullscreen_template(name: str = "Minimalista Fullscreen") 
     # Ruleta flotante
     proj.add_element(LayoutElement(
         id="floating_wheel",
-        name="Ruleta Flotante",
+        name=tr("studio.elem.floating_wheel", "Floating Wheel"),
         type="wheel",
         x=1420, y=50, w=460, h=980,
         z_index=15,
@@ -250,7 +311,7 @@ def create_minimalist_fullscreen_template(name: str = "Minimalista Fullscreen") 
     # Barra inferior con título
     proj.add_element(LayoutElement(
         id="title_hud",
-        name="HUD Título",
+        name=tr("studio.elem.title_hud", "Title HUD"),
         type="text",
         x=60, y=980, w=1200, h=60,
         z_index=20,

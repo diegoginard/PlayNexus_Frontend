@@ -16,6 +16,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Callable
 
+from playnexus.i18n import tr
 from playnexus.services.media import IMAGE_EXTS, PDF_EXTS, VIDEO_EXTS, clear_media_cache
 
 
@@ -282,9 +283,9 @@ def _match_slot_from_index(
 
     if not spec.folder_exists:
         note = (
-            f"La carpeta configurada no existe en disco: {spec.folder_path}"
+            tr("svc.rom_mgr.folder_missing_disk", "Configured folder does not exist on disk: {path}", path=spec.folder_path)
             if spec.folder_path
-            else "Carpeta no configurada en la lista"
+            else tr("svc.rom_mgr.folder_not_configured", "Folder not configured in the list")
         )
         return (
             SlotAuditResult(
@@ -354,7 +355,12 @@ def _match_slot_from_index(
                         expected_folder=spec.folder_path,
                         is_required=spec.required,
                         media_kind=spec.media_kind,
-                        note=f"Encontrado como '{ext}', el layout declara: {expected_str}",
+                        note=tr(
+                            "svc.rom_mgr.wrong_ext_note",
+                            "Found as '{ext}', layout requires: {expected}",
+                            ext=ext,
+                            expected=expected_str,
+                        ),
                     ),
                     matched_stem_keys,
                 )
@@ -363,7 +369,7 @@ def _match_slot_from_index(
     missing_status = "missing_required" if spec.required else "missing_optional"
     note = ""
     if spec.key == "boxart" and game.get("cover_path") and os.path.isfile(str(game["cover_path"])):
-        note = "Sin archivo en carpeta boxart (usa carátula manual cover_path)"
+        note = tr("svc.rom_mgr.manual_cover_note", "No file in boxart folder (uses manual cover cover_path)")
 
     return (
         SlotAuditResult(
@@ -427,7 +433,7 @@ def audit_list_media(
             norm_dir = os.path.normcase(os.path.abspath(s.folder_path))
             if norm_dir not in folder_indices:
                 if progress_cb:
-                    progress_cb(idx_s, max(1, len(specs)), f"Indexando carpeta de {s.label}…")
+                    progress_cb(idx_s, max(1, len(specs)), tr("svc.rom_mgr.indexing_folder", "Indexing {label} folder…", label=s.label))
                 folder_indices[norm_dir] = _scan_folder_index(s.folder_path)
 
     total = len(games)
@@ -438,7 +444,11 @@ def audit_list_media(
             break
 
         if progress_cb and (i == 0 or (i + 1) % 50 == 0 or i + 1 == total):
-            progress_cb(i + 1, max(1, total), f"Auditando {i + 1}/{total}: {game.get('title', '')}")
+            progress_cb(
+                i + 1,
+                max(1, total),
+                tr("svc.rom_mgr.auditing_game", "Auditing {current}/{total}: {title}", current=i + 1, total=total, title=game.get("title", "")),
+            )
 
         rom_path = str(game.get("rom_path") or "").strip()
         rom_name = str(game.get("rom_name") or "").strip()
@@ -640,19 +650,24 @@ def assign_media_file(
     """
     src = Path(source_path)
     if not src.is_file():
-        raise FileNotFoundError(f"No se encontró el archivo origen:\n{source_path}")
+        raise FileNotFoundError(tr("svc.rom_mgr.err_src_not_found", "Source file not found:\n{path}", path=source_path))
     if not target_stem:
-        raise ValueError("No se pudo determinar el nombre base (stem) destino para la ROM.")
+        raise ValueError(tr("svc.rom_mgr.err_no_target_stem", "Could not determine target base name (stem) for the ROM."))
 
     dest_dir = Path(target_folder)
     if not dest_dir.is_dir():
-        raise FileNotFoundError(f"La carpeta destino no existe:\n{target_folder}")
+        raise FileNotFoundError(tr("svc.rom_mgr.err_dest_dir_not_found", "Target folder does not exist:\n{path}", path=target_folder))
 
     ext = src.suffix.lower()
     if allowed_exts and ext not in {e.lower() for e in allowed_exts}:
         raise ValueError(
-            f"La extensión '{ext}' no es compatible con este tipo de medio.\n"
-            f"Extensiones aceptadas: {', '.join(allowed_exts)}"
+            tr(
+                "svc.rom_mgr.err_unsupported_ext",
+                "The extension '{ext}' is not compatible with this media type.\n"
+                "Accepted extensions: {exts}",
+                ext=ext,
+                exts=", ".join(allowed_exts),
+            )
         )
 
     dest = dest_dir / f"{target_stem}{ext}"
@@ -694,9 +709,9 @@ def rename_orphan_media_file(source_path: str, target_stem: str) -> str:
     """Renombra un archivo multimedia existente dentro de su misma carpeta a `<target_stem><ext>`."""
     src = Path(source_path)
     if not src.is_file():
-        raise FileNotFoundError(f"El archivo ya no existe:\n{source_path}")
+        raise FileNotFoundError(tr("svc.rom_mgr.err_file_gone", "File no longer exists:\n{path}", path=source_path))
     if not target_stem:
-        raise ValueError("El nombre destino está vacío.")
+        raise ValueError(tr("svc.rom_mgr.err_empty_target_name", "Target name is empty."))
     dest = src.parent / f"{target_stem}{src.suffix.lower()}"
     if src.resolve() != dest.resolve():
         os.replace(str(src), str(dest))
@@ -730,48 +745,56 @@ _PROTECTED_SHARED_STEMS: frozenset[str] = frozenset({
     "outro",
 })
 
-_ALL_LIST_MEDIA_FOLDERS: tuple[tuple[str, str, bool], ...] = (
-    ("boxart_path", "Box Art", False),
-    ("flyer_path", "Flyer", False),
-    ("wheel_path", "Wheel / Logo", False),
-    ("video_path", "Video / Snap", False),
-    ("cartart_path", "Cart Art / Disc Art", False),
-    ("discart_path", "Disc Art", False),
-    ("cabinet_path", "Cabinet", False),
-    ("marquee_path", "Marquee", False),
-    ("bezel_path", "Bezel", False),
-    ("manual_path", "Manual PDF", False),
-    ("bezel_hud_path", "Bezel HUD", False),
-    ("loading_path", "Pantalla de carga", True),
-    ("loading_in_path", "Carga (entrada)", True),
-    ("loading_out_path", "Carga (salida)", True),
+_LIST_MEDIA_FOLDER_DEFS: tuple[tuple[str, str, str, bool], ...] = (
+    ("boxart_path", "svc.rom_mgr.media.boxart", "Box Art", False),
+    ("flyer_path", "svc.rom_mgr.media.flyer", "Flyer", False),
+    ("wheel_path", "svc.rom_mgr.media.wheel", "Wheel / Logo", False),
+    ("video_path", "svc.rom_mgr.media.video", "Video / Snap", False),
+    ("cartart_path", "svc.rom_mgr.media.cartart", "Cart Art / Disc Art", False),
+    ("discart_path", "svc.rom_mgr.media.discart", "Disc Art", False),
+    ("cabinet_path", "svc.rom_mgr.media.cabinet", "Cabinet", False),
+    ("marquee_path", "svc.rom_mgr.media.marquee", "Marquee", False),
+    ("bezel_path", "svc.rom_mgr.media.bezel", "Bezel", False),
+    ("manual_path", "svc.rom_mgr.media.manual", "PDF Manual", False),
+    ("bezel_hud_path", "svc.rom_mgr.media.bezel_hud", "Bezel HUD", False),
+    ("loading_path", "svc.rom_mgr.media.loading", "Loading screen", True),
+    ("loading_in_path", "svc.rom_mgr.media.loading_in", "Loading (entry)", True),
+    ("loading_out_path", "svc.rom_mgr.media.loading_out", "Loading (exit)", True),
 )
 
-_KNOWN_MEDIA_SUBFOLDERS: tuple[tuple[str, str], ...] = (
-    ("boxart", "Box Art"),
-    ("boxarts", "Box Art"),
-    ("flyer", "Flyer"),
-    ("flyers", "Flyer"),
-    ("wheel", "Wheel / Logo"),
-    ("wheels", "Wheel / Logo"),
-    ("video", "Video / Snap"),
-    ("videos", "Video / Snap"),
-    ("snap", "Video / Snap"),
-    ("snaps", "Video / Snap"),
-    ("cartart", "Cart Art / Disc Art"),
-    ("cartarts", "Cart Art / Disc Art"),
-    ("discart", "Disc Art"),
-    ("discarts", "Disc Art"),
-    ("cabinet", "Cabinet"),
-    ("cabinets", "Cabinet"),
-    ("marquee", "Marquee"),
-    ("marquees", "Marquee"),
-    ("bezel", "Bezel"),
-    ("bezels", "Bezel"),
-    ("manual", "Manual PDF"),
-    ("manuals", "Manual PDF"),
-    ("fanart", "Fanart"),
-    ("fanarts", "Fanart"),
+_ALL_LIST_MEDIA_FOLDERS: tuple[tuple[str, str, bool], ...] = tuple(
+    (fk, tr(lbl_key, lbl_def), is_load) for fk, lbl_key, lbl_def, is_load in _LIST_MEDIA_FOLDER_DEFS
+)
+
+_KNOWN_MEDIA_SUBFOLDER_DEFS: tuple[tuple[str, str, str], ...] = (
+    ("boxart", "svc.rom_mgr.media.boxart", "Box Art"),
+    ("boxarts", "svc.rom_mgr.media.boxart", "Box Art"),
+    ("flyer", "svc.rom_mgr.media.flyer", "Flyer"),
+    ("flyers", "svc.rom_mgr.media.flyer", "Flyer"),
+    ("wheel", "svc.rom_mgr.media.wheel", "Wheel / Logo"),
+    ("wheels", "svc.rom_mgr.media.wheel", "Wheel / Logo"),
+    ("video", "svc.rom_mgr.media.video", "Video / Snap"),
+    ("videos", "svc.rom_mgr.media.video", "Video / Snap"),
+    ("snap", "svc.rom_mgr.media.video", "Video / Snap"),
+    ("snaps", "svc.rom_mgr.media.video", "Video / Snap"),
+    ("cartart", "svc.rom_mgr.media.cartart", "Cart Art / Disc Art"),
+    ("cartarts", "svc.rom_mgr.media.cartart", "Cart Art / Disc Art"),
+    ("discart", "svc.rom_mgr.media.discart", "Disc Art"),
+    ("discarts", "svc.rom_mgr.media.discart", "Disc Art"),
+    ("cabinet", "svc.rom_mgr.media.cabinet", "Cabinet"),
+    ("cabinets", "svc.rom_mgr.media.cabinet", "Cabinet"),
+    ("marquee", "svc.rom_mgr.media.marquee", "Marquee"),
+    ("marquees", "svc.rom_mgr.media.marquee", "Marquee"),
+    ("bezel", "svc.rom_mgr.media.bezel", "Bezel"),
+    ("bezels", "svc.rom_mgr.media.bezel", "Bezel"),
+    ("manual", "svc.rom_mgr.media.manual", "PDF Manual"),
+    ("manuals", "svc.rom_mgr.media.manual", "PDF Manual"),
+    ("fanart", "svc.rom_mgr.media.fanart", "Fanart"),
+    ("fanarts", "svc.rom_mgr.media.fanart", "Fanart"),
+)
+
+_KNOWN_MEDIA_SUBFOLDERS: tuple[tuple[str, str], ...] = tuple(
+    (sub_n, tr(lbl_key, lbl_def)) for sub_n, lbl_key, lbl_def in _KNOWN_MEDIA_SUBFOLDER_DEFS
 )
 
 
@@ -849,7 +872,7 @@ def collect_game_deletion_targets(
     configuradas (sin tocar archivos genéricos compartidos) y referencias en otras listas.
     """
     if rom.is_menu_target:
-        raise ValueError("Los ítems de menú de sistemas no se pueden eliminar desde disco.")
+        raise ValueError(tr("svc.rom_mgr.err_delete_menu_item", "System menu items cannot be deleted from disk."))
 
     if game_row is None and db is not None and hasattr(db, "get_game"):
         try:
@@ -872,7 +895,7 @@ def collect_game_deletion_targets(
     plan = GameDeletionPlan(
         game_id=int(rom.game_id),
         list_id=list_id,
-        title=rom.title or primary_stem or "Juego",
+        title=rom.title or primary_stem or tr("svc.rom_mgr.default_game_title", "Game"),
         stem=primary_stem,
         rom_path=rom_path,
     )
@@ -887,7 +910,7 @@ def collect_game_deletion_targets(
         seen_files.add(_norm_fs_key(rom_path))
         plan.rom_target = DeletionFileTarget(
             category="rom",
-            label="Archivo ROM",
+            label=tr("svc.rom_mgr.rom_file_label", "ROM File"),
             file_path=rom_path.replace("\\", "/"),
             size_bytes=r_size,
             is_rom=True,
@@ -904,7 +927,7 @@ def collect_game_deletion_targets(
             sz = int(os.path.getsize(path_str))
         except OSError:
             sz = 0
-        final_label = f"{label} (respaldo .bak)" if path_str.lower().endswith(".bak") else label
+        final_label = tr("svc.rom_mgr.bak_label", "{label} (.bak backup)", label=label) if path_str.lower().endswith(".bak") else label
         plan.media_targets.append(
             DeletionFileTarget(
                 category="media",
@@ -962,22 +985,25 @@ def collect_game_deletion_targets(
                 _scan_dir_for_stem(sp.folder_path, sp.label, slot_key=sp.key, is_loading=(sp.key == "loading"))
 
     if list_row:
-        for field_key, lbl, is_load in _ALL_LIST_MEDIA_FOLDERS:
+        for field_key, lbl_key, lbl_def, is_load in _LIST_MEDIA_FOLDER_DEFS:
             folder_val = str(list_row.get(field_key) or "").strip()
             if folder_val:
-                _scan_dir_for_stem(folder_val, lbl, slot_key=field_key.removesuffix("_path"), is_loading=is_load)
+                _scan_dir_for_stem(folder_val, tr(lbl_key, lbl_def), slot_key=field_key.removesuffix("_path"), is_loading=is_load)
 
         media_root = str(list_row.get("media_path") or "").strip()
         if media_root and os.path.isdir(media_root):
             mr_path = Path(media_root)
-            for sub_name, lbl in _KNOWN_MEDIA_SUBFOLDERS:
+            for sub_name, lbl_key, lbl_def in _KNOWN_MEDIA_SUBFOLDER_DEFS:
                 cand_sub = mr_path / sub_name
                 if cand_sub.is_dir():
-                    _scan_dir_for_stem(str(cand_sub), lbl, slot_key=sub_name.rstrip("s"))
+                    _scan_dir_for_stem(str(cand_sub), tr(lbl_key, lbl_def), slot_key=sub_name.rstrip("s"))
 
     # 3. Rutas individuales del juego (cover_path / manual_file_path)
     if game_row:
-        for g_field, lbl, s_key in (("cover_path", "Carátula asignada", "boxart"), ("manual_file_path", "Manual PDF asignado", "manual")):
+        for g_field, lbl, s_key in (
+            ("cover_path", tr("svc.rom_mgr.assigned_cover", "Assigned Cover Art"), "boxart"),
+            ("manual_file_path", tr("svc.rom_mgr.assigned_manual", "Assigned PDF Manual"), "manual"),
+        ):
             fp = str(game_row.get(g_field) or "").strip()
             if not fp or not os.path.isfile(fp):
                 continue
@@ -1003,7 +1029,7 @@ def collect_game_deletion_targets(
                         plan.other_list_refs.append((
                             og_id,
                             other_lid,
-                            str(lst.get("name") or f"Lista {other_lid}"),
+                            str(lst.get("name") or tr("svc.rom_mgr.list_fallback", "List {id}", id=other_lid)),
                             str(lst.get("list_type") or "games"),
                         ))
         except Exception:
@@ -1141,11 +1167,11 @@ def replace_game_rom_file(
     todas sus artes sin perder coincidencias) o actualizando la ruta/stem y renombrando sus medios.
     """
     if rom.is_menu_target:
-        raise ValueError("No se puede reemplazar la ROM de un ítem de menú.")
+        raise ValueError(tr("svc.rom_mgr.err_replace_menu_item", "Cannot replace the ROM of a menu item."))
 
     src = Path(new_rom_source_path)
     if not src.is_file():
-        raise FileNotFoundError(f"No se encontró el archivo ROM seleccionado:\n{new_rom_source_path}")
+        raise FileNotFoundError(tr("svc.rom_mgr.err_rom_not_found", "Selected ROM file not found:\n{path}", path=new_rom_source_path))
 
     old_rom_path = str(rom.rom_path or "").strip()
     old_stem = (rom.stem or (Path(old_rom_path).stem if old_rom_path else "")).strip()
@@ -1179,7 +1205,7 @@ def replace_game_rom_file(
                     pass
 
     if not dest_path.is_file():
-        raise IOError(f"No se pudo escribir el archivo ROM destino:\n{dest_path}")
+        raise IOError(tr("svc.rom_mgr.err_write_dest_rom", "Could not write target ROM file:\n{path}", path=dest_path))
 
     old_removed = False
     warnings: list[str] = []
@@ -1193,7 +1219,7 @@ def replace_game_rom_file(
             _unlink_with_retry(Path(old_rom_path))
             old_removed = True
         except Exception as exc:
-            warnings.append(f"No se pudo eliminar la ROM anterior ({Path(old_rom_path).name}): {exc}")
+            warnings.append(tr("svc.rom_mgr.warn_delete_old_rom", "Could not delete previous ROM ({name}): {err}", name=Path(old_rom_path).name, err=exc))
 
     new_rom_str = str(dest_path).replace("\\", "/")
     new_stem = dest_path.stem
@@ -1219,7 +1245,7 @@ def replace_game_rom_file(
             if _norm_fs_key(mp) == _norm_fs_key(dst_media):
                 continue
             if dst_media.exists():
-                warnings.append(f"Ya existe {dst_media.name}; se conservó {mp.name}.")
+                warnings.append(tr("svc.rom_mgr.warn_media_exists_kept", "{dest} already exists; kept {src}.", dest=dst_media.name, src=mp.name))
                 continue
             try:
                 os.replace(str(mp), str(dst_media))
@@ -1230,7 +1256,7 @@ def replace_game_rom_file(
                 if old_man_key and _norm_fs_key(tgt.file_path) == old_man_key:
                     extra_db_updates["manual_file_path"] = new_m_str
             except Exception as exc:
-                warnings.append(f"No se pudo renombrar {mp.name}: {exc}")
+                warnings.append(tr("svc.rom_mgr.warn_rename_media_failed", "Could not rename {name}: {err}", name=mp.name, err=exc))
 
     if db is not None and hasattr(db, "update_game"):
         updates = {"rom_path": new_rom_str, "rom_name": new_stem, **extra_db_updates}
@@ -1269,9 +1295,15 @@ def export_audit_csv(summary: AuditSummary, output_path: str, only_incomplete: b
         else summary.results
     )
 
-    headers = ["Estado", "Titulo", "ROM (stem)", "ROM en disco", "Ruta ROM"]
+    headers = [
+        tr("svc.rom_mgr.csv.col_status", "Status"),
+        tr("svc.rom_mgr.csv.col_title", "Title"),
+        tr("svc.rom_mgr.csv.col_stem", "ROM (stem)"),
+        tr("svc.rom_mgr.csv.col_on_disk", "ROM on disk"),
+        tr("svc.rom_mgr.csv.col_rom_path", "ROM Path"),
+    ]
     for spec in summary.specs:
-        req_tag = " (Obligatorio)" if spec.required else " (Opcional)"
+        req_tag = tr("svc.rom_mgr.csv.req_tag", " (Required)") if spec.required else tr("svc.rom_mgr.csv.opt_tag", " (Optional)")
         headers.append(f"{spec.label}{req_tag}")
 
     with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -1279,15 +1311,15 @@ def export_audit_csv(summary: AuditSummary, output_path: str, only_incomplete: b
         writer.writerow(headers)
         for item in rows_to_export:
             status_map = {
-                "complete": "Completo",
-                "missing_optional": "Falta opcional",
-                "missing_required": "Falta obligatorio",
+                "complete": tr("svc.rom_mgr.csv.status_complete", "Complete"),
+                "missing_optional": tr("svc.rom_mgr.csv.status_missing_opt", "Missing optional"),
+                "missing_required": tr("svc.rom_mgr.csv.status_missing_req", "Missing required"),
             }
             line = [
                 status_map.get(item.overall_status, item.overall_status),
                 item.title,
                 item.stem,
-                "Si" if item.rom_exists else "No encontrada",
+                tr("svc.rom_mgr.csv.yes", "Yes") if item.rom_exists else tr("svc.rom_mgr.csv.not_found", "Not found"),
                 item.rom_path,
             ]
             for spec in summary.specs:
@@ -1295,13 +1327,13 @@ def export_audit_csv(summary: AuditSummary, output_path: str, only_incomplete: b
                 if not slot:
                     line.append("-")
                 elif slot.status == "ok":
-                    line.append(f"OK ({slot.extension})")
+                    line.append(tr("svc.rom_mgr.csv.slot_ok", "OK ({ext})", ext=slot.extension))
                 elif slot.status == "wrong_ext":
-                    line.append(f"Ext no sugerida ({slot.extension})")
+                    line.append(tr("svc.rom_mgr.csv.slot_wrong_ext", "Non-suggested ext ({ext})", ext=slot.extension))
                 elif slot.status == "no_folder":
-                    line.append("Sin carpeta")
+                    line.append(tr("svc.rom_mgr.csv.slot_no_folder", "No folder"))
                 else:
-                    line.append("Falta")
+                    line.append(tr("svc.rom_mgr.csv.slot_missing", "Missing"))
             writer.writerow(line)
 
     return len(rows_to_export)

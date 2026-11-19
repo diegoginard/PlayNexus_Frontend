@@ -16,6 +16,7 @@ import urllib.parse
 import zipfile
 
 from playnexus.db import APP_DIR
+from playnexus.i18n import tr
 from playnexus.services.scraper.http_utils import ProviderRateLimiter, http_get_json
 from playnexus.services.scraper.models import _decode_secret, _encode_secret, _resolve_secret_key_dir
 from playnexus.services.scraper.systems import clean_rom_search_title, detect_system_for_list, normalize_match_key
@@ -311,7 +312,7 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
     ext = p.suffix.lower()
 
     if not p.name:
-        return RAHashResult(hashes=[], method="invalid_path", requires_title_fallback=True, note="Ruta de ROM vacía.")
+        return RAHashResult(hashes=[], method="invalid_path", requires_title_fallback=True, note=tr("svc.ra.note_empty_path", "Empty ROM path."))
 
     # 1. Arcade (MAME / FBNeo / Neo Geo): MD5 ASCII del nombre corto de ROM sin extensión
     if sys_k in ARCADE_SYSTEM_KEYS:
@@ -322,7 +323,7 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
             method="arcade_zip_stem_md5",
             inner_filename=p.name,
             requires_title_fallback=True,
-            note=f"MD5 del stem Arcade '{p.stem.lower()}'",
+            note=tr("svc.ra.note_arcade_stem", "Arcade stem MD5 '{stem}'", stem=p.stem.lower()),
         )
 
     # 2. Sistemas de disco o imágenes ópticas grandes -> matching directo por catálogo de títulos
@@ -334,7 +335,7 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
                 method="disc_title_match",
                 inner_filename=p.name,
                 requires_title_fallback=True,
-                note="Sistema óptico / imagen de disco: emparejamiento por catálogo oficial de títulos RA.",
+                note=tr("svc.ra.note_disc_title", "Optical system / disc image: matching via official RA title catalog."),
             )
 
     if p.is_dir() or not p.is_file():
@@ -342,7 +343,7 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
             hashes=[],
             method="folder_or_missing_rom",
             requires_title_fallback=True,
-            note="La ROM es una carpeta o no existe en disco; usando fallback por título.",
+            note=tr("svc.ra.note_folder_or_missing", "ROM is a folder or does not exist on disk; using title fallback."),
         )
 
     # 3. Contenedor ZIP: extraer miembro principal en memoria si <= 128 MiB
@@ -358,7 +359,7 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
                         method="zip_too_large_title_match",
                         inner_filename=member.filename,
                         requires_title_fallback=True,
-                        note="ROM dentro del ZIP excede 128 MiB; usando fallback por título.",
+                        note=tr("svc.ra.note_zip_too_large", "ROM inside ZIP exceeds 128 MiB; using title fallback."),
                     )
                 with zf.open(member, "r") as mf:
                     rom_bytes = mf.read()
@@ -375,7 +376,11 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
             method=f"archive_{ext.lstrip('.')}_title_match",
             inner_filename=p.name,
             requires_title_fallback=True,
-            note=f"Archivo {ext}: usando emparejamiento por título (para hash exacto usa ROM suelta o .zip).",
+            note=tr(
+                "svc.ra.note_archive_title",
+                "{ext} archive: using title matching (use an extracted ROM or .zip for exact hash).",
+                ext=ext,
+            ),
         )
 
     file_size = int(p.stat().st_size)
@@ -385,7 +390,7 @@ def compute_ra_rom_hashes(rom_path: str | Path, system_key: str = "") -> RAHashR
             method="large_file_title_match",
             inner_filename=p.name,
             requires_title_fallback=True,
-            note="Archivo mayor a 256 MiB; usando fallback por título.",
+            note=tr("svc.ra.note_file_too_large", "File larger than 256 MiB; using title fallback."),
         )
 
     # 5. ROM suelta por streaming (eficiente en memoria)
@@ -454,12 +459,12 @@ def _build_ra_url(endpoint: str, params: dict[str, Any]) -> str:
 def _translate_ra_http_error(exc: Exception) -> RuntimeError:
     msg = str(exc)
     if "401" in msg or "403" in msg or "Invalid API Key" in msg:
-        return RuntimeError("Credenciales de RetroAchievements inválidas (revisá tu usuario y Web API Key).")
+        return RuntimeError(tr("svc.ra.err_invalid_creds", "Invalid RetroAchievements credentials (check your username and Web API Key)."))
     if "422" in msg:
-        return RuntimeError("Parámetros rechazados por RetroAchievements API (422).")
+        return RuntimeError(tr("svc.ra.err_422", "Parameters rejected by RetroAchievements API (422)."))
     if "429" in msg:
-        return RuntimeError("RetroAchievements limitó temporalmente las consultas (HTTP 429). Reintentá en unos segundos.")
-    return RuntimeError(f"Error consultando RetroAchievements: {msg}")
+        return RuntimeError(tr("svc.ra.err_429", "RetroAchievements temporarily rate-limited requests (HTTP 429). Please retry in a few seconds."))
+    return RuntimeError(tr("svc.ra.err_query", "Error querying RetroAchievements: {err}", err=msg))
 
 
 class RetroAchievementsClient:
@@ -477,7 +482,7 @@ class RetroAchievementsClient:
         user = self.config.username.strip()
         key = self.config.api_key.strip()
         if not user or not key:
-            raise RuntimeError("Configurá tu Usuario y Web API Key de RetroAchievements antes de consultar.")
+            raise RuntimeError(tr("svc.ra.err_no_creds", "Configure your RetroAchievements Username and Web API Key before querying."))
         return user, key
 
     def _get_json(self, endpoint: str, params: dict[str, Any]) -> Any:
@@ -493,7 +498,7 @@ class RetroAchievementsClient:
         user, key = self._require_credentials()
         data = self._get_json("API_GetUserProfile.php", {"y": key, "u": user})
         if not isinstance(data, dict) or not data.get("User"):
-            raise RuntimeError("No se encontró el perfil indicado en RetroAchievements.")
+            raise RuntimeError(tr("svc.ra.err_profile_not_found", "The specified profile was not found on RetroAchievements."))
         return {
             "user": str(data.get("User") or user),
             "total_points": int(data.get("TotalPoints") or 0),
@@ -653,7 +658,7 @@ class RetroAchievementsClient:
             {"y": key, "u": user, "g": int(ra_game_id), "a": 1},
         )
         if not isinstance(data, dict) or not data.get("ID"):
-            raise RuntimeError(f"RetroAchievements no devolvió datos para el juego ID {ra_game_id}.")
+            raise RuntimeError(tr("svc.ra.err_game_not_found", "RetroAchievements returned no data for game ID {game_id}.", game_id=ra_game_id))
 
         raw_ach = data.get("Achievements") or {}
         achievements: list[dict[str, Any]] = []
@@ -940,12 +945,12 @@ def get_cached_ra_detail(db, game_row: dict[str, Any] | Any) -> dict[str, Any] |
 def format_ra_badge_text(summary: dict[str, Any] | None) -> str:
     """Formatea un texto corto para tablas/fichas/menús ('🏆 12/24 (50%)')."""
     if not summary:
-        return "Sin sincronizar"
+        return tr("svc.ra.badge_not_synced", "Not synced")
     if not summary.get("matched"):
-        return "No catalogado en RA"
+        return tr("svc.ra.badge_not_listed", "Not listed on RA")
     total = int(summary.get("total") or 0)
     unlocked = int(summary.get("unlocked") or 0)
     pct = float(summary.get("pct") or 0.0)
     if total <= 0:
-        return "🏆 0 logros"
-    return f"🏆 {unlocked}/{total} ({pct:.0f}%)"
+        return tr("svc.ra.badge_zero", "🏆 0 achievements")
+    return tr("svc.ra.badge_progress", "🏆 {unlocked}/{total} ({pct}%)", unlocked=unlocked, total=total, pct=f"{pct:.0f}")

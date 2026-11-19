@@ -5,9 +5,22 @@ import os
 import re
 import xml.etree.ElementTree as ET
 
+from playnexus.i18n import tr
+
+_GENERIC_EXTENSION_WARNING_DEFS = {
+    ".bin": (
+        "svc.lib.warn_ext_bin",
+        "The '.bin' extension is generic and may match auxiliary files or secondary disc tracks (for example in CUE/BIN sets).",
+    ),
+    ".dat": (
+        "svc.lib.warn_ext_dat",
+        "The '.dat' extension is typically used for auxiliary data or metadata files, not necessarily executable games.",
+    ),
+}
+
 GENERIC_EXTENSION_WARNINGS = {
-    ".bin": "La extensión '.bin' es genérica y puede coincidir con archivos auxiliares o pistas secundarias de disco (por ejemplo en pistas CUE/BIN).",
-    ".dat": "La extensión '.dat' suele utilizarse para archivos de datos auxiliares o metadatos, no necesariamente ejecutables.",
+    ext: tr(key, default_msg)
+    for ext, (key, default_msg) in _GENERIC_EXTENSION_WARNING_DEFS.items()
 }
 
 def normalize_extensions(raw_text: str) -> tuple[str, list[str]]:
@@ -21,13 +34,21 @@ def normalize_extensions(raw_text: str) -> tuple[str, list[str]]:
         ValueError: Si el campo está vacío, contiene comas, o alguna extensión tiene formato inválido.
     """
     if not raw_text or not raw_text.strip():
-        raise ValueError("El campo de extensiones no puede estar vacío. Indicá al menos una extensión (ej: .sfc;.smc;.zip).")
+        raise ValueError(
+            tr(
+                "svc.lib.err_ext_empty",
+                "The extensions field cannot be empty. Enter at least one extension (e.g. .sfc;.smc;.zip).",
+            )
+        )
 
     # Regla estricta: No permitir comas como separador
     if "," in raw_text:
         raise ValueError(
-            "Las extensiones deben separarse exclusivamente mediante punto y coma (;).\n"
-            "Se detectaron comas (,). Reemplazá las comas por punto y coma (ej: .cue;.bin;.iso)."
+            tr(
+                "svc.lib.err_ext_commas",
+                "Extensions must be separated exclusively by semicolons (;).\n"
+                "Commas (,) were detected. Replace commas with semicolons (e.g. .cue;.bin;.iso).",
+            )
         )
 
     tokens = raw_text.split(";")
@@ -58,8 +79,12 @@ def normalize_extensions(raw_text: str) -> tuple[str, list[str]]:
         # Validar formato: debe comenzar con un punto seguido de caracteres alfanuméricos válidos
         if not re.match(r"^\.[a-z0-9_\-\.]{1,20}$", token) or token == ".":
             raise ValueError(
-                f"La extensión '{raw_token.strip()}' tiene un formato inválido.\n"
-                "Solo debe contener letras, números y el punto inicial (ej: .gba, .sfc, .zip o <DIR>)."
+                tr(
+                    "svc.lib.err_ext_invalid_fmt",
+                    "The extension '{ext}' has an invalid format.\n"
+                    "It may only contain letters, numbers, and a leading dot (e.g. .gba, .sfc, .zip or <DIR>).",
+                    ext=raw_token.strip(),
+                )
             )
 
         # Evitar duplicados manteniendo orden
@@ -68,11 +93,12 @@ def normalize_extensions(raw_text: str) -> tuple[str, list[str]]:
             normalized_list.append(token)
 
             # Advertir sobre extensiones genéricas
-            if token in GENERIC_EXTENSION_WARNINGS:
-                warnings.append(GENERIC_EXTENSION_WARNINGS[token])
+            if token in _GENERIC_EXTENSION_WARNING_DEFS:
+                w_key, w_def = _GENERIC_EXTENSION_WARNING_DEFS[token]
+                warnings.append(tr(w_key, w_def))
 
     if not normalized_list:
-        raise ValueError("No se encontraron extensiones válidas en el texto ingresado.")
+        raise ValueError(tr("svc.lib.err_ext_none_valid", "No valid extensions were found in the entered text."))
 
     return ";".join(normalized_list), warnings
 
@@ -163,7 +189,7 @@ def scan_rom_folder(
             valid_roots.append(p)
 
     if not valid_roots:
-        raise ValueError("Ninguna de las rutas seleccionadas es una carpeta válida o accesible.")
+        raise ValueError(tr("svc.lib.err_no_valid_folder", "None of the selected paths is a valid or accessible folder."))
 
     if isinstance(allowed_extensions, str):
         allowed_list = parse_extensions_list(allowed_extensions)
@@ -181,8 +207,11 @@ def scan_rom_folder(
     allowed_set = set(allowed_list)
     if not allowed_set:
         raise ValueError(
-            "Esta lista no tiene extensiones configuradas.\n"
-            "Editá la lista y configurá las extensiones permitidas separadas por ';' antes de escanear."
+            tr(
+                "svc.lib.err_no_extensions_cfg",
+                "This list has no configured extensions.\n"
+                "Edit the list and configure the allowed extensions separated by ';' before scanning.",
+            )
         )
 
     has_dir_token = "<dir>" in allowed_set
@@ -194,7 +223,7 @@ def scan_rom_folder(
     for root in valid_roots:
         abs_root = os.path.abspath(str(root)).lower()
         if progress_callback:
-            progress_callback(f"[SCAN] Explorando carpeta raíz: {root}")
+            progress_callback(tr("svc.lib.scan_root", "[SCAN] Scanning root folder: {root}", root=root))
         for dirpath, dirnames, filenames in os.walk(str(root), topdown=True):
             abs_dir = os.path.abspath(dirpath).lower()
             is_root_dir = (abs_dir == abs_root)
@@ -205,7 +234,7 @@ def scan_rom_folder(
                 continue
 
             if progress_callback and not is_root_dir:
-                progress_callback(f"[SCAN] Escaneando subdirectorio: {dirpath}")
+                progress_callback(tr("svc.lib.scan_subdir", "[SCAN] Scanning subdirectory: {dirpath}", dirpath=dirpath))
 
             # Identificar archivos .zip y .7z en este directorio
             zip_files = [f for f in filenames if os.path.splitext(f)[1].lower() in (".zip", ".7z")]
@@ -256,7 +285,9 @@ def scan_rom_folder(
                         seen_resolved.add(res_key)
                         matched.append(Path(full_str))
                         if progress_callback and (len(matched) <= 100 or len(matched) % 25 == 0):
-                            progress_callback(f"[SCAN] Coincidencia #{len(matched)}: {fname}")
+                            progress_callback(
+                                tr("svc.lib.scan_match", "[SCAN] Match #{count}: {filename}", count=len(matched), filename=fname)
+                            )
 
             # 2. Si <DIR> está habilitado, procesar subcarpetas
             if has_dir_token and (scan_subfolders or is_root_dir):
@@ -608,7 +639,7 @@ def parse_rom_xml(xml_path: str | Path | None) -> dict[str, dict]:
         return {}
     xml_file = Path(xml_path)
     if not xml_file.is_file():
-        raise ValueError(f"El archivo XML especificado no existe:\n{xml_file}")
+        raise ValueError(tr("svc.lib.err_xml_not_found", "The specified XML file does not exist:\n{path}", path=xml_file))
 
     abs_key = os.path.abspath(str(xml_file)).lower()
     try:
@@ -818,10 +849,18 @@ def import_scanned_games(
     xml_map: dict[str, dict] = {}
     if xml_path and Path(xml_path).is_file():
         if progress_callback:
-            progress_callback(0, len(paths), f"[XML] Cargando metadatos XML: {Path(xml_path).name}...")
+            progress_callback(
+                0,
+                len(paths),
+                tr("svc.lib.xml_loading", "[XML] Loading XML metadata: {name}...", name=Path(xml_path).name),
+            )
         xml_map = parse_rom_xml(xml_path)
         if progress_callback:
-            progress_callback(0, len(paths), f"[XML] {len(xml_map)} entradas indexadas desde el XML.")
+            progress_callback(
+                0,
+                len(paths),
+                tr("svc.lib.xml_indexed", "[XML] {count} entries indexed from XML.", count=len(xml_map)),
+            )
 
     rows = db.get_games(list_id, enriched=False)
     previous_by_path = {os.path.abspath(str(r["rom_path"])).lower(): dict(r) for r in rows}
@@ -1072,80 +1111,80 @@ def add_game(
 # ----------------------------------------------------------------------
 
 FILTERABLE_FIELDS = [
-    ("is_favorite", "Favorito (1 = Sí / 0 = No)"),
-    ("play_count", "Partidas jugadas (play_count)"),
-    ("play_time_seconds", "Tiempo jugado en seg (play_time_seconds)"),
-    ("last_played", "Última partida (last_played)"),
-    ("tags", "Etiquetas (tags)"),
-    ("sourcefile", "Archivo fuente / Driver (sourcefile)"),
-    ("genre", "Género (genre)"),
-    ("manufacturer", "Fabricante (manufacturer)"),
-    ("year", "Año (year)"),
-    ("title", "Título (title)"),
-    ("rom_name", "Nombre de ROM (rom_name)"),
-    ("players", "Jugadores (players)"),
-    ("cloneof", "Clon de (cloneof)"),
-    ("rating", "Clasificación (rating)"),
-    ("crc", "CRC"),
-    ("rom_path", "Ruta de ROM (rom_path)"),
-    ("notes", "Notas (notes)"),
-    ("emulator_override_id", "Emulador específico (ID)"),
-    ("launch_arguments", "Argumentos de lanzamiento"),
-    ("manual_file_path", "Manual PDF individual"),
+    ("is_favorite", tr("svc.lib.field.is_favorite", "Favorite (1 = Yes / 0 = No)")),
+    ("play_count", tr("svc.lib.field.play_count", "Play count (play_count)")),
+    ("play_time_seconds", tr("svc.lib.field.play_time_seconds", "Play time in sec (play_time_seconds)")),
+    ("last_played", tr("svc.lib.field.last_played", "Last played (last_played)")),
+    ("tags", tr("svc.lib.field.tags", "Tags (tags)")),
+    ("sourcefile", tr("svc.lib.field.sourcefile", "Source file / Driver (sourcefile)")),
+    ("genre", tr("svc.lib.field.genre", "Genre (genre)")),
+    ("manufacturer", tr("svc.lib.field.manufacturer", "Manufacturer (manufacturer)")),
+    ("year", tr("svc.lib.field.year", "Year (year)")),
+    ("title", tr("svc.lib.field.title", "Title (title)")),
+    ("rom_name", tr("svc.lib.field.rom_name", "ROM name (rom_name)")),
+    ("players", tr("svc.lib.field.players", "Players (players)")),
+    ("cloneof", tr("svc.lib.field.cloneof", "Clone of (cloneof)")),
+    ("rating", tr("svc.lib.field.rating", "Rating (rating)")),
+    ("crc", tr("svc.lib.field.crc", "CRC")),
+    ("rom_path", tr("svc.lib.field.rom_path", "ROM path (rom_path)")),
+    ("notes", tr("svc.lib.field.notes", "Notes (notes)")),
+    ("emulator_override_id", tr("svc.lib.field.emulator_override_id", "Specific emulator (ID)")),
+    ("launch_arguments", tr("svc.lib.field.launch_arguments", "Launch arguments")),
+    ("manual_file_path", tr("svc.lib.field.manual_file_path", "Individual PDF manual")),
 ]
 
 FILTER_OPERATORS = [
-    ("contains", "Contiene"),
-    ("not_contains", "No contiene"),
-    ("equals", "Es exactamente igual a"),
-    ("not_equals", "Es distinto de"),
-    ("gt", "Mayor que (>)"),
-    ("gte", "Mayor o igual que (>=)"),
-    ("lt", "Menor que (<)"),
-    ("lte", "Menor o igual que (<=)"),
-    ("starts_with", "Empieza con"),
-    ("ends_with", "Termina con"),
-    ("is_empty", "Está vacío"),
-    ("is_not_empty", "No está vacío"),
+    ("contains", tr("svc.lib.op.contains", "Contains")),
+    ("not_contains", tr("svc.lib.op.not_contains", "Does not contain")),
+    ("equals", tr("svc.lib.op.equals", "Equals")),
+    ("not_equals", tr("svc.lib.op.not_equals", "Does not equal")),
+    ("gt", tr("svc.lib.op.gt", "Greater than (>)")),
+    ("gte", tr("svc.lib.op.gte", "Greater than or equal (>=)")),
+    ("lt", tr("svc.lib.op.lt", "Less than (<)")),
+    ("lte", tr("svc.lib.op.lte", "Less than or equal (<=)")),
+    ("starts_with", tr("svc.lib.op.starts_with", "Starts with")),
+    ("ends_with", tr("svc.lib.op.ends_with", "Ends with")),
+    ("is_empty", tr("svc.lib.op.is_empty", "Is empty")),
+    ("is_not_empty", tr("svc.lib.op.is_not_empty", "Is not empty")),
 ]
 
 SORT_MODES = [
-    ("title", "Alfabético por título (A-Z)"),
-    ("last_played_desc", "Recién jugados (última sesión primero)"),
-    ("play_count_desc", "Más jugados (mayor cantidad de partidas)"),
-    ("play_time_desc", "Mayor tiempo acumulado"),
-    ("favorites_first", "Favoritos primero, luego título A-Z"),
+    ("title", tr("svc.lib.sort.title", "Alphabetical by title (A-Z)")),
+    ("last_played_desc", tr("svc.lib.sort.last_played_desc", "Recently played (latest first)")),
+    ("play_count_desc", tr("svc.lib.sort.play_count_desc", "Most played (highest play count)")),
+    ("play_time_desc", tr("svc.lib.sort.play_time_desc", "Highest total play time")),
+    ("favorites_first", tr("svc.lib.sort.favorites_first", "Favorites first, then title A-Z")),
 ]
 
 SMART_COLLECTION_PRESETS = [
     {
         "id": "favorites",
-        "label": "⭐ Favoritos (marcados en biblioteca o frontend)",
-        "default_name": "Favoritos",
+        "label": tr("svc.lib.preset.favorites.label", "⭐ Favorites (marked in library or frontend)"),
+        "default_name": tr("svc.lib.preset.favorites.name", "Favorites"),
         "sort_mode": "title",
         "match_mode": "all",
         "rules": [{"field": "is_favorite", "operator": "equals", "value": "1"}],
     },
     {
         "id": "recent",
-        "label": "🕒 Recién jugados (con partidas registradas)",
-        "default_name": "Recién jugados",
+        "label": tr("svc.lib.preset.recent.label", "🕒 Recently Played (with recorded sessions)"),
+        "default_name": tr("svc.lib.preset.recent.name", "Recently Played"),
         "sort_mode": "last_played_desc",
         "match_mode": "all",
         "rules": [{"field": "play_count", "operator": "gt", "value": "0"}],
     },
     {
         "id": "most_played",
-        "label": "🏆 Más jugados (ordenado por partidas)",
-        "default_name": "Más jugados",
+        "label": tr("svc.lib.preset.most_played.label", "🏆 Most Played (sorted by play count)"),
+        "default_name": tr("svc.lib.preset.most_played.name", "Most Played"),
         "sort_mode": "play_count_desc",
         "match_mode": "all",
         "rules": [{"field": "play_count", "operator": "gt", "value": "0"}],
     },
     {
         "id": "unplayed",
-        "label": "🧭 Pendientes (0 partidas jugadas)",
-        "default_name": "Pendientes",
+        "label": tr("svc.lib.preset.unplayed.label", "🧭 Unplayed (0 plays)"),
+        "default_name": tr("svc.lib.preset.unplayed.name", "Unplayed"),
         "sort_mode": "title",
         "match_mode": "all",
         "rules": [{"field": "play_count", "operator": "equals", "value": "0"}],

@@ -39,28 +39,78 @@ from PySide6.QtOpenGL import (
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
+from playnexus.i18n import tr
+
 # ---------------------------------------------------------------------------
 # Registros declarativos de shaders y perfiles
 # ---------------------------------------------------------------------------
 
-SHADER_PRESETS: list[tuple[str, str]] = [
-    ("none", "Sin shader (Nativo)"),
-    ("crt_aperture", "CRT Aperture (Curvatura + Trinitron + Scanlines)"),
-    ("crt_bloom", "CRT Bloom (Halo fósforo cálido + CRT)"),
-    ("lcd_handheld", "LCD Handheld (Matriz subpíxeles portátil)"),
-    ("vhs_arcade", "VHS / Arcade Analógico (Aberración + Ruido)"),
-]
+_SHADER_LABEL_ALIASES: dict[str, str] = {
+    "sin shader (nativo)": "none",
+    "no shader (native)": "none",
+    "no shader": "none",
+    "crt aperture (curvatura + trinitron + scanlines)": "crt_aperture",
+    "crt aperture (curvature + trinitron + scanlines)": "crt_aperture",
+    "crt bloom (halo fósforo cálido + crt)": "crt_bloom",
+    "crt bloom (halo fosforo calido + crt)": "crt_bloom",
+    "crt bloom (warm phosphor glow + crt)": "crt_bloom",
+    "lcd handheld (matriz subpíxeles portátil)": "lcd_handheld",
+    "lcd handheld (matriz subpixeles portatil)": "lcd_handheld",
+    "lcd handheld (handheld subpixel matrix)": "lcd_handheld",
+    "vhs / arcade analógico (aberración + ruido)": "vhs_arcade",
+    "vhs / arcade analogico (aberracion + ruido)": "vhs_arcade",
+    "vhs / analog arcade (aberration + noise)": "vhs_arcade",
+}
 
-SHADER_TARGETS: list[tuple[str, str]] = [
-    ("tv_rect", "Solo pantalla / Video (TV_RECT)"),
-    ("global", "Post-proceso global de pantalla"),
-]
 
-EFFECT_PERF_PROFILES: list[tuple[str, str]] = [
-    ("high", "Alto (GPU + Efectos completos 60 FPS)"),
-    ("balanced", "Equilibrado (Efectos optimizados 30-60 FPS)"),
-    ("off", "Desactivado (Máximo rendimiento CPU/GPU)"),
-]
+def get_shader_presets() -> list[tuple[str, str]]:
+    """Devuelve la lista localizada de presets de shader `(id, etiqueta)`."""
+    return [
+        ("none", tr("fx.shader_none", "No shader (Native)")),
+        ("crt_aperture", tr("fx.shader_crt_aperture", "CRT Aperture (Curvature + Trinitron + Scanlines)")),
+        ("crt_bloom", tr("fx.shader_crt_bloom", "CRT Bloom (Warm phosphor glow + CRT)")),
+        ("lcd_handheld", tr("fx.shader_lcd_handheld", "LCD Handheld (Handheld subpixel matrix)")),
+        ("vhs_arcade", tr("fx.shader_vhs_arcade", "VHS / Analog Arcade (Aberration + Noise)")),
+    ]
+
+
+def get_shader_targets() -> list[tuple[str, str]]:
+    """Devuelve la lista localizada de objetivos de shader `(id, etiqueta)`."""
+    return [
+        ("tv_rect", tr("fx.target_tv_rect", "Screen / Video only (TV_RECT)")),
+        ("global", tr("fx.target_global", "Global screen post-processing")),
+    ]
+
+
+def get_effects_perf_profiles() -> list[tuple[str, str]]:
+    """Devuelve la lista localizada de perfiles de rendimiento `(id, etiqueta)`."""
+    return [
+        ("high", tr("fx.perf_high", "High (GPU + Full effects 60 FPS)")),
+        ("balanced", tr("fx.perf_balanced", "Balanced (Optimized effects 30-60 FPS)")),
+        ("off", tr("fx.perf_off", "Off (Maximum CPU/GPU performance)")),
+    ]
+
+
+def get_shader_label(key: str, default: str | None = None) -> str:
+    """Devuelve la etiqueta localizada para un preset de shader."""
+    return dict(get_shader_presets()).get(key, key if default is None else default)
+
+
+def get_target_label(key: str, default: str | None = None) -> str:
+    """Devuelve la etiqueta localizada para un objetivo de shader."""
+    return dict(get_shader_targets()).get(key, key if default is None else default)
+
+
+def get_perf_label(key: str, default: str | None = None) -> str:
+    """Devuelve la etiqueta localizada para un perfil de rendimiento."""
+    return dict(get_effects_perf_profiles()).get(key, key if default is None else default)
+
+
+SHADER_PRESETS: list[tuple[str, str]] = get_shader_presets()
+
+SHADER_TARGETS: list[tuple[str, str]] = get_shader_targets()
+
+EFFECT_PERF_PROFILES: list[tuple[str, str]] = get_effects_perf_profiles()
 
 VALID_SHADER_PRESETS: set[str] = {key for key, _ in SHADER_PRESETS}
 VALID_SHADER_TARGETS: set[str] = {key for key, _ in SHADER_TARGETS}
@@ -74,13 +124,15 @@ PERF_LABELS: dict[str, str] = dict(EFFECT_PERF_PROFILES)
 def normalize_shader_preset(value: Any, *, allow_layout: bool = False) -> str:
     """Normaliza cualquier identificador o etiqueta de preset de shader."""
     raw = str(value or "").strip().lower()
-    if allow_layout and raw in ("layout", "auto", "default", "del layout"):
+    if allow_layout and raw in ("layout", "auto", "default", "del layout", "from layout"):
         return "layout"
-    if not raw or raw in ("none", "off", "disabled", "sin shader", "ninguno"):
+    if not raw or raw in ("none", "off", "disabled", "sin shader", "ninguno", "no shader"):
         return "none"
     if raw in VALID_SHADER_PRESETS:
         return raw
-    for key, label in SHADER_PRESETS:
+    if raw in _SHADER_LABEL_ALIASES:
+        return _SHADER_LABEL_ALIASES[raw]
+    for key, label in get_shader_presets():
         if raw == label.strip().lower():
             return key
     return "none"
@@ -93,6 +145,9 @@ def normalize_shader_target(value: Any) -> str:
         return raw
     if "global" in raw or "post" in raw:
         return "global"
+    for key, label in get_shader_targets():
+        if raw == label.strip().lower():
+            return key
     return "tv_rect"
 
 
@@ -101,10 +156,15 @@ def normalize_effects_perf(value: Any) -> str:
     raw = str(value or "").strip().lower()
     if raw in VALID_PERF_PROFILES:
         return raw
-    if raw in ("low", "off", "disabled", "desactivado"):
+    if raw in ("low", "off", "disabled", "desactivado") or raw.startswith(("off ", "desactivado ")):
         return "off"
-    if raw in ("med", "medium", "balanced", "equilibrado"):
+    if raw in ("med", "medium", "balanced", "equilibrado") or raw.startswith(("balanced", "equilibrado")):
         return "balanced"
+    if raw in ("high", "alto") or raw.startswith(("high", "alto")):
+        return "high"
+    for key, label in get_effects_perf_profiles():
+        if raw == label.strip().lower():
+            return key
     return "high"
 
 

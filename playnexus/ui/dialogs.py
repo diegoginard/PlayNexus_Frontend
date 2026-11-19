@@ -1,4 +1,5 @@
 from playnexus.db import APP_DIR
+from playnexus.i18n import tr
 from pathlib import Path
 import json
 import shutil
@@ -39,6 +40,124 @@ PRESET_EXTENSIONS = {
     "Arcade (MAME / FBNeo)": ("Arcade", ".zip;.7z;<DIR>")
 }
 
+_PRESET_EXTENSION_I18N: dict[str, tuple[str, str]] = {
+    "Personalizado...": ("dlg.preset.custom", "Custom..."),
+    "Juegos de PC / Windows (.lnk, .bat)": ("dlg.preset.pc_windows", "PC / Windows Games (.lnk, .bat)"),
+    "Super Nintendo (SNES)": ("dlg.preset.snes", "Super Nintendo (SNES)"),
+    "Game Boy Advance (GBA)": ("dlg.preset.gba", "Game Boy Advance (GBA)"),
+    "PlayStation (PS1)": ("dlg.preset.ps1", "PlayStation (PS1)"),
+    "PlayStation 2 (PS2)": ("dlg.preset.ps2", "PlayStation 2 (PS2)"),
+    "Sega Genesis / Mega Drive": ("dlg.preset.genesis", "Sega Genesis / Mega Drive"),
+    "Nintendo 64 (N64)": ("dlg.preset.n64", "Nintendo 64 (N64)"),
+    "Nintendo DS (NDS)": ("dlg.preset.nds", "Nintendo DS (NDS)"),
+    "PSP": ("dlg.preset.psp", "PSP"),
+    "Arcade (MAME / FBNeo)": ("dlg.preset.arcade", "Arcade (MAME / FBNeo)"),
+}
+
+_FILTER_FIELD_I18N: dict[str, tuple[str, str]] = {
+    "is_favorite": ("dlg.filter_field.is_favorite", "Favorite (1 = Yes / 0 = No)"),
+    "play_count": ("dlg.filter_field.play_count", "Play count (play_count)"),
+    "play_time_seconds": ("dlg.filter_field.play_time_seconds", "Time played in sec (play_time_seconds)"),
+    "last_played": ("dlg.filter_field.last_played", "Last played (last_played)"),
+    "tags": ("dlg.filter_field.tags", "Tags (tags)"),
+    "sourcefile": ("dlg.filter_field.sourcefile", "Source file / Driver (sourcefile)"),
+    "genre": ("dlg.filter_field.genre", "Genre (genre)"),
+    "manufacturer": ("dlg.filter_field.manufacturer", "Manufacturer (manufacturer)"),
+    "year": ("dlg.filter_field.year", "Year (year)"),
+    "title": ("dlg.filter_field.title", "Title (title)"),
+    "rom_name": ("dlg.filter_field.rom_name", "ROM name (rom_name)"),
+    "players": ("dlg.filter_field.players", "Players (players)"),
+    "cloneof": ("dlg.filter_field.cloneof", "Clone of (cloneof)"),
+    "rating": ("dlg.filter_field.rating", "Rating (rating)"),
+    "crc": ("dlg.filter_field.crc", "CRC"),
+    "rom_path": ("dlg.filter_field.rom_path", "ROM path (rom_path)"),
+    "notes": ("dlg.filter_field.notes", "Notes (notes)"),
+    "emulator_override_id": ("dlg.filter_field.emulator_override_id", "Specific emulator (ID)"),
+    "launch_arguments": ("dlg.filter_field.launch_arguments", "Launch arguments"),
+    "manual_file_path": ("dlg.filter_field.manual_file_path", "Individual PDF manual"),
+}
+
+_FILTER_OP_I18N: dict[str, tuple[str, str]] = {
+    "contains": ("dlg.filter_op.contains", "Contains"),
+    "not_contains": ("dlg.filter_op.not_contains", "Does not contain"),
+    "equals": ("dlg.filter_op.equals", "Equals"),
+    "not_equals": ("dlg.filter_op.not_equals", "Does not equal"),
+    "gt": ("dlg.filter_op.gt", "Greater than (>)"),
+    "gte": ("dlg.filter_op.gte", "Greater or equal (>=)"),
+    "lt": ("dlg.filter_op.lt", "Less than (<)"),
+    "lte": ("dlg.filter_op.lte", "Less or equal (<=)"),
+    "starts_with": ("dlg.filter_op.starts_with", "Starts with"),
+    "ends_with": ("dlg.filter_op.ends_with", "Ends with"),
+    "is_empty": ("dlg.filter_op.is_empty", "Is empty"),
+    "is_not_empty": ("dlg.filter_op.is_not_empty", "Is not empty"),
+}
+
+_SORT_MODE_I18N: dict[str, tuple[str, str]] = {
+    "title": ("dlg.sort.title", "Alphabetical by title (A-Z)"),
+    "last_played_desc": ("dlg.sort.last_played_desc", "Recently played (latest session first)"),
+    "play_count_desc": ("dlg.sort.play_count_desc", "Most played (highest play count)"),
+    "play_time_desc": ("dlg.sort.play_time_desc", "Most accumulated playtime"),
+    "favorites_first": ("dlg.sort.favorites_first", "Favorites first, then title A-Z"),
+}
+
+_SMART_PRESET_I18N: dict[str, tuple[tuple[str, str], tuple[str, str]]] = {
+    "favorites": (
+        ("dlg.smart.favorites.label", "⭐ Favorites (marked in library or frontend)"),
+        ("dlg.smart.favorites.name", "Favorites"),
+    ),
+    "recent": (
+        ("dlg.smart.recent.label", "🕒 Recently played (with recorded sessions)"),
+        ("dlg.smart.recent.name", "Recently Played"),
+    ),
+    "most_played": (
+        ("dlg.smart.most_played.label", "🏆 Most played (sorted by play count)"),
+        ("dlg.smart.most_played.name", "Most Played"),
+    ),
+    "unplayed": (
+        ("dlg.smart.unplayed.label", "🧭 Unplayed (0 plays)"),
+        ("dlg.smart.unplayed.name", "Unplayed"),
+    ),
+}
+
+_MEDIA_LABEL_I18N: dict[str, tuple[str, str]] = {
+    "Box Art / Carátulas": ("dlg.media_lbl.boxart_covers", "Box Art / Covers"),
+    "Box Art / Cajas": ("dlg.media_lbl.boxart_boxes", "Box Art / Boxes"),
+    "Artwork / Imagen decorativa": ("dlg.media_lbl.artwork_deco", "Artwork / Decorative Image"),
+    "Logos o Banners": ("dlg.media_lbl.logos_banners", "Logos or Banners"),
+    "Logos Wheel": ("dlg.media_lbl.logos_wheel", "Wheel Logos"),
+    "Wheel Logos": ("dlg.media_lbl.wheel_logos", "Wheel Logos"),
+    "Wheel": ("dlg.media_lbl.wheel", "Wheel"),
+    "Cartuchos": ("dlg.media_lbl.cartridges", "Cartridges"),
+    "Discos": ("dlg.media_lbl.discs", "Discs"),
+    "Discos / CDs": ("dlg.media_lbl.discs_cds", "Discs / CDs"),
+    "Tarjetas HuCard": ("dlg.media_lbl.hucard", "HuCard Cards"),
+    "Videos de Fondo / Temas": ("dlg.media_lbl.bg_videos", "Background / Theme Videos"),
+    "Video Snaps": ("dlg.media_lbl.video_snaps", "Video Snaps"),
+    "Videos": ("dlg.media_lbl.videos", "Videos"),
+    "Cabinets": ("dlg.media_lbl.cabinets", "Cabinets"),
+    "Flyers": ("dlg.media_lbl.flyers", "Flyers"),
+    "Marquees": ("dlg.media_lbl.marquees", "Marquees"),
+    "Bezels": ("dlg.media_lbl.bezels", "Bezels"),
+}
+
+
+def _tr_from_map(mapping: dict[str, tuple[str, str]], item_key: str, fallback: str) -> str:
+    """Traduce un elemento registrado en un diccionario auxiliar manteniendo respaldo seguro."""
+    pair = mapping.get(item_key)
+    if pair:
+        return tr(pair[0], pair[1])
+    return fallback
+
+
+def _localize_dialog_buttons(buttons: QDialogButtonBox) -> None:
+    """Aplica traducción explícita a los botones estándar Guardar y Cancelar."""
+    save_btn = buttons.button(QDialogButtonBox.Save)
+    if save_btn is not None:
+        save_btn.setText(tr("dlg.btn.save", "Save"))
+    cancel_btn = buttons.button(QDialogButtonBox.Cancel)
+    if cancel_btn is not None:
+        cancel_btn.setText(tr("dlg.btn.cancel", "Cancel"))
+
 class ListDialog(QDialog):
     """
     Diálogo para crear o editar una lista de juegos o un Menú de Sistemas (lista de listas).
@@ -50,7 +169,7 @@ class ListDialog(QDialog):
         self.initial_menu_items = initial_menu_items or []
         self.db = db or getattr(parent, "db", None)
         self.filter_rule_rows = []
-        self.setWindowTitle("Editar lista / menú" if existing else "Crear nueva lista / menú")
+        self.setWindowTitle(tr("dlg.list.title_edit", "Edit list / menu") if existing else tr("dlg.list.title_new", "Create new list / menu"))
         self.setMinimumWidth(640)
         self.normalized_exts = ""
 
@@ -73,34 +192,34 @@ class ListDialog(QDialog):
         scroll_layout.setSpacing(10)
 
         # 1. Cabecera básica: Nombre, Tipo de Lista, Plataforma
-        basic_group = QGroupBox("Información Principal")
+        basic_group = QGroupBox(tr("dlg.list.basic_group", "Main Information"))
         form = QFormLayout(basic_group)
         form.setSpacing(8)
 
         self.name_edit = QLineEdit()
-        self.name_edit.setPlaceholderText("Ej: Super Nintendo, Menú de Consolas...")
-        form.addRow("Nombre *", self.name_edit)
+        self.name_edit.setPlaceholderText(tr("dlg.list.name_placeholder", "e.g., Super Nintendo, Consoles Menu..."))
+        form.addRow(tr("dlg.list.name_label", "Name *"), self.name_edit)
 
         self.type_combo = QComboBox()
-        self.type_combo.addItem("🎮 Lista de juegos (ROMs y emulador)", "games")
-        self.type_combo.addItem("🧭 Menú de sistemas (Lista de listas)", "menu")
-        self.type_combo.addItem("⚡ Lista filtrada (a partir de otra lista)", "filtered")
+        self.type_combo.addItem(tr("dlg.list.type_games", "🎮 Game list (ROMs & emulator)"), "games")
+        self.type_combo.addItem(tr("dlg.list.type_menu", "🧭 Systems menu (List of lists)"), "menu")
+        self.type_combo.addItem(tr("dlg.list.type_filtered", "⚡ Filtered list (from another list)"), "filtered")
         self.type_combo.currentIndexChanged.connect(self._on_type_changed)
-        form.addRow("Tipo de lista", self.type_combo)
+        form.addRow(tr("dlg.list.type_label", "List type"), self.type_combo)
 
         self.platform_edit = QLineEdit()
-        self.platform_edit.setPlaceholderText("Ej: Super Nintendo, GBA, Arcade...")
-        form.addRow("Plataforma o etiqueta", self.platform_edit)
+        self.platform_edit.setPlaceholderText(tr("dlg.list.platform_placeholder", "e.g., Super Nintendo, GBA, Arcade..."))
+        form.addRow(tr("dlg.list.platform_label", "Platform or tag"), self.platform_edit)
 
         # Icono de la lista
         self.icon_path_edit = QLineEdit()
-        self.icon_path_edit.setPlaceholderText("Icono de la lista (PNG, JPG, WebP)…")
+        self.icon_path_edit.setPlaceholderText(tr("dlg.list.icon_placeholder", "List icon (PNG, JPG, WebP)…"))
         self.icon_path_edit.setReadOnly(True)
-        icon_browse_btn = QPushButton("Elegir icono…")
+        icon_browse_btn = QPushButton(tr("dlg.list.choose_icon", "Choose icon…"))
         icon_browse_btn.clicked.connect(self.pick_icon)
         icon_clear_btn = QPushButton("✕")
         icon_clear_btn.setFixedWidth(28)
-        icon_clear_btn.setToolTip("Quitar icono")
+        icon_clear_btn.setToolTip(tr("dlg.list.clear_icon_tooltip", "Remove icon"))
         icon_clear_btn.clicked.connect(lambda: self.icon_path_edit.clear())
         icon_row = QHBoxLayout()
         icon_row.setContentsMargins(0, 0, 0, 0)
@@ -109,33 +228,36 @@ class ListDialog(QDialog):
         icon_row.addWidget(icon_clear_btn)
         icon_holder = QWidget()
         icon_holder.setLayout(icon_row)
-        form.addRow("Icono de la lista", icon_holder)
+        form.addRow(tr("dlg.list.icon_label", "List icon"), icon_holder)
 
         from playnexus.ui.layouts import get_available_layouts
         self.layout_combo = QComboBox()
         self.layout_combo.addItems(get_available_layouts())
-        form.addRow("Diseño visual", self.layout_combo)
+        form.addRow(tr("dlg.list.layout_label", "Visual layout"), self.layout_combo)
 
         scroll_layout.addWidget(basic_group)
 
         # 2. Grupo para Lista de Juegos (ROMs, Emulador, Extensiones)
-        self.game_settings_group = QGroupBox("Configuración de Juegos y Emulador")
+        self.game_settings_group = QGroupBox(tr("dlg.list.game_settings_group", "Games & Emulator Settings"))
         game_form = QFormLayout(self.game_settings_group)
         game_form.setSpacing(8)
 
         self.preset_combo = QComboBox()
         for title in PRESET_EXTENSIONS.keys():
-            self.preset_combo.addItem(title)
+            self.preset_combo.addItem(_tr_from_map(_PRESET_EXTENSION_I18N, title, title), title)
         self.preset_combo.currentIndexChanged.connect(self._on_preset_selected)
-        game_form.addRow("Plantilla sugerida", self.preset_combo)
+        game_form.addRow(tr("dlg.list.preset_label", "Suggested template"), self.preset_combo)
 
         self.extensions_edit = QLineEdit()
-        self.extensions_edit.setPlaceholderText("Ej: .zip;.7z;<DIR> o .cue;.chd (separadas por ;)")
-        game_form.addRow("Extensiones admitidas *", self.extensions_edit)
+        self.extensions_edit.setPlaceholderText(tr("dlg.list.ext_placeholder", "e.g., .zip;.7z;<DIR> or .cue;.chd (separated by ;)"))
+        game_form.addRow(tr("dlg.list.ext_label", "Allowed extensions *"), self.extensions_edit)
 
         ext_hint = QLabel(
-            "<b>Obligatorio:</b> Escribí las extensiones permitidas separadas <b>exclusivamente por punto y coma (;)</b>.<br>"
-            "<i>Ejemplo: .zip;.7z;<DIR> (en MAME <code>&lt;DIR&gt;</code> toma las subcarpetas como ROMs cuando no tienen un .zip con su mismo nombre).</i>"
+            tr(
+                "dlg.list.ext_hint",
+                "<b>Required:</b> Enter the allowed extensions separated <b>exclusively by semicolons (;)</b>.<br>"
+                "<i>Example: .zip;.7z;<DIR> (in MAME <code>&lt;DIR&gt;</code> treats subfolders as ROMs when they do not have a .zip with the same name).</i>",
+            )
         )
         ext_hint.setStyleSheet("color: #aab1c0; font-size: 9pt;")
         ext_hint.setWordWrap(True)
@@ -162,14 +284,14 @@ class ListDialog(QDialog):
         folders_btns_col = QVBoxLayout()
         folders_btns_col.setContentsMargins(0, 0, 0, 0)
         folders_btns_col.setSpacing(4)
-        browse_folder_btn = QPushButton("＋ Agregar carpeta…")
-        browse_folder_btn.setToolTip("Elegir y agregar una carpeta de ROMs a la lista")
+        browse_folder_btn = QPushButton(tr("dlg.list.add_folder_btn", "＋ Add folder…"))
+        browse_folder_btn.setToolTip(tr("dlg.list.add_folder_tooltip", "Choose and add a ROM folder to the list"))
         browse_folder_btn.clicked.connect(self.pick_folder)
-        remove_folder_btn = QPushButton("✕ Quitar seleccionada")
-        remove_folder_btn.setToolTip("Quitar la carpeta seleccionada de la lista")
+        remove_folder_btn = QPushButton(tr("dlg.list.remove_folder_btn", "✕ Remove selected"))
+        remove_folder_btn.setToolTip(tr("dlg.list.remove_folder_tooltip", "Remove the selected folder from the list"))
         remove_folder_btn.clicked.connect(self.remove_selected_folder)
-        clear_folders_btn = QPushButton("Limpiar todas")
-        clear_folders_btn.setToolTip("Vaciar todas las carpetas de ROMs configuradas")
+        clear_folders_btn = QPushButton(tr("dlg.list.clear_folders_btn", "Clear all"))
+        clear_folders_btn.setToolTip(tr("dlg.list.clear_folders_tooltip", "Clear all configured ROM folders"))
         clear_folders_btn.clicked.connect(self.clear_folders)
         folders_btns_col.addWidget(browse_folder_btn)
         folders_btns_col.addWidget(remove_folder_btn)
@@ -179,37 +301,40 @@ class ListDialog(QDialog):
         folders_vbox.addLayout(folders_top_row)
 
         self.folder_edit = QLineEdit()
-        self.folder_edit.setPlaceholderText("Rutas de carpetas separadas por ; (o usá '＋ Agregar carpeta…')")
+        self.folder_edit.setPlaceholderText(tr("dlg.list.folders_placeholder", "Folder paths separated by ; (or use '＋ Add folder…')"))
         self.folder_edit.textEdited.connect(self._on_folder_edit_changed)
         folders_vbox.addWidget(self.folder_edit)
 
         folder_holder = QWidget()
         folder_holder.setLayout(folders_vbox)
-        game_form.addRow("Carpetas de juegos", folder_holder)
+        game_form.addRow(tr("dlg.list.folders_label", "Game folders"), folder_holder)
 
-        self.auto_scan_checkbox = QCheckBox("Escanear e importar juegos de esta(s) carpeta(s) automáticamente")
+        self.auto_scan_checkbox = QCheckBox(tr("dlg.list.auto_scan_cb", "Automatically scan and import games from these folder(s)"))
         self.auto_scan_checkbox.setChecked(True if not existing else False)
         game_form.addRow("", self.auto_scan_checkbox)
 
-        self.scan_subfolders_checkbox = QCheckBox("Buscar juegos en subcarpetas de forma recursiva")
+        self.scan_subfolders_checkbox = QCheckBox(tr("dlg.list.scan_subfolders_cb", "Search for games in subfolders recursively"))
         self.scan_subfolders_checkbox.setChecked(True)
-        self.scan_subfolders_checkbox.setToolTip("Si está desmarcado, solo se escaneará la raíz de cada carpeta configurada.")
-        game_form.addRow("Opciones de escaneo", self.scan_subfolders_checkbox)
+        self.scan_subfolders_checkbox.setToolTip(tr("dlg.list.scan_subfolders_tooltip", "If unchecked, only the root of each configured folder will be scanned."))
+        game_form.addRow(tr("dlg.list.scan_options_label", "Scan options"), self.scan_subfolders_checkbox)
 
-        self.exclude_folder_if_zip_checkbox = QCheckBox("Si contiene archivo .zip, listar solo el .zip (excluir resto de la carpeta)")
+        self.exclude_folder_if_zip_checkbox = QCheckBox(tr("dlg.list.exclude_zip_cb", "If a folder contains a .zip file, list only the .zip (exclude the rest of the folder)"))
         self.exclude_folder_if_zip_checkbox.setChecked(False)
         self.exclude_folder_if_zip_checkbox.setToolTip(
-            "Si una carpeta contiene archivo(s) .zip o .7z, se lista únicamente el .zip y se excluye\n"
-            "el resto de los archivos (bin, cue, chd, etc.) y subcarpetas que contiene."
+            tr(
+                "dlg.list.exclude_zip_tooltip",
+                "If a folder contains .zip or .7z file(s), only the .zip is listed and the rest\n"
+                "of the files (bin, cue, chd, etc.) and subfolders inside are excluded.",
+            )
         )
         game_form.addRow("", self.exclude_folder_if_zip_checkbox)
 
         self.xml_edit = QLineEdit()
-        self.xml_edit.setPlaceholderText("Opcional: archivo .xml/.dat con nombres completos y datos de las ROMs...")
-        browse_xml_btn = QPushButton("Examinar…")
+        self.xml_edit.setPlaceholderText(tr("dlg.list.xml_placeholder", "Optional: .xml/.dat file with full names and ROM metadata..."))
+        browse_xml_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_xml_btn.clicked.connect(self.pick_xml)
         clear_xml_btn = QPushButton("✕")
-        clear_xml_btn.setToolTip("Quitar archivo XML asociado")
+        clear_xml_btn.setToolTip(tr("dlg.list.clear_xml_tooltip", "Remove associated XML file"))
         clear_xml_btn.setFixedWidth(28)
         clear_xml_btn.clicked.connect(lambda: self.xml_edit.clear())
         xml_row = QHBoxLayout()
@@ -219,31 +344,34 @@ class ListDialog(QDialog):
         xml_row.addWidget(clear_xml_btn)
         xml_holder = QWidget()
         xml_holder.setLayout(xml_row)
-        game_form.addRow("Archivo XML (Opcional)", xml_holder)
+        game_form.addRow(tr("dlg.list.xml_label", "XML File (Optional)"), xml_holder)
 
         xml_hint = QLabel(
-            "<i>Asociá un archivo XML (MAME, HyperSpin, Arcade, Gamelist o DAT) cuando las ROMs "
-            "solo tengan una denominación corta (ej: sf2.zip). El XML le asignará el nombre completo "
-            "y todas sus propiedades (año, fabricante, género, jugadores, etc.).</i>"
+            tr(
+                "dlg.list.xml_hint",
+                "<i>Associate an XML file (MAME, HyperSpin, Arcade, Gamelist, or DAT) when ROMs "
+                "only have short filenames (e.g., sf2.zip). The XML assigns the full title "
+                "and all metadata (year, manufacturer, genre, players, etc.).</i>",
+            )
         )
         xml_hint.setStyleSheet("color: #aab1c0; font-size: 8.5pt;")
         xml_hint.setWordWrap(True)
         game_form.addRow("", xml_hint)
 
         self.emulator_combo = QComboBox()
-        self.emulator_combo.addItem("Sin emulador predeterminado", None)
+        self.emulator_combo.addItem(tr("dlg.list.no_default_emu", "No default emulator"), None)
         for e in emulators:
             self.emulator_combo.addItem(e["name"], e["id"])
-        game_form.addRow("Emulador predeterminado", self.emulator_combo)
+        game_form.addRow(tr("dlg.list.default_emu_label", "Default emulator"), self.emulator_combo)
 
         scroll_layout.addWidget(self.game_settings_group)
 
         # 3. Grupo para Menú de Sistemas (Selección y orden de listas vinculadas)
-        self.menu_settings_group = QGroupBox("Sistemas a incluir en este Menú")
+        self.menu_settings_group = QGroupBox(tr("dlg.list.menu_group", "Systems to include in this Menu"))
         menu_layout = QVBoxLayout(self.menu_settings_group)
         menu_layout.setSpacing(8)
 
-        menu_hint = QLabel("Marcá las listas que formarán parte de este menú y utilizá las flechas para definir el orden:")
+        menu_hint = QLabel(tr("dlg.list.menu_hint", "Check the lists that will be part of this menu and use the arrows to set the order:"))
         menu_hint.setStyleSheet("color: #aab1c0; font-size: 9pt;")
         menu_hint.setWordWrap(True)
         menu_layout.addWidget(menu_hint)
@@ -263,21 +391,21 @@ class ListDialog(QDialog):
         btn_vbox = QVBoxLayout()
         btn_vbox.setSpacing(6)
 
-        up_btn = QPushButton("▲ Subir")
+        up_btn = QPushButton(tr("dlg.list.move_up", "▲ Move Up"))
         up_btn.clicked.connect(self._move_item_up)
         btn_vbox.addWidget(up_btn)
 
-        down_btn = QPushButton("▼ Bajar")
+        down_btn = QPushButton(tr("dlg.list.move_down", "▼ Move Down"))
         down_btn.clicked.connect(self._move_item_down)
         btn_vbox.addWidget(down_btn)
 
         btn_vbox.addSpacing(10)
 
-        check_all_btn = QPushButton("Marcar todas")
+        check_all_btn = QPushButton(tr("dlg.list.check_all", "Check All"))
         check_all_btn.clicked.connect(lambda: self._check_all_lists(True))
         btn_vbox.addWidget(check_all_btn)
 
-        uncheck_all_btn = QPushButton("Desmarcar")
+        uncheck_all_btn = QPushButton(tr("dlg.list.uncheck_all", "Uncheck All"))
         uncheck_all_btn.clicked.connect(lambda: self._check_all_lists(False))
         btn_vbox.addWidget(uncheck_all_btn)
 
@@ -288,14 +416,17 @@ class ListDialog(QDialog):
         scroll_layout.addWidget(self.menu_settings_group)
 
         # 3. Grupo de Filtros de Juegos (Reglas dinámicas, aplicable a lista común y lista filtrada)
-        self.filtered_settings_group = QGroupBox("Filtros de Juegos (Opcional)")
+        self.filtered_settings_group = QGroupBox(tr("dlg.list.filters_group_optional", "Game Filters (Optional)"))
         filt_vbox = QVBoxLayout(self.filtered_settings_group)
         filt_vbox.setSpacing(10)
 
         self.filt_hint = QLabel(
-            "<b>Opcional:</b> Podés definir una o varias reglas de filtrado para que solo se importen los juegos "
-            "que cumplan los criterios seleccionados (ej: fabricante contiene 'Capcom', género contiene 'Lucha', "
-            "sourcefile contiene 'cps1', clon está vacío para solo juegos principales, etc.). Si no agregás filtros, se importan todos los juegos encontrados."
+            tr(
+                "dlg.list.filt_hint_games",
+                "<b>Optional:</b> You can define one or more filter rules so only games "
+                "matching the selected criteria are imported (e.g., manufacturer contains 'Capcom', genre contains 'Fighting', "
+                "sourcefile contains 'cps1', clone is empty for main games only, etc.). If you don't add filters, all found games are imported.",
+            )
         )
         self.filt_hint.setStyleSheet("color: #aab1c0; font-size: 8.5pt;")
         self.filt_hint.setWordWrap(True)
@@ -304,7 +435,7 @@ class ListDialog(QDialog):
         filt_form = QFormLayout()
         filt_form.setSpacing(8)
 
-        self.filter_source_label = QLabel("Lista de origen *")
+        self.filter_source_label = QLabel(tr("dlg.list.filter_source_label", "Source list *"))
         self.filter_source_combo = QComboBox()
         excluded_id = self.existing.get("id") if self.existing else None
         for l_item in self.all_lists:
@@ -316,39 +447,41 @@ class ListDialog(QDialog):
         self.filter_source_combo.currentIndexChanged.connect(self._on_filter_source_changed)
         filt_form.addRow(self.filter_source_label, self.filter_source_combo)
 
-        self.filter_emulator_label = QLabel("Emulador")
+        self.filter_emulator_label = QLabel(tr("dlg.list.filter_emu_label", "Emulator"))
         self.filter_emulator_combo = QComboBox()
-        self.filter_emulator_combo.addItem("⚡ Heredar emulador de la lista origen", "INHERIT")
+        self.filter_emulator_combo.addItem(tr("dlg.list.inherit_emu", "⚡ Inherit emulator from source list"), "INHERIT")
         for e in emulators:
             self.filter_emulator_combo.addItem(e["name"], e["id"])
         filt_form.addRow(self.filter_emulator_label, self.filter_emulator_combo)
 
         self.filter_match_mode_combo = QComboBox()
-        self.filter_match_mode_combo.addItem("Cumplir todos los filtros (AND)", "all")
-        self.filter_match_mode_combo.addItem("Cumplir cualquiera de los filtros (OR)", "any")
+        self.filter_match_mode_combo.addItem(tr("dlg.list.match_all", "Match all filters (AND)"), "all")
+        self.filter_match_mode_combo.addItem(tr("dlg.list.match_any", "Match any filter (OR)"), "any")
         self.filter_match_mode_combo.currentIndexChanged.connect(self._update_filter_preview)
-        filt_form.addRow("Criterio de evaluación", self.filter_match_mode_combo)
+        filt_form.addRow(tr("dlg.list.match_mode_label", "Evaluation mode"), self.filter_match_mode_combo)
 
-        self.smart_preset_label = QLabel("Colección inteligente")
+        self.smart_preset_label = QLabel(tr("dlg.list.smart_preset_label", "Smart collection"))
         self.smart_preset_combo = QComboBox()
-        self.smart_preset_combo.addItem("— Reglas personalizadas —", "")
+        self.smart_preset_combo.addItem(tr("dlg.list.custom_rules", "— Custom rules —"), "")
         for p in SMART_COLLECTION_PRESETS:
-            self.smart_preset_combo.addItem(p["label"], p["id"])
+            sp_entry = _SMART_PRESET_I18N.get(p["id"])
+            sp_label = tr(*sp_entry[0]) if sp_entry else p["label"]
+            self.smart_preset_combo.addItem(sp_label, p["id"])
         self.smart_preset_combo.activated.connect(self._on_smart_preset_activated)
         filt_form.addRow(self.smart_preset_label, self.smart_preset_combo)
 
-        self.sort_mode_label = QLabel("Orden de juegos")
+        self.sort_mode_label = QLabel(tr("dlg.list.sort_mode_label", "Game order"))
         self.sort_mode_combo = QComboBox()
         for s_key, s_label in SORT_MODES:
-            self.sort_mode_combo.addItem(s_label, s_key)
+            self.sort_mode_combo.addItem(_tr_from_map(_SORT_MODE_I18N, s_key, s_label), s_key)
         filt_form.addRow(self.sort_mode_label, self.sort_mode_combo)
 
         filt_vbox.addLayout(filt_form)
 
         # Encabezado de reglas de filtrado
         rules_header_layout = QHBoxLayout()
-        rules_header_label = QLabel("<b>Reglas de Filtrado:</b>")
-        self.add_filter_btn = QPushButton("＋ Agregar filtro")
+        rules_header_label = QLabel(tr("dlg.list.rules_header", "<b>Filter Rules:</b>"))
+        self.add_filter_btn = QPushButton(tr("dlg.list.add_filter_btn", "＋ Add filter"))
         self.add_filter_btn.clicked.connect(lambda: self._add_filter_rule_row())
         rules_header_layout.addWidget(rules_header_label)
         rules_header_layout.addStretch()
@@ -363,10 +496,10 @@ class ListDialog(QDialog):
 
         # Barra de vista previa en vivo
         preview_box = QHBoxLayout()
-        self.filter_preview_label = QLabel("📊 Vista previa: Calculando...")
+        self.filter_preview_label = QLabel(tr("dlg.list.preview_calculating", "📊 Preview: Calculating..."))
         self.filter_preview_label.setStyleSheet("color: #7dd3fc; font-weight: 500; font-size: 8.5pt;")
-        preview_btn = QPushButton("🔄 Actualizar vista previa")
-        preview_btn.setToolTip("Re-calcular juegos coincidentes con los filtros actuales")
+        preview_btn = QPushButton(tr("dlg.list.refresh_preview_btn", "🔄 Refresh preview"))
+        preview_btn.setToolTip(tr("dlg.list.refresh_preview_tooltip", "Recalculate matching games with current filters"))
         preview_btn.clicked.connect(self._update_filter_preview)
         preview_box.addWidget(self.filter_preview_label, 1)
         preview_box.addWidget(preview_btn)
@@ -377,7 +510,7 @@ class ListDialog(QDialog):
         scroll_layout.addWidget(self.filtered_settings_group)
 
         # 4. Sección de Medios y Arte (especificada dinámicamente según el diseño visual)
-        media_group = QGroupBox("Carpetas de Medios y Arte (Opcional)")
+        media_group = QGroupBox(tr("dlg.list.media_group", "Media & Artwork Folders (Optional)"))
         self.media_group = media_group
         media_layout = QFormLayout(media_group)
         media_layout.setSpacing(8)
@@ -396,30 +529,33 @@ class ListDialog(QDialog):
         scroll_layout.addWidget(media_group)
 
         # 5. Sección de Bezel HUD (Marco superpuesto en el emulador)
-        bezel_hud_group = QGroupBox("Marco Decorativo / Bezel HUD (Superpuesto al Emulador)")
+        bezel_hud_group = QGroupBox(tr("dlg.list.bezel_hud_group", "Decorative Frame / Bezel HUD (Emulator Overlay)"))
         bezel_hud_layout = QFormLayout(bezel_hud_group)
         bezel_hud_layout.setSpacing(8)
 
-        self.bezel_hud_enabled_cb = QCheckBox("Activar Bezel HUD para esta lista")
+        self.bezel_hud_enabled_cb = QCheckBox(tr("dlg.list.bezel_hud_enabled", "Enable Bezel HUD for this list"))
         self.bezel_hud_enabled_cb.setStyleSheet("font-weight: 600;")
         self.bezel_hud_enabled_cb.setChecked(True)
         bezel_hud_layout.addRow(self.bezel_hud_enabled_cb)
 
         self.bezel_hud_path_edit = QLineEdit()
-        self.bezel_hud_path_edit.setPlaceholderText("Carpeta con marcos transparentes PNG para el HUD")
-        browse_hud_btn = QPushButton("Examinar…")
+        self.bezel_hud_path_edit.setPlaceholderText(tr("dlg.list.bezel_hud_placeholder", "Folder with transparent PNG frames for the HUD"))
+        browse_hud_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_hud_btn.clicked.connect(self.pick_bezel_hud)
         hud_box = QHBoxLayout()
         hud_box.addWidget(self.bezel_hud_path_edit, 1)
         hud_box.addWidget(browse_hud_btn)
         hud_holder = QWidget()
         hud_holder.setLayout(hud_box)
-        bezel_hud_layout.addRow("Carpeta Bezel HUD:", hud_holder)
+        bezel_hud_layout.addRow(tr("dlg.list.bezel_hud_folder", "Bezel HUD Folder:"), hud_holder)
 
         lbl_hud_hint = QLabel(
-            "<i>Esta carpeta es independiente de los bezels del diseño visual (layout). "
-            "Contiene las imágenes PNG con centro transparente para proyectar sobre el emulador al jugar. "
-            "Busca primero por nombre de la ROM (ej: pacman.png) y si no existe usa default.png (o default_v.png para juegos con pantalla vertical).</i>"
+            tr(
+                "dlg.list.bezel_hud_hint",
+                "<i>This folder is independent from the visual layout bezels. "
+                "It contains PNG images with a transparent center to overlay on top of the emulator while playing. "
+                "It looks first by ROM name (e.g., pacman.png) and falls back to default.png (or default_v.png for vertical-screen games).</i>",
+            )
         )
         lbl_hud_hint.setStyleSheet("color: #8f9aa9; font-size: 8.5pt;")
         lbl_hud_hint.setWordWrap(True)
@@ -428,27 +564,30 @@ class ListDialog(QDialog):
         scroll_layout.addWidget(bezel_hud_group)
 
         # 6. Pantalla de Carga / Loading HUD
-        loading_group = QGroupBox("Pantalla de Carga / Loading HUD")
+        loading_group = QGroupBox(tr("dlg.list.loading_group", "Loading Screen / Loading HUD"))
         loading_layout = QFormLayout(loading_group)
         loading_layout.setSpacing(8)
 
         self.loading_path_edit = QLineEdit()
-        self.loading_path_edit.setPlaceholderText("Carpeta de Loading Screens (ej: D:/Media/Loading)")
-        browse_load_btn = QPushButton("Examinar…")
+        self.loading_path_edit.setPlaceholderText(tr("dlg.list.loading_placeholder", "Loading Screens folder (e.g., D:/Media/Loading)"))
+        browse_load_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_load_btn.clicked.connect(self.pick_loading_path)
         load_box = QHBoxLayout()
         load_box.addWidget(self.loading_path_edit, 1)
         load_box.addWidget(browse_load_btn)
         load_holder = QWidget()
         load_holder.setLayout(load_box)
-        loading_layout.addRow("Carpeta de Loading Screens:", load_holder)
+        loading_layout.addRow(tr("dlg.list.loading_folder", "Loading Screens Folder:"), load_holder)
 
         lbl_load_hint = QLabel(
-            "<i>Estructura de la carpeta:</i><br>"
-            "• <b>Prioridad 1 (Por juego):</b> Subcarpeta con el nombre de la ROM conteniendo <code>&lt;rom&gt;_i.ext</code> (apertura) y <code>&lt;rom&gt;_o.ext</code> (cierre).<br>"
-            "• <b>Prioridad 2 (Por defecto del sistema):</b> Subcarpeta <code>default</code> conteniendo <code>default_i.ext</code> y <code>default_o.ext</code>.<br>"
-            "• <b>Prioridad 3 (Genérico global):</b> Si no se encuentra, se utiliza automáticamente <code>splash/loading.jpg</code>.<br>"
-            "<i>(Los tiempos de duración de entrada y salida se calibran individualmente en cada emulador).</i>"
+            tr(
+                "dlg.list.loading_hint",
+                "<i>Folder structure:</i><br>"
+                "• <b>Priority 1 (Per game):</b> Subfolder named after the ROM containing <code>&lt;rom&gt;_i.ext</code> (intro) and <code>&lt;rom&gt;_o.ext</code> (outro).<br>"
+                "• <b>Priority 2 (System default):</b> <code>default</code> subfolder containing <code>default_i.ext</code> and <code>default_o.ext</code>.<br>"
+                "• <b>Priority 3 (Global generic):</b> If not found, <code>splash/loading.jpg</code> is used automatically.<br>"
+                "<i>(Intro and outro durations are calibrated individually per emulator).</i>",
+            )
         )
         lbl_load_hint.setStyleSheet("color: #8f9aa9; font-size: 8.5pt;")
         lbl_load_hint.setWordWrap(True)
@@ -461,6 +600,7 @@ class ListDialog(QDialog):
 
         # 5. Botones de acción siempre fijos y visibles en la parte inferior
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        _localize_dialog_buttons(buttons)
         buttons.accepted.connect(self.validate_and_accept)
         buttons.rejected.connect(self.reject)
         main_layout.addWidget(buttons)
@@ -587,7 +727,7 @@ class ListDialog(QDialog):
             self._add_sublist_item(l_info, checked=checked)
 
     def _add_sublist_item(self, list_info: dict, checked: bool):
-        plat = list_info.get("platform") or "Sin definir"
+        plat = list_info.get("platform") or tr("dlg.list.undefined_platform", "Undefined")
         is_menu = (list_info.get("list_type") == "menu")
         prefix = "🧭 " if is_menu else "🎮 "
         item = QListWidgetItem(f"{prefix}{list_info['name']}   [{plat}]")
@@ -642,23 +782,29 @@ class ListDialog(QDialog):
 
         if is_menu:
             if not self.platform_edit.text().strip():
-                self.platform_edit.setText("Menú Principal")
+                self.platform_edit.setText(tr("dlg.list.default_menu_platform", "Main Menu"))
             if not self.name_edit.text().strip():
-                self.name_edit.setText("Sistemas")
+                self.name_edit.setText(tr("dlg.list.default_menu_name", "Systems"))
         elif is_games:
-            self.filtered_settings_group.setTitle("Filtros de Juegos (Opcional)")
+            self.filtered_settings_group.setTitle(tr("dlg.list.filters_group_optional", "Game Filters (Optional)"))
             if hasattr(self, "filt_hint"):
                 self.filt_hint.setText(
-                    "<b>Opcional:</b> Podés definir una o varias reglas de filtrado para que solo se importen los juegos "
-                    "que cumplan los criterios seleccionados (ej: fabricante contiene 'Capcom', género contiene 'Lucha', "
-                    "sourcefile contiene 'cps1', clon está vacío para solo juegos principales, etc.). Si no agregás filtros, se importan todos los juegos encontrados."
+                    tr(
+                        "dlg.list.filt_hint_games",
+                        "<b>Optional:</b> You can define one or more filter rules so only games "
+                        "matching the selected criteria are imported (e.g., manufacturer contains 'Capcom', genre contains 'Fighting', "
+                        "sourcefile contains 'cps1', clone is empty for main games only, etc.). If you don't add filters, all found games are imported.",
+                    )
                 )
         elif is_filtered:
-            self.filtered_settings_group.setTitle("Configuración de Lista Filtrada")
+            self.filtered_settings_group.setTitle(tr("dlg.list.filtered_group_title", "Filtered List Configuration"))
             if hasattr(self, "filt_hint"):
                 self.filt_hint.setText(
-                    "Una <b>Lista Filtrada</b> crea una lista dinámica a partir de otra lista de juegos existente, "
-                    "evaluando uno o varios filtros según sus campos (sourcefile, género, fabricante, año, título, etc.)."
+                    tr(
+                        "dlg.list.filt_hint_filtered",
+                        "A <b>Filtered List</b> creates a dynamic list from another existing game list, "
+                        "evaluating one or more filters based on its fields (sourcefile, genre, manufacturer, year, title, etc.).",
+                    )
                 )
             if not self.filter_rule_rows:
                 self._add_filter_rule_row()
@@ -693,8 +839,12 @@ class ListDialog(QDialog):
 
         curr_name = self.name_edit.text().strip()
         preset_names = {p["default_name"] for p in SMART_COLLECTION_PRESETS}
+        for _lbl_pair, (n_key, n_en) in _SMART_PRESET_I18N.values():
+            preset_names.add(tr(n_key, n_en))
+        sp_entry = _SMART_PRESET_I18N.get(preset_id)
+        target_default_name = tr(*sp_entry[1]) if sp_entry else preset["default_name"]
         if not curr_name or curr_name in preset_names:
-            self.name_edit.setText(preset["default_name"])
+            self.name_edit.setText(target_default_name)
 
         self._update_filter_preview()
 
@@ -712,29 +862,29 @@ class ListDialog(QDialog):
 
         field_combo = QComboBox()
         for f_key, f_label in FILTERABLE_FIELDS:
-            field_combo.addItem(f_label, f_key)
+            field_combo.addItem(_tr_from_map(_FILTER_FIELD_I18N, f_key, f_label), f_key)
         idx = field_combo.findData(field)
         if idx >= 0:
             field_combo.setCurrentIndex(idx)
 
         op_combo = QComboBox()
         for o_key, o_label in FILTER_OPERATORS:
-            op_combo.addItem(o_label, o_key)
+            op_combo.addItem(_tr_from_map(_FILTER_OP_I18N, o_key, o_label), o_key)
         idx_o = op_combo.findData(op)
         if idx_o >= 0:
             op_combo.setCurrentIndex(idx_o)
 
         val_edit = QLineEdit(str(val or ""))
-        val_edit.setPlaceholderText("Valor a buscar...")
+        val_edit.setPlaceholderText(tr("dlg.list.filter_val_placeholder", "Value to search..."))
 
         def _on_op_changed():
             curr_op = op_combo.currentData()
             if curr_op in ("is_empty", "is_not_empty"):
                 val_edit.setEnabled(False)
-                val_edit.setPlaceholderText("(Sin valor requerido)")
+                val_edit.setPlaceholderText(tr("dlg.list.filter_val_none", "(No value required)"))
             else:
                 val_edit.setEnabled(True)
-                val_edit.setPlaceholderText("Valor a buscar...")
+                val_edit.setPlaceholderText(tr("dlg.list.filter_val_placeholder", "Value to search..."))
             self._update_filter_preview()
 
         op_combo.currentIndexChanged.connect(_on_op_changed)
@@ -743,7 +893,7 @@ class ListDialog(QDialog):
         _on_op_changed()
 
         del_btn = QPushButton("✕")
-        del_btn.setToolTip("Quitar esta regla")
+        del_btn.setToolTip(tr("dlg.list.remove_rule_tooltip", "Remove this rule"))
         del_btn.setFixedWidth(28)
         del_btn.setStyleSheet(
             "QPushButton { color: #f87171; font-weight: bold; border-radius: 4px; padding: 2px; }"
@@ -811,7 +961,7 @@ class ListDialog(QDialog):
             return
         source_id = self.filter_source_combo.currentData()
         if not source_id or not self.db:
-            self.filter_preview_label.setText("📊 Vista previa: Seleccioná una lista origen.")
+            self.filter_preview_label.setText(tr("dlg.list.preview_select_source", "📊 Preview: Select a source list."))
             return
 
         source_games = self.db.get_games(source_id, enriched=False)
@@ -820,7 +970,12 @@ class ListDialog(QDialog):
         mode = self.filter_match_mode_combo.currentData() or "all"
         matching_count = sum(1 for g in source_games if game_matches_filter(g, rules, mode))
         self.filter_preview_label.setText(
-            f"📊 Vista previa: <b>{matching_count}</b> de <b>{total}</b> juegos coinciden con los filtros actuales."
+            tr(
+                "dlg.list.preview_count",
+                "📊 Preview: <b>{matching}</b> of <b>{total}</b> games match current filters.",
+                matching=matching_count,
+                total=total,
+            )
         )
 
     def _rebuild_dynamic_media_ui(self):
@@ -853,7 +1008,8 @@ class ListDialog(QDialog):
         # 4. Crear solo las filas que el diseño requiere
         for item in spec:
             key = item.get("key", "")
-            label = item.get("label", key.capitalize())
+            raw_label = item.get("label", key.capitalize())
+            label = _tr_from_map(_MEDIA_LABEL_I18N, raw_label, raw_label)
             folder_name = item.get("folder", key)
             exts = item.get("extensions", [])
             req = item.get("required", False)
@@ -866,7 +1022,9 @@ class ListDialog(QDialog):
                 label_text = f"{label}{req_marker}:"
 
             edit = QLineEdit()
-            edit.setPlaceholderText(f"Carpeta de {label} (ej: media/{folder_name})...")
+            edit.setPlaceholderText(
+                tr("dlg.list.media_folder_placeholder", "{label} folder (e.g., media/{folder})...", label=label, folder=folder_name)
+            )
             
             init_val = self._media_values.get(key, "")
             if init_val:
@@ -875,8 +1033,12 @@ class ListDialog(QDialog):
             edit.textChanged.connect(lambda txt, k=key: self._media_values.__setitem__(k, self._normalize_path(txt)))
             edit.editingFinished.connect(lambda e=edit: e.setText(self._normalize_path(e.text())))
 
-            browse_btn = QPushButton("Examinar…")
-            browse_btn.clicked.connect(lambda checked=False, e=edit, l=label, k=key: self._pick_media_folder(e, f"Seleccionar carpeta de {l}", k))
+            browse_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
+            browse_btn.clicked.connect(
+                lambda checked=False, e=edit, l=label, k=key: self._pick_media_folder(
+                    e, tr("dlg.list.pick_media_folder_title", "Select {label} folder", label=l), k
+                )
+            )
 
             row_layout = QHBoxLayout()
             row_layout.setContentsMargins(0, 0, 0, 0)
@@ -978,9 +1140,9 @@ class ListDialog(QDialog):
         """Abre un selector de archivo para elegir el icono de la lista."""
         current = self.icon_path_edit.text().strip() if hasattr(self, "icon_path_edit") else ""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Seleccionar icono de la lista",
+            self, tr("dlg.list.pick_icon_title", "Select list icon"),
             str(Path(current).parent) if current and Path(current).parent.is_dir() else "",
-            "Imágenes (*.png *.jpg *.jpeg *.bmp *.webp *.svg);;Todos (*.*)"
+            tr("dlg.list.pick_icon_filter", "Images (*.png *.jpg *.jpeg *.bmp *.webp *.svg);;All files (*.*)")
         )
         if path:
             self.icon_path_edit.setText(self._normalize_path(path))
@@ -989,7 +1151,7 @@ class ListDialog(QDialog):
         """Abre un selector para elegir la carpeta del Bezel HUD."""
         current = self.bezel_hud_path_edit.text().strip() if hasattr(self, "bezel_hud_path_edit") else ""
         initial_dir = current if (current and Path(current).is_dir()) else self._get_primary_rom_folder()
-        path = QFileDialog.getExistingDirectory(self, "Seleccionar carpeta para Bezel HUD", initial_dir or "")
+        path = QFileDialog.getExistingDirectory(self, tr("dlg.list.pick_bezel_hud_title", "Select Bezel HUD folder"), initial_dir or "")
         if path:
             self.bezel_hud_path_edit.setText(self._normalize_path(path))
 
@@ -998,7 +1160,7 @@ class ListDialog(QDialog):
         current = self.loading_path_edit.text().strip() if hasattr(self, "loading_path_edit") else ""
         initial_dir = current if (current and Path(current).is_dir()) else str(APP_DIR)
         path = QFileDialog.getExistingDirectory(  
-            self, "Seleccionar carpeta de Loading Screens",
+            self, tr("dlg.list.pick_loading_title", "Select Loading Screens folder"),
             initial_dir
         )
         if path:
@@ -1011,7 +1173,7 @@ class ListDialog(QDialog):
             initial_dir = str(Path(initial_dir).parent)
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Agregar carpeta de juegos (ROMs)",
+            tr("dlg.list.pick_rom_folder_title", "Add game folder (ROMs)"),
             initial_dir or ""
         )
         if folder:
@@ -1024,15 +1186,15 @@ class ListDialog(QDialog):
         initial_dir = str(Path(current_xml).parent) if (current_xml and Path(current_xml).parent.is_dir()) else self._get_primary_rom_folder()
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Seleccionar archivo XML de nombres y datos de ROMs",
+            tr("dlg.list.pick_xml_title", "Select XML file with ROM names and metadata"),
             initial_dir or "",
-            "Archivos XML / DAT (*.xml *.dat);;Todos los archivos (*.*)"
+            tr("dlg.list.pick_xml_filter", "XML / DAT Files (*.xml *.dat);;All files (*.*)")
         )
         if path:
             self.xml_edit.setText(self._normalize_path(path))
 
     def _on_preset_selected(self, index):
-        title = self.preset_combo.currentText()
+        title = self.preset_combo.currentData() or self.preset_combo.currentText()
         if title in PRESET_EXTENSIONS and title != "Personalizado...":
             plat, exts = PRESET_EXTENSIONS[title]
             if not self.platform_edit.text().strip():
@@ -1042,7 +1204,7 @@ class ListDialog(QDialog):
     def validate_and_accept(self):
         name = self.name_edit.text().strip()
         if not name:
-            QMessageBox.warning(self, "Nombre requerido", "Por favor ingresá un nombre para la lista.")
+            QMessageBox.warning(self, tr("dlg.list.err_name_title", "Name required"), tr("dlg.list.err_name_msg", "Please enter a name for the list."))
             self.name_edit.setFocus()
             return
 
@@ -1053,8 +1215,8 @@ class ListDialog(QDialog):
             if checked_count == 0:
                 answer = QMessageBox.question(
                     self,
-                    "Menú sin sistemas",
-                    "No seleccionaste ninguna lista para incluir en este menú.\n¿Deseas crearlo de todas formas y vincular sistemas luego?",
+                    tr("dlg.list.warn_empty_menu_title", "Menu without systems"),
+                    tr("dlg.list.warn_empty_menu_msg", "You didn't select any list to include in this menu.\nDo you want to create it anyway and link systems later?"),
                     QMessageBox.Yes | QMessageBox.No,
                     QMessageBox.No
                 )
@@ -1066,7 +1228,7 @@ class ListDialog(QDialog):
         if is_filtered:
             source_id = self.filter_source_combo.currentData()
             if not source_id:
-                QMessageBox.warning(self, "Lista origen requerida", "Por favor seleccioná la lista de origen de la cual se filtrarán los juegos.")
+                QMessageBox.warning(self, tr("dlg.list.err_source_title", "Source list required"), tr("dlg.list.err_source_msg", "Please select the source list from which games will be filtered."))
                 self.filter_source_combo.setFocus()
                 return
 
@@ -1078,8 +1240,8 @@ class ListDialog(QDialog):
             if not valid_rules:
                 QMessageBox.warning(
                     self,
-                    "Filtro requerido",
-                    "Por favor configurá al menos una regla de filtrado con un valor (ej: sourcefile contiene 'cps1')."
+                    tr("dlg.list.err_filter_title", "Filter required"),
+                    tr("dlg.list.err_filter_msg", "Please configure at least one filter rule with a value (e.g., sourcefile contains 'cps1').")
                 )
                 return
             self.accept()
@@ -1092,8 +1254,8 @@ class ListDialog(QDialog):
         except ValueError as err:
             QMessageBox.warning(
                 self,
-                "Error en las extensiones",
-                f"Configuración de extensiones inválida:\n\n{err}"
+                tr("dlg.list.err_ext_title", "Extension error"),
+                tr("dlg.list.err_ext_msg", "Invalid extension configuration:\n\n{error}", error=err)
             )
             self.extensions_edit.setFocus()
             return
@@ -1104,8 +1266,8 @@ class ListDialog(QDialog):
             if not Path(f).is_dir():
                 QMessageBox.warning(
                     self,
-                    "Carpeta no encontrada",
-                    f"La carpeta especificada no existe o no es accesible:\n{f}\n\nPor favor seleccioná carpetas válidas."
+                    tr("dlg.list.err_folder_title", "Folder not found"),
+                    tr("dlg.list.err_folder_msg", "The specified folder does not exist or is not accessible:\n{folder}\n\nPlease select valid folders.", folder=f)
                 )
                 self.folder_edit.setFocus()
                 return
@@ -1116,8 +1278,8 @@ class ListDialog(QDialog):
             if not Path(xml_path).is_file():
                 QMessageBox.warning(
                     self,
-                    "Archivo XML no encontrado",
-                    f"El archivo XML especificado no existe o no es accesible:\n{xml_path}\n\nPor favor seleccioná un archivo XML válido."
+                    tr("dlg.list.err_xml_title", "XML file not found"),
+                    tr("dlg.list.err_xml_msg", "The specified XML file does not exist or is not accessible:\n{path}\n\nPlease select a valid XML file.", path=xml_path)
                 )
                 self.xml_edit.setFocus()
                 return
@@ -1127,8 +1289,8 @@ class ListDialog(QDialog):
             warn_msg = "\n\n".join(warnings)
             answer = QMessageBox.question(
                 self,
-                "Aviso sobre extensiones configuradas",
-                f"{warn_msg}\n\n¿Deseas continuar con esta configuración?",
+                tr("dlg.list.warn_ext_title", "Notice about configured extensions"),
+                tr("dlg.list.warn_ext_msg", "{warnings}\n\nDo you want to continue with this configuration?", warnings=warn_msg),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.Yes
             )
@@ -1241,18 +1403,18 @@ class EmulatorDialog(QDialog):
     """Diálogo para registrar o editar un emulador."""
     def __init__(self, parent=None, existing=None):
         super().__init__(parent)
-        self.setWindowTitle("Editar emulador" if existing else "Registrar emulador")
+        self.setWindowTitle(tr("dlg.emu.title_edit", "Edit emulator") if existing else tr("dlg.emu.title_new", "Register emulator"))
         self.setMinimumWidth(560)
 
         self.name = QLineEdit()
-        self.name.setPlaceholderText("Ej: RetroArch, Snes9x, PCSX2, DuckStation...")
+        self.name.setPlaceholderText(tr("dlg.emu.name_placeholder", "e.g., RetroArch, Snes9x, PCSX2, DuckStation..."))
         self.exe = QLineEdit()
-        self.exe.setPlaceholderText("Ruta al archivo ejecutable (.exe)")
+        self.exe.setPlaceholderText(tr("dlg.emu.exe_placeholder", "Path to executable file (.exe)"))
         self.args = QLineEdit('"{rom}"')
         self.platform = QLineEdit()
-        self.platform.setPlaceholderText("Ej: Super Nintendo, Multi-sistema...")
+        self.platform.setPlaceholderText(tr("dlg.emu.platform_placeholder", "e.g., Super Nintendo, Multi-system..."))
 
-        browse = QPushButton("Examinar…")
+        browse = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse.clicked.connect(self.pick_exe)
 
         exe_row = QHBoxLayout()
@@ -1267,88 +1429,94 @@ class EmulatorDialog(QDialog):
         # Selector de plantilla rápida
         presets_row = QHBoxLayout()
         self.preset_combo = QComboBox()
-        self.preset_combo.addItem("— Seleccionar una plantilla rápida… —", None)
+        self.preset_combo.addItem(tr("dlg.emu.select_quick_preset", "— Select a quick template… —"), None)
         self._load_presets()
         self.preset_combo.currentIndexChanged.connect(self._on_preset_selected)
         presets_row.addWidget(self.preset_combo, 1)
-        form.addRow("Plantilla rápida", presets_row)
+        form.addRow(tr("dlg.emu.quick_preset_label", "Quick template"), presets_row)
 
-        form.addRow("Nombre del emulador *", self.name)
-        form.addRow("Ejecutable (.exe) *", holder)
-        form.addRow("Argumentos de inicio", self.args)
-        form.addRow("Plataforma (opcional)", self.platform)
+        form.addRow(tr("dlg.emu.name_label", "Emulator name *"), self.name)
+        form.addRow(tr("dlg.emu.exe_label", "Executable (.exe) *"), holder)
+        form.addRow(tr("dlg.emu.args_label", "Launch arguments"), self.args)
+        form.addRow(tr("dlg.emu.platform_label", "Platform (optional)"), self.platform)
 
         # Configuración de retardo y fade para el Bezel HUD
         self.bezel_delay_spin = QDoubleSpinBox()
         self.bezel_delay_spin.setRange(0.0, 30.0)
         self.bezel_delay_spin.setSingleStep(0.5)
         self.bezel_delay_spin.setDecimals(1)
-        self.bezel_delay_spin.setSuffix(" seg")
+        self.bezel_delay_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         self.bezel_delay_spin.setValue(0.0)
-        self.bezel_delay_spin.setToolTip("Tiempo de espera tras el lanzamiento antes de desplegar el Bezel HUD y permitir el cierre.")
+        self.bezel_delay_spin.setToolTip(tr("dlg.emu.bezel_delay_tooltip", "Wait time after launch before showing the Bezel HUD and allowing exit."))
 
         self.bezel_fade_spin = QDoubleSpinBox()
         self.bezel_fade_spin.setRange(0.0, 10.0)
         self.bezel_fade_spin.setSingleStep(0.1)
         self.bezel_fade_spin.setDecimals(1)
-        self.bezel_fade_spin.setSuffix(" seg")
+        self.bezel_fade_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         self.bezel_fade_spin.setValue(0.3)
-        self.bezel_fade_spin.setToolTip("Duración de la animación de fundido (fade-in) del Bezel HUD en segundos.")
+        self.bezel_fade_spin.setToolTip(tr("dlg.emu.bezel_fade_tooltip", "Duration of the Bezel HUD fade-in animation in seconds."))
 
         bezel_anim_row = QHBoxLayout()
-        bezel_anim_row.addWidget(QLabel("Retardo (Delay):"))
+        bezel_anim_row.addWidget(QLabel(tr("dlg.emu.delay_label", "Delay:")))
         bezel_anim_row.addWidget(self.bezel_delay_spin, 1)
         bezel_anim_row.addSpacing(16)
-        bezel_anim_row.addWidget(QLabel("Fundido (Fade-in):"))
+        bezel_anim_row.addWidget(QLabel(tr("dlg.emu.fade_in_label", "Fade-in:")))
         bezel_anim_row.addWidget(self.bezel_fade_spin, 1)
 
         bezel_holder = QWidget()
         bezel_holder.setLayout(bezel_anim_row)
-        form.addRow("Bezel HUD (Aparición)", bezel_holder)
+        form.addRow(tr("dlg.emu.bezel_hud_row", "Bezel HUD (Appearance)"), bezel_holder)
 
         # Configuración de tiempos de Loading Screen (Apertura y Cierre)
         self.loading_time_spin = QDoubleSpinBox()
         self.loading_time_spin.setRange(0.0, 30.0)
         self.loading_time_spin.setSingleStep(0.5)
         self.loading_time_spin.setDecimals(1)
-        self.loading_time_spin.setSuffix(" seg")
+        self.loading_time_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         self.loading_time_spin.setValue(1.5)
-        self.loading_time_spin.setToolTip("Tiempo que se muestra la pantalla de carga al iniciar el emulador (0 para desactivar).")
+        self.loading_time_spin.setToolTip(tr("dlg.emu.loading_in_tooltip", "Time the loading screen is displayed when launching the emulator (0 to disable)."))
 
         self.exit_loading_time_spin = QDoubleSpinBox()
         self.exit_loading_time_spin.setRange(0.0, 30.0)
         self.exit_loading_time_spin.setSingleStep(0.5)
         self.exit_loading_time_spin.setDecimals(1)
-        self.exit_loading_time_spin.setSuffix(" seg")
+        self.exit_loading_time_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         self.exit_loading_time_spin.setValue(1.0)
-        self.exit_loading_time_spin.setToolTip("Tiempo que se muestra la pantalla de carga al cerrar el emulador mientras vuelve el layout.")
+        self.exit_loading_time_spin.setToolTip(tr("dlg.emu.loading_out_tooltip", "Time the loading screen is displayed when closing the emulator while the layout returns."))
 
         loading_row = QHBoxLayout()
-        loading_row.addWidget(QLabel("Apertura (In):"))
+        loading_row.addWidget(QLabel(tr("dlg.emu.loading_in_label", "Intro (In):")))
         loading_row.addWidget(self.loading_time_spin, 1)
         loading_row.addSpacing(16)
-        loading_row.addWidget(QLabel("Cierre (Out):"))
+        loading_row.addWidget(QLabel(tr("dlg.emu.loading_out_label", "Outro (Out):")))
         loading_row.addWidget(self.exit_loading_time_spin, 1)
 
         loading_holder = QWidget()
         loading_holder.setLayout(loading_row)
-        form.addRow("Pantalla de Carga (HUD)", loading_holder)
+        form.addRow(tr("dlg.emu.loading_row", "Loading Screen (HUD)"), loading_holder)
 
         lockout_hint = QLabel(
-            "🔒 <i>Protección contra congelamiento: El botón o comando de salida (Escape / Back+Start) permanece bloqueado "
-            "durante la inicialización hasta que el Bezel termine de aparecer.</i>"
+            tr(
+                "dlg.emu.lockout_hint",
+                "🔒 <i>Freeze protection: The exit button or command (Escape / Back+Start) remains locked "
+                "during initialization until the Bezel finishes appearing.</i>",
+            )
         )
         lockout_hint.setStyleSheet("color: #7289da; font-size: 8.5pt;")
         lockout_hint.setWordWrap(True)
         form.addRow("", lockout_hint)
 
         hint = QLabel(
-            "<b>Plantillas de argumentos admitidas:</b><br>"
-            "<code>{rom}</code> o <code>[romfilename]</code>: Ruta completa al archivo del juego.<br>"
-            "<code>{rom_dir}</code> o <code>[rompath]</code>: Carpeta donde se ubica el juego.<br>"
-            "<code>{rom_name}</code> o <code>[name]</code>: Nombre del archivo sin extensión.<br>"
-            "<i>• Para Juegos de Windows (Attract-Mode / PC): Ejecutable <code>cmd</code> y argumentos <code>/c \"[romfilename]\"</code></i><br>"
-            "<i>• Para RetroArch: <code>-f -L cores\\genesis_plus_gx_sot4w_libretro.dll \"{rom}\"</code></i>"
+            tr(
+                "dlg.emu.args_hint",
+                "<b>Supported argument placeholders:</b><br>"
+                "<code>{rom}</code> or <code>[romfilename]</code>: Full path to the game file.<br>"
+                "<code>{rom_dir}</code> or <code>[rompath]</code>: Folder where the game is located.<br>"
+                "<code>{rom_name}</code> or <code>[name]</code>: Filename without extension.<br>"
+                "<i>• For Windows Games (Attract-Mode / PC): Executable <code>cmd</code> and arguments <code>/c \"[romfilename]\"</code></i><br>"
+                "<i>• For RetroArch: <code>-f -L cores\\genesis_plus_gx_sot4w_libretro.dll \"{rom}\"</code></i>",
+            )
         )
         hint.setStyleSheet("color: #aab1c0; font-size: 9pt;")
 
@@ -1357,6 +1525,7 @@ class EmulatorDialog(QDialog):
         layout.addWidget(hint)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        _localize_dialog_buttons(buttons)
         buttons.accepted.connect(self.validate_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -1425,7 +1594,7 @@ class EmulatorDialog(QDialog):
 
     def _preset_windows_cmd(self):
         if not self.name.text().strip():
-            self.name.setText("Juegos de Windows (cmd)")
+            self.name.setText(tr("dlg.emu.windows_games_cmd", "Windows Games (cmd)"))
         self.exe.setText("cmd")
         self.args.setText('/c "[romfilename]"')
         if not self.platform.text().strip():
@@ -1434,21 +1603,21 @@ class EmulatorDialog(QDialog):
     def pick_exe(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Seleccionar ejecutable del emulador",
+            tr("dlg.emu.pick_exe_title", "Select emulator executable"),
             "",
-            "Archivos ejecutables (*.exe *.bat *.cmd);;Todos los archivos (*.*)"
+            tr("dlg.common.exe_filter", "Executable files (*.exe *.bat *.cmd);;All files (*.*)")
         )
         if path:
             self.exe.setText(path)
 
     def validate_accept(self):
         if not self.name.text().strip():
-            QMessageBox.warning(self, "Dato requerido", "Por favor ingresá un nombre para el emulador.")
+            QMessageBox.warning(self, tr("dlg.common.required_title", "Required field"), tr("dlg.emu.err_name_msg", "Please enter a name for the emulator."))
             self.name.setFocus()
             return
         raw_exe = self.exe.text().strip()
         if not raw_exe:
-            QMessageBox.warning(self, "Dato requerido", "Por favor seleccioná la ruta al archivo ejecutable.")
+            QMessageBox.warning(self, tr("dlg.common.required_title", "Required field"), tr("dlg.emu.err_exe_msg", "Please select the path to the executable file."))
             self.exe.setFocus()
             return
 
@@ -1456,8 +1625,12 @@ class EmulatorDialog(QDialog):
         if not exe_path.is_file() and not shutil.which(raw_exe):
             confirm = QMessageBox.question(
                 self,
-                "Ejecutable no encontrado",
-                f"El archivo ejecutable no se encuentra actualmente en la ruta indicada ni en el PATH del sistema:\n{raw_exe}\n\n¿Deseas guardarlo de todos modos?",
+                tr("dlg.emu.exe_missing_title", "Executable not found"),
+                tr(
+                    "dlg.emu.exe_missing_msg",
+                    "The executable file was not currently found at the specified path or in the system PATH:\n{path}\n\nDo you want to save it anyway?",
+                    path=raw_exe,
+                ),
                 QMessageBox.Yes | QMessageBox.No
             )
             if confirm != QMessageBox.Yes:
@@ -1482,15 +1655,15 @@ class TemplateEditDialog(QDialog):
     """Diálogo modal para crear o editar una plantilla rápida de emulador."""
     def __init__(self, parent=None, existing=None):
         super().__init__(parent)
-        self.setWindowTitle("Editar Plantilla de Emulador" if existing else "Nueva Plantilla de Emulador")
+        self.setWindowTitle(tr("dlg.tmpl.title_edit", "Edit Emulator Template") if existing else tr("dlg.tmpl.title_new", "New Emulator Template"))
         self.setMinimumWidth(540)
 
         self.name_edit = QLineEdit(existing.get("name", "") if existing else "")
-        self.name_edit.setPlaceholderText("Ej: RetroArch - Genesis Plus GX, DuckStation, PCSX2...")
+        self.name_edit.setPlaceholderText(tr("dlg.tmpl.name_placeholder", "e.g., RetroArch - Genesis Plus GX, DuckStation, PCSX2..."))
 
         self.exe_edit = QLineEdit(existing.get("executable", "") if existing else "")
-        self.exe_edit.setPlaceholderText("Ej: retroarch.exe, cmd, pcsx2-qtx64.exe...")
-        browse_btn = QPushButton("Examinar…")
+        self.exe_edit.setPlaceholderText(tr("dlg.tmpl.exe_placeholder", "e.g., retroarch.exe, cmd, pcsx2-qtx64.exe..."))
+        browse_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_btn.clicked.connect(self._pick_exe)
         exe_row = QHBoxLayout()
         exe_row.addWidget(self.exe_edit, 1)
@@ -1499,19 +1672,19 @@ class TemplateEditDialog(QDialog):
         exe_holder.setLayout(exe_row)
 
         self.args_edit = QLineEdit(existing.get("arguments", "") if existing else '"{rom}"')
-        self.args_edit.setPlaceholderText('Ej: -f -L cores\\core.dll "{rom}" o /c "[romfilename]"')
+        self.args_edit.setPlaceholderText(tr("dlg.tmpl.args_placeholder", 'e.g., -f -L cores\\core.dll "{rom}" or /c "[romfilename]"'))
 
         self.plat_edit = QLineEdit(existing.get("platform", "") if existing else "")
-        self.plat_edit.setPlaceholderText("Ej: Multi-sistema, PC Games, Arcade, Super Nintendo...")
+        self.plat_edit.setPlaceholderText(tr("dlg.tmpl.platform_placeholder", "e.g., Multi-system, PC Games, Arcade, Super Nintendo..."))
 
         self.desc_edit = QLineEdit(existing.get("description", "") if existing else "")
-        self.desc_edit.setPlaceholderText("Descripción breve o notas sobre la plantilla")
+        self.desc_edit.setPlaceholderText(tr("dlg.tmpl.desc_placeholder", "Brief description or notes about the template"))
 
         self.bezel_delay_spin = QDoubleSpinBox()
         self.bezel_delay_spin.setRange(0.0, 30.0)
         self.bezel_delay_spin.setSingleStep(0.5)
         self.bezel_delay_spin.setDecimals(1)
-        self.bezel_delay_spin.setSuffix(" seg")
+        self.bezel_delay_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         try:
             self.bezel_delay_spin.setValue(float(existing.get("bezel_delay", 0.0) or 0.0) if existing else 0.0)
         except Exception:
@@ -1521,17 +1694,17 @@ class TemplateEditDialog(QDialog):
         self.bezel_fade_spin.setRange(0.0, 10.0)
         self.bezel_fade_spin.setSingleStep(0.1)
         self.bezel_fade_spin.setDecimals(1)
-        self.bezel_fade_spin.setSuffix(" seg")
+        self.bezel_fade_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         try:
             self.bezel_fade_spin.setValue(float(existing.get("bezel_fade", 0.3) if existing and existing.get("bezel_fade") is not None else 0.3))
         except Exception:
             self.bezel_fade_spin.setValue(0.3)
 
         anim_row = QHBoxLayout()
-        anim_row.addWidget(QLabel("Retardo (Delay):"))
+        anim_row.addWidget(QLabel(tr("dlg.emu.delay_label", "Delay:")))
         anim_row.addWidget(self.bezel_delay_spin, 1)
         anim_row.addSpacing(16)
-        anim_row.addWidget(QLabel("Fundido (Fade):"))
+        anim_row.addWidget(QLabel(tr("dlg.tmpl.fade_label", "Fade:")))
         anim_row.addWidget(self.bezel_fade_spin, 1)
         anim_holder = QWidget()
         anim_holder.setLayout(anim_row)
@@ -1540,7 +1713,7 @@ class TemplateEditDialog(QDialog):
         self.loading_time_spin.setRange(0.0, 30.0)
         self.loading_time_spin.setSingleStep(0.5)
         self.loading_time_spin.setDecimals(1)
-        self.loading_time_spin.setSuffix(" seg")
+        self.loading_time_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         try:
             self.loading_time_spin.setValue(float(existing.get("loading_time", 1.5) if existing and existing.get("loading_time") is not None else 1.5))
         except Exception:
@@ -1550,35 +1723,38 @@ class TemplateEditDialog(QDialog):
         self.exit_loading_time_spin.setRange(0.0, 30.0)
         self.exit_loading_time_spin.setSingleStep(0.5)
         self.exit_loading_time_spin.setDecimals(1)
-        self.exit_loading_time_spin.setSuffix(" seg")
+        self.exit_loading_time_spin.setSuffix(tr("dlg.common.sec_suffix", " sec"))
         try:
             self.exit_loading_time_spin.setValue(float(existing.get("exit_loading_time", 1.0) if existing and existing.get("exit_loading_time") is not None else 1.0))
         except Exception:
             self.exit_loading_time_spin.setValue(1.0)
 
         load_anim_row = QHBoxLayout()
-        load_anim_row.addWidget(QLabel("Apertura (In):"))
+        load_anim_row.addWidget(QLabel(tr("dlg.emu.loading_in_label", "Intro (In):")))
         load_anim_row.addWidget(self.loading_time_spin, 1)
         load_anim_row.addSpacing(16)
-        load_anim_row.addWidget(QLabel("Cierre (Out):"))
+        load_anim_row.addWidget(QLabel(tr("dlg.emu.loading_out_label", "Outro (Out):")))
         load_anim_row.addWidget(self.exit_loading_time_spin, 1)
         load_anim_holder = QWidget()
         load_anim_holder.setLayout(load_anim_row)
 
         form = QFormLayout()
-        form.addRow("Nombre de la plantilla *", self.name_edit)
-        form.addRow("Ejecutable (.exe / comando) *", exe_holder)
-        form.addRow("Argumentos de inicio", self.args_edit)
-        form.addRow("Plataforma", self.plat_edit)
-        form.addRow("Descripción", self.desc_edit)
-        form.addRow("Bezel HUD (Aparición)", anim_holder)
-        form.addRow("Pantalla de Carga (HUD)", load_anim_holder)
+        form.addRow(tr("dlg.tmpl.name_label", "Template name *"), self.name_edit)
+        form.addRow(tr("dlg.tmpl.exe_label", "Executable (.exe / command) *"), exe_holder)
+        form.addRow(tr("dlg.emu.args_label", "Launch arguments"), self.args_edit)
+        form.addRow(tr("dlg.tmpl.platform_label", "Platform"), self.plat_edit)
+        form.addRow(tr("dlg.tmpl.desc_label", "Description"), self.desc_edit)
+        form.addRow(tr("dlg.emu.bezel_hud_row", "Bezel HUD (Appearance)"), anim_holder)
+        form.addRow(tr("dlg.emu.loading_row", "Loading Screen (HUD)"), load_anim_holder)
 
         hint = QLabel(
-            "<b>Comodines de argumentos admitidos:</b><br>"
-            "<code>{rom}</code> o <code>[romfilename]</code>: Ruta completa al archivo del juego.<br>"
-            "<code>{rom_dir}</code> o <code>[rompath]</code>: Carpeta donde reside el juego.<br>"
-            "<code>{rom_name}</code> o <code>[name]</code>: Nombre del juego sin extensión."
+            tr(
+                "dlg.tmpl.args_hint",
+                "<b>Supported argument placeholders:</b><br>"
+                "<code>{rom}</code> or <code>[romfilename]</code>: Full path to the game file.<br>"
+                "<code>{rom_dir}</code> or <code>[rompath]</code>: Folder where the game resides.<br>"
+                "<code>{rom_name}</code> or <code>[name]</code>: Game name without extension.",
+            )
         )
         hint.setStyleSheet("color: #aab1c0; font-size: 8.5pt;")
         hint.setWordWrap(True)
@@ -1588,6 +1764,7 @@ class TemplateEditDialog(QDialog):
         layout.addWidget(hint)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        _localize_dialog_buttons(buttons)
         buttons.accepted.connect(self._validate)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -1595,9 +1772,9 @@ class TemplateEditDialog(QDialog):
     def _pick_exe(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Seleccionar ejecutable",
+            tr("dlg.tmpl.pick_exe_title", "Select executable"),
             "",
-            "Archivos ejecutables (*.exe *.bat *.cmd);;Todos los archivos (*.*)"
+            tr("dlg.common.exe_filter", "Executable files (*.exe *.bat *.cmd);;All files (*.*)")
         )
         if path:
             self.exe_edit.setText(path)
@@ -1606,11 +1783,11 @@ class TemplateEditDialog(QDialog):
         name = self.name_edit.text().strip()
         exe = self.exe_edit.text().strip()
         if not name:
-            QMessageBox.warning(self, "Dato requerido", "Ingresá un nombre para la plantilla.")
+            QMessageBox.warning(self, tr("dlg.common.required_title", "Required field"), tr("dlg.tmpl.err_name_msg", "Enter a name for the template."))
             self.name_edit.setFocus()
             return
         if not exe:
-            QMessageBox.warning(self, "Dato requerido", "Ingresá o seleccioná un ejecutable para la plantilla.")
+            QMessageBox.warning(self, tr("dlg.common.required_title", "Required field"), tr("dlg.tmpl.err_exe_msg", "Enter or select an executable for the template."))
             self.exe_edit.setFocus()
             return
         self.accept()
@@ -1650,14 +1827,17 @@ class EmulatorManagerWidget(QWidget):
             header_card = QFrame()
             header_card.setStyleSheet("background-color: #1b1e2a; border-radius: 8px; padding: 12px;")
             h_layout = QVBoxLayout(header_card)
-            title = QLabel("🕹 Administrador de Emuladores")
+            title = QLabel(tr("dlg.emumgr.title", "🕹 Emulator Manager"))
             title.setFont(QFont("Segoe UI", 16, QFont.Bold))
             title.setStyleSheet("color: #ffffff;")
             h_layout.addWidget(title)
 
             desc = QLabel(
-                "Registrá y administrá los emuladores instalados en tu sistema. "
-                "Podés vincular ejecutables, plataformas y parámetros de línea de comandos para cada emulador."
+                tr(
+                    "dlg.emumgr.desc",
+                    "Register and manage the emulators installed on your system. "
+                    "You can link executables, platforms, and command-line parameters for each emulator.",
+                )
             )
             desc.setStyleSheet("color: #9aa5b8; font-size: 10pt;")
             desc.setWordWrap(True)
@@ -1667,7 +1847,14 @@ class EmulatorManagerWidget(QWidget):
         # Tabla de emuladores con anchos iniciales optimizados para respuesta instantánea
         self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
-            "Nombre", "Plataforma", "Ejecutable", "Argumentos", "Retardo Bezel", "Fade Bezel", "Carga (In)", "Cierre (Out)"
+            tr("dlg.emumgr.col_name", "Name"),
+            tr("dlg.emumgr.col_platform", "Platform"),
+            tr("dlg.emumgr.col_exe", "Executable"),
+            tr("dlg.emumgr.col_args", "Arguments"),
+            tr("dlg.emumgr.col_bezel_delay", "Bezel Delay"),
+            tr("dlg.emumgr.col_bezel_fade", "Bezel Fade"),
+            tr("dlg.emumgr.col_load_in", "Load (In)"),
+            tr("dlg.emumgr.col_load_out", "Exit (Out)"),
         ])
         configure_details_table(
             self.table,
@@ -1678,14 +1865,14 @@ class EmulatorManagerWidget(QWidget):
 
         # Barra de botones
         btn_row = QHBoxLayout()
-        add_btn = QPushButton("＋ Registrar nuevo emulador")
+        add_btn = QPushButton(tr("dlg.emumgr.add_btn", "＋ Register new emulator"))
         add_btn.setStyleSheet("background-color: #5d48d9; color: #ffffff; font-weight: bold; padding: 8px 16px; border-radius: 6px;")
         add_btn.clicked.connect(self.add_emulator)
 
-        edit_btn = QPushButton("✎ Editar seleccionado")
+        edit_btn = QPushButton(tr("dlg.emumgr.edit_btn", "✎ Edit selected"))
         edit_btn.clicked.connect(self.edit_selected)
 
-        del_btn = QPushButton("🗑 Eliminar seleccionado")
+        del_btn = QPushButton(tr("dlg.emumgr.del_btn", "🗑 Delete selected"))
         del_btn.clicked.connect(self.delete_selected)
 
         btn_row.addWidget(add_btn)
@@ -1713,28 +1900,24 @@ class EmulatorManagerWidget(QWidget):
                 exit_load_raw = row.get("exit_loading_time", "1.0")
                 try:
                     d_val = float(d_raw)
-                    d_str = f"{d_val:.1f} s"
                 except Exception:
                     d_val = 0.0
-                    d_str = "0.0 s"
+                d_str = tr("dlg.common.sec_short", "{val} s", val=f"{d_val:.1f}")
                 try:
                     f_val = float(f_raw)
-                    f_str = f"{f_val:.1f} s"
                 except Exception:
                     f_val = 0.3
-                    f_str = "0.3 s"
+                f_str = tr("dlg.common.sec_short", "{val} s", val=f"{f_val:.1f}")
                 try:
                     load_val = float(load_raw)
-                    load_str = f"{load_val:.1f} s"
                 except Exception:
                     load_val = 1.5
-                    load_str = "1.5 s"
+                load_str = tr("dlg.common.sec_short", "{val} s", val=f"{load_val:.1f}")
                 try:
                     exit_load_val = float(exit_load_raw)
-                    exit_load_str = f"{exit_load_val:.1f} s"
                 except Exception:
                     exit_load_val = 1.0
-                    exit_load_str = "1.0 s"
+                exit_load_str = tr("dlg.common.sec_short", "{val} s", val=f"{exit_load_val:.1f}")
 
                 item_d = SortableTableWidgetItem(d_str, sort_key=d_val)
                 item_d.setTextAlignment(Qt.AlignCenter)
@@ -1781,12 +1964,20 @@ class EmulatorManagerWidget(QWidget):
                 self.refresh()
                 self.emulators_changed.emit()
             except Exception as e:
-                QMessageBox.critical(self, "Error al registrar", f"No se pudo guardar el emulador:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("dlg.emumgr.err_add_title", "Registration error"),
+                    tr("dlg.emumgr.err_add_msg", "Could not save the emulator:\n{error}", error=e),
+                )
 
     def edit_selected(self):
         emu_id = self._get_selected_id()
         if not emu_id:
-            QMessageBox.information(self, "Seleccionar", "Seleccioná un emulador de la lista para editar.")
+            QMessageBox.information(
+                self,
+                tr("dlg.common.select_title", "Select"),
+                tr("dlg.emumgr.select_edit_msg", "Select an emulator from the list to edit."),
+            )
             return
         row = self.db.get_emulator(emu_id)
         if not row:
@@ -1814,12 +2005,20 @@ class EmulatorManagerWidget(QWidget):
                 self.refresh()
                 self.emulators_changed.emit()
             except Exception as e:
-                QMessageBox.critical(self, "Error al actualizar", f"No se pudo actualizar el emulador:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("dlg.emumgr.err_update_title", "Update error"),
+                    tr("dlg.emumgr.err_update_msg", "Could not update the emulator:\n{error}", error=e),
+                )
 
     def delete_selected(self):
         emu_id = self._get_selected_id()
         if not emu_id:
-            QMessageBox.information(self, "Seleccionar", "Seleccioná un emulador de la lista para eliminar.")
+            QMessageBox.information(
+                self,
+                tr("dlg.common.select_title", "Select"),
+                tr("dlg.emumgr.select_del_msg", "Select an emulator from the list to delete."),
+            )
             return
         row = self.db.get_emulator(emu_id)
         if not row:
@@ -1829,32 +2028,41 @@ class EmulatorManagerWidget(QWidget):
         lists_count = self.db.count_lists_using_emulator(emu_id)
         games_count = self.db.count_games_using_emulator(emu_id)
 
-        warning = f"¿Estás seguro de que deseas eliminar el emulador '{row['name']}'?"
+        warning = tr("dlg.emumgr.confirm_del_msg", "Are you sure you want to delete the emulator '{name}'?", name=row["name"])
         if lists_count > 0 or games_count > 0:
-            warning += f"\n\nAtención: Está vinculado a {lists_count} lista(s) y {games_count} juego(s).\nSu asignación pasará a 'Sin emulador'."
+            warning += "\n\n" + tr(
+                "dlg.emumgr.confirm_del_used",
+                "Warning: It is linked to {lists} list(s) and {games} game(s).\nIts assignment will change to 'No emulator'.",
+                lists=lists_count,
+                games=games_count,
+            )
 
-        answer = QMessageBox.question(self, "Confirmar eliminación", warning, QMessageBox.Yes | QMessageBox.No)
+        answer = QMessageBox.question(self, tr("dlg.common.confirm_del_title", "Confirm deletion"), warning, QMessageBox.Yes | QMessageBox.No)
         if answer == QMessageBox.Yes:
             try:
                 self.db.delete_emulator(emu_id)
                 self.refresh()
                 self.emulators_changed.emit()
             except Exception as e:
-                QMessageBox.critical(self, "Error al eliminar", f"No se pudo eliminar el emulador:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    tr("dlg.emumgr.err_del_title", "Deletion error"),
+                    tr("dlg.emumgr.err_del_msg", "Could not delete the emulator:\n{error}", error=e),
+                )
 
 
 class EmulatorManagerDialog(QDialog):
     """Diálogo completo para administrar (ver, crear, editar, eliminar) emuladores."""
     def __init__(self, db, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Administrar emuladores")
+        self.setWindowTitle(tr("dlg.emumgr.dlg_title", "Manage emulators"))
         self.resize(780, 480)
 
         layout = QVBoxLayout(self)
         self.widget = EmulatorManagerWidget(db, self, is_dialog=True)
         layout.addWidget(self.widget)
 
-        close_btn = QPushButton("Cerrar")
+        close_btn = QPushButton(tr("dlg.btn.close", "Close"))
         close_btn.clicked.connect(self.accept)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
@@ -1903,21 +2111,35 @@ class ScanWorker(QThread):
 
     def run(self):
         try:
-            self.progress_changed.emit(5, "Iniciando escaneo de carpetas...")
-            self.log_received.emit("[INICIO] Comenzando escaneo de carpetas de juegos.")
+            self.progress_changed.emit(5, tr("dlg.scan.status_starting", "Starting folder scan..."))
+            self.log_received.emit(tr("dlg.scan.log_start", "[START] Starting game folder scan."))
             for f in self.rom_folders:
-                self.log_received.emit(f"[CONFIG] Carpeta objetivo: {f}")
-            self.log_received.emit(f"[CONFIG] Extensiones: {self.exts or 'Todas'}")
-            self.log_received.emit(f"[CONFIG] Subcarpetas recursivas: {'Sí' if self.scan_subfolders else 'No'}")
-            self.log_received.emit(f"[CONFIG] Excluir si contiene .zip: {'Sí' if self.exclude_folder_if_zip else 'No'}")
+                self.log_received.emit(tr("dlg.scan.log_folder", "[CONFIG] Target folder: {folder}", folder=f))
+            exts_disp = self.exts or tr("dlg.scan.exts_all", "All")
+            self.log_received.emit(tr("dlg.scan.log_exts", "[CONFIG] Extensions: {exts}", exts=exts_disp))
+            yes_txt = tr("dlg.common.yes", "Yes")
+            no_txt = tr("dlg.common.no", "No")
+            self.log_received.emit(
+                tr("dlg.scan.log_subfolders", "[CONFIG] Recursive subfolders: {val}", val=yes_txt if self.scan_subfolders else no_txt)
+            )
+            self.log_received.emit(
+                tr("dlg.scan.log_exclude_zip", "[CONFIG] Exclude if contains .zip: {val}", val=yes_txt if self.exclude_folder_if_zip else no_txt)
+            )
             if self.xml_path:
-                self.log_received.emit(f"[CONFIG] Archivo XML asociado: {self.xml_path}")
+                self.log_received.emit(tr("dlg.scan.log_xml", "[CONFIG] Associated XML file: {path}", path=self.xml_path))
             if self.filter_rules and self.filter_rules != "[]":
-                self.log_received.emit(f"[CONFIG] Reglas de filtrado activas ({self.filter_match_mode.upper()}): {self.filter_rules}")
+                self.log_received.emit(
+                    tr(
+                        "dlg.scan.log_filters",
+                        "[CONFIG] Active filter rules ({mode}): {rules}",
+                        mode=self.filter_match_mode.upper(),
+                        rules=self.filter_rules,
+                    )
+                )
 
             def scan_cb(msg):
                 if self._cancelled:
-                    raise InterruptedError("Operación cancelada por el usuario.")
+                    raise InterruptedError(tr("dlg.scan.cancelled_err", "Operation cancelled by user."))
                 self.log_received.emit(msg)
 
             paths = scan_rom_folder(
@@ -1929,15 +2151,15 @@ class ScanWorker(QThread):
             )
 
             if self._cancelled:
-                raise InterruptedError("Operación cancelada por el usuario.")
+                raise InterruptedError(tr("dlg.scan.cancelled_err", "Operation cancelled by user."))
 
             total = len(paths)
-            self.log_received.emit(f"[SCAN] Total de archivos coincidentes encontrados: {total}")
-            self.progress_changed.emit(20, f"Procesando e importando {total} juego(s)...")
+            self.log_received.emit(tr("dlg.scan.log_found", "[SCAN] Total matching files found: {total}", total=total))
+            self.progress_changed.emit(20, tr("dlg.scan.status_importing_total", "Processing and importing {total} game(s)...", total=total))
 
             if total == 0:
-                self.progress_changed.emit(100, "Finalizado: no se encontraron archivos.")
-                self.log_received.emit("[AVISO] No se encontraron archivos de juegos que coincidan con los criterios.")
+                self.progress_changed.emit(100, tr("dlg.scan.status_empty", "Finished: no files found."))
+                self.log_received.emit(tr("dlg.scan.log_empty", "[NOTICE] No game files matching the criteria were found."))
                 self.finished_scan.emit({
                     "total_found": 0,
                     "added": 0,
@@ -1951,10 +2173,10 @@ class ScanWorker(QThread):
 
             def import_cb(curr, tot, title):
                 if self._cancelled:
-                    raise InterruptedError("Operación cancelada por el usuario.")
+                    raise InterruptedError(tr("dlg.scan.cancelled_err", "Operation cancelled by user."))
                 pct = 20 + int((curr / max(tot, 1)) * 75)
-                self.progress_changed.emit(pct, f"Importando [{curr}/{tot}]: {title}")
-                self.log_received.emit(f"[IMPORT] [{curr}/{tot}] {title}")
+                self.progress_changed.emit(pct, tr("dlg.scan.status_importing_item", "Importing [{curr}/{total}]: {title}", curr=curr, total=tot, title=title))
+                self.log_received.emit(tr("dlg.scan.log_importing_item", "[IMPORT] [{curr}/{total}] {title}", curr=curr, total=tot, title=title))
 
             stats = import_scanned_games(
                 self.db,
@@ -1967,27 +2189,27 @@ class ScanWorker(QThread):
                 filter_match_mode=self.filter_match_mode,
             )
 
-            self.progress_changed.emit(100, "¡Importación completada con éxito!")
+            self.progress_changed.emit(100, tr("dlg.scan.status_done", "Import completed successfully!"))
             self.log_received.emit("==================================================")
-            self.log_received.emit("[RESUMEN FINAL]")
-            self.log_received.emit(f"  • Total archivos encontrados: {stats['total_found']}")
-            self.log_received.emit(f"  • Juegos registrados en biblioteca: {stats['added']}")
+            self.log_received.emit(tr("dlg.scan.log_summary_header", "[FINAL SUMMARY]"))
+            self.log_received.emit(tr("dlg.scan.log_summary_found", "  • Total files found: {count}", count=stats['total_found']))
+            self.log_received.emit(tr("dlg.scan.log_summary_added", "  • Games registered in library: {count}", count=stats['added']))
             if stats.get('removed', 0) > 0:
-                self.log_received.emit(f"  • Juegos eliminados (ya no existentes): {stats['removed']}")
+                self.log_received.emit(tr("dlg.scan.log_summary_removed", "  • Games removed (no longer existing): {count}", count=stats['removed']))
             if stats.get('skipped', 0) > 0:
-                self.log_received.emit(f"  • Juegos omitidos (sin cambios): {stats['skipped']}")
+                self.log_received.emit(tr("dlg.scan.log_summary_skipped", "  • Games skipped (unchanged): {count}", count=stats['skipped']))
             if stats.get('filtered_out', 0) > 0:
-                self.log_received.emit(f"  • Descartados por filtros de la lista: {stats['filtered_out']}")
+                self.log_received.emit(tr("dlg.scan.log_summary_filtered", "  • Filtered out by list rules: {count}", count=stats['filtered_out']))
             if stats.get('xml_matched', 0) > 0:
-                self.log_received.emit(f"  • Juegos vinculados con datos XML: {stats['xml_matched']}")
+                self.log_received.emit(tr("dlg.scan.log_summary_xml", "  • Games linked with XML data: {count}", count=stats['xml_matched']))
             self.log_received.emit("==================================================")
             self.finished_scan.emit(stats)
 
         except InterruptedError:
-            self.log_received.emit("[CANCELADO] El proceso fue cancelado por el usuario.")
-            self.error_occurred.emit("Operación cancelada por el usuario.")
+            self.log_received.emit(tr("dlg.scan.log_cancelled", "[CANCELLED] The process was cancelled by the user."))
+            self.error_occurred.emit(tr("dlg.scan.cancelled_err", "Operation cancelled by user."))
         except Exception as e:
-            self.log_received.emit(f"[ERROR CRÍTICO] {e}")
+            self.log_received.emit(tr("dlg.scan.log_error", "[CRITICAL ERROR] {error}", error=e))
             self.error_occurred.emit(str(e))
 
 
@@ -2012,7 +2234,7 @@ class ScanProgressDialog(QDialog):
         filter_match_mode: str = "all",
     ):
         super().__init__(parent)
-        self.setWindowTitle(f"Procesando lista: {list_name}")
+        self.setWindowTitle(tr("dlg.scan_prog.title", "Processing list: {name}", name=list_name))
         self.resize(700, 520)
         self.setMinimumSize(560, 420)
         self.setModal(True)
@@ -2024,8 +2246,10 @@ class ScanProgressDialog(QDialog):
         layout.setSpacing(10)
 
         # Encabezado informativo
-        header_title = QLabel(f"<b style='font-size: 15px; color: #f1f5f9;'>Procesando biblioteca: {list_name}</b>")
-        self.status_lbl = QLabel("Iniciando escaneo e importación de juegos...")
+        header_title = QLabel(
+            tr("dlg.scan_prog.header", "<b style='font-size: 15px; color: #f1f5f9;'>Processing library: {name}</b>", name=list_name)
+        )
+        self.status_lbl = QLabel(tr("dlg.scan_prog.init_status", "Starting game scan and import..."))
         self.status_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
         layout.addWidget(header_title)
         layout.addWidget(self.status_lbl)
@@ -2054,7 +2278,7 @@ class ScanProgressDialog(QDialog):
         layout.addWidget(self.progress_bar)
 
         # Pantalla de debug en tiempo real
-        debug_group = QGroupBox("Consola de depuración en vivo (Debug)")
+        debug_group = QGroupBox(tr("dlg.scan_prog.debug_group", "Live Debug Console"))
         debug_group.setStyleSheet("QGroupBox { font-weight: bold; color: #cbd5e1; }")
         debug_vbox = QVBoxLayout(debug_group)
         debug_vbox.setContentsMargins(8, 8, 8, 8)
@@ -2080,9 +2304,9 @@ class ScanProgressDialog(QDialog):
 
         # Botones inferiores
         btn_layout = QHBoxLayout()
-        self.cancel_btn = QPushButton("Cancelar")
+        self.cancel_btn = QPushButton(tr("dlg.btn.cancel", "Cancel"))
         self.cancel_btn.clicked.connect(self._on_cancel)
-        self.accept_btn = QPushButton("Aceptar")
+        self.accept_btn = QPushButton(tr("dlg.btn.ok", "OK"))
         self.accept_btn.setEnabled(False)
         self.accept_btn.setStyleSheet("""
             QPushButton:enabled {
@@ -2133,7 +2357,7 @@ class ScanProgressDialog(QDialog):
         self.stats = stats
         self.cancel_btn.setEnabled(False)
         self.accept_btn.setEnabled(True)
-        self.status_lbl.setText("¡Proceso finalizado! Podés revisar el registro arriba y hacer clic en Aceptar.")
+        self.status_lbl.setText(tr("dlg.scan_prog.done_status", "Process finished! You can review the log above and click OK."))
         self.status_lbl.setStyleSheet("color: #4ade80; font-weight: bold;")
         self.accept_btn.setFocus()
 
@@ -2141,13 +2365,13 @@ class ScanProgressDialog(QDialog):
         self.error_msg = err_msg
         self.cancel_btn.setEnabled(False)
         self.accept_btn.setEnabled(True)
-        self.status_lbl.setText(f"Aviso / Error: {err_msg}")
+        self.status_lbl.setText(tr("dlg.scan_prog.err_status", "Notice / Error: {error}", error=err_msg))
         self.status_lbl.setStyleSheet("color: #f87171; font-weight: bold;")
         self.accept_btn.setFocus()
 
     def _on_cancel(self):
         self.cancel_btn.setEnabled(False)
-        self.status_lbl.setText("Cancelando operación...")
+        self.status_lbl.setText(tr("dlg.scan_prog.cancelling", "Cancelling operation..."))
         self.worker.cancel()
 
     def closeEvent(self, event):
@@ -2161,42 +2385,53 @@ class ScanSummaryDialog(QDialog):
     """Diálogo informativo con el resumen completo del escaneo de carpeta(s)."""
     def __init__(self, parent, stats: dict, folder: str, list_name: str, allowed_exts: str):
         super().__init__(parent)
-        self.setWindowTitle("Resumen de escaneo de juegos")
+        self.setWindowTitle(tr("dlg.scan_sum.title", "Game scan summary"))
         self.setMinimumWidth(500)
 
         layout = QVBoxLayout(self)
 
-        title = QLabel(f"<h2>Escaneo completado para: {list_name}</h2>")
+        title = QLabel(tr("dlg.scan_sum.header", "<h2>Scan completed for: {name}</h2>", name=list_name))
         layout.addWidget(title)
 
         folders_parsed = parse_rom_folders(folder)
-        folders_label_title = "Carpetas examinadas:" if len(folders_parsed) > 1 else "Carpeta examinada:"
+        folders_label_title = (
+            tr("dlg.scan_sum.folders_label", "Folders scanned:")
+            if len(folders_parsed) > 1
+            else tr("dlg.scan_sum.folder_label", "Folder scanned:")
+        )
         folders_display = "<br>".join(f"• {f}" for f in folders_parsed) if len(folders_parsed) > 1 else (folders_parsed[0] if folders_parsed else folder)
 
-        box = QGroupBox("Detalles de la importación")
+        box = QGroupBox(tr("dlg.scan_sum.details_group", "Import details"))
         form = QFormLayout(box)
         lbl_folders = QLabel(folders_display)
         lbl_folders.setWordWrap(True)
         form.addRow(folders_label_title, lbl_folders)
-        form.addRow("Extensiones permitidas:", QLabel(allowed_exts))
-        form.addRow("Archivos coincidentes encontrados:", QLabel(f"<b>{stats['total_found']}</b>"))
-        form.addRow("Juegos registrados en la lista:", QLabel(f"<b style='color: #4cd964;'>{stats['added']}</b>"))
+        form.addRow(tr("dlg.scan_sum.allowed_exts", "Allowed extensions:"), QLabel(allowed_exts))
+        form.addRow(tr("dlg.scan_sum.found_files", "Matching files found:"), QLabel(f"<b>{stats['total_found']}</b>"))
+        form.addRow(tr("dlg.scan_sum.registered_games", "Games registered in list:"), QLabel(f"<b style='color: #4cd964;'>{stats['added']}</b>"))
         if stats.get("removed", 0) > 0:
-            form.addRow("Juegos anteriores eliminados:", QLabel(f"<b style='color: #f87171;'>{stats['removed']}</b>"))
+            form.addRow(tr("dlg.scan_sum.removed_games", "Previous games removed:"), QLabel(f"<b style='color: #f87171;'>{stats['removed']}</b>"))
         if stats.get("skipped", 0) > 0:
-            form.addRow("Archivos omitidos:", QLabel(f"<b>{stats['skipped']}</b>"))
+            form.addRow(tr("dlg.scan_sum.skipped_files", "Files skipped:"), QLabel(f"<b>{stats['skipped']}</b>"))
         if stats.get("filtered_out", 0) > 0:
-            form.addRow("Descartados por filtros:", QLabel(f"<b style='color: #f59e0b;'>{stats['filtered_out']}</b>"))
+            form.addRow(tr("dlg.scan_sum.filtered_out", "Filtered out:"), QLabel(f"<b style='color: #f59e0b;'>{stats['filtered_out']}</b>"))
         if stats.get("xml_total_entries", 0) > 0 or stats.get("xml_matched", 0) > 0:
             xml_matched = stats.get("xml_matched", 0)
             xml_total = stats.get("xml_total_entries", 0)
             form.addRow(
-                "Asociados con XML (nombre y propiedades):",
-                QLabel(f"<b style='color: #a5b4fc;'>{xml_matched}</b> <span style='color: #8a93a8;'>(de {xml_total} en XML)</span>")
+                tr("dlg.scan_sum.xml_matched", "Matched with XML (name and metadata):"),
+                QLabel(
+                    tr(
+                        "dlg.scan_sum.xml_matched_val",
+                        "<b style='color: #a5b4fc;'>{matched}</b> <span style='color: #8a93a8;'>(of {total} in XML)</span>",
+                        matched=xml_matched,
+                        total=xml_total,
+                    )
+                )
             )
         layout.addWidget(box)
 
-        btn = QPushButton("Aceptar")
+        btn = QPushButton(tr("dlg.btn.ok", "OK"))
         btn.clicked.connect(self.accept)
         layout.addWidget(btn, alignment=Qt.AlignRight)
 
@@ -2208,76 +2443,76 @@ class GameEditDialog(QDialog):
         self.db = db
         self.game = dict(game) if hasattr(game, "keys") else game
         game = self.game
-        self.setWindowTitle(f"Editar juego: {game['title']}")
+        self.setWindowTitle(tr("dlg.game.title", "Edit game: {title}", title=game['title']))
         self.setMinimumWidth(600)
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
 
         self.title_edit = QLineEdit(game["title"])
-        form.addRow("Título completo *", self.title_edit)
+        form.addRow(tr("dlg.game.full_title_label", "Full title *"), self.title_edit)
 
         rom_code = game.get("rom_name") or (Path(game["rom_path"]).stem if game.get("rom_path") else "")
         self.rom_name_edit = QLineEdit(rom_code)
-        self.rom_name_edit.setPlaceholderText("Denominación corta de la ROM (ej: sf2)")
-        form.addRow("Denominación ROM", self.rom_name_edit)
+        self.rom_name_edit.setPlaceholderText(tr("dlg.game.rom_name_placeholder", "Short ROM identifier (e.g., sf2)"))
+        form.addRow(tr("dlg.game.rom_name_label", "ROM name"), self.rom_name_edit)
 
         self.path_edit = QLineEdit(game["rom_path"])
-        browse_btn = QPushButton("Examinar…")
+        browse_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_btn.clicked.connect(self.pick_file)
         path_box = QHBoxLayout()
         path_box.addWidget(self.path_edit, 1)
         path_box.addWidget(browse_btn)
         path_holder = QWidget()
         path_holder.setLayout(path_box)
-        form.addRow("Ruta del archivo", path_holder)
+        form.addRow(tr("dlg.game.file_path_label", "File path"), path_holder)
 
         # Propiedades del juego (provenientes del XML o editables manualmente)
-        meta_group = QGroupBox("Propiedades del Juego (XML / Metadatos)")
+        meta_group = QGroupBox(tr("dlg.game.meta_group", "Game Properties (XML / Metadata)"))
         meta_form = QFormLayout(meta_group)
 
         row_ym = QHBoxLayout()
         self.year_edit = QLineEdit(game.get("year") or "")
-        self.year_edit.setPlaceholderText("Ej: 1991")
+        self.year_edit.setPlaceholderText(tr("dlg.game.year_placeholder", "e.g., 1991"))
         self.year_edit.setFixedWidth(100)
         self.manufacturer_edit = QLineEdit(game.get("manufacturer") or "")
-        self.manufacturer_edit.setPlaceholderText("Ej: Capcom, Konami, Sega...")
+        self.manufacturer_edit.setPlaceholderText(tr("dlg.game.manufacturer_placeholder", "e.g., Capcom, Konami, Sega..."))
         row_ym.addWidget(self.year_edit)
-        row_ym.addWidget(QLabel("Fabricante:"))
+        row_ym.addWidget(QLabel(tr("dlg.game.manufacturer_label", "Manufacturer:")))
         row_ym.addWidget(self.manufacturer_edit, 1)
         ym_widget = QWidget()
         ym_widget.setLayout(row_ym)
-        meta_form.addRow("Año:", ym_widget)
+        meta_form.addRow(tr("dlg.game.year_label", "Year:"), ym_widget)
 
         row_gp = QHBoxLayout()
         self.genre_edit = QLineEdit(game.get("genre") or "")
-        self.genre_edit.setPlaceholderText("Ej: Fighter, Shooter, Platform...")
+        self.genre_edit.setPlaceholderText(tr("dlg.game.genre_placeholder", "e.g., Fighter, Shooter, Platform..."))
         self.players_edit = QLineEdit(game.get("players") or "")
-        self.players_edit.setPlaceholderText("Ej: 1-2")
+        self.players_edit.setPlaceholderText(tr("dlg.game.players_placeholder", "e.g., 1-2"))
         self.players_edit.setFixedWidth(90)
         row_gp.addWidget(self.genre_edit, 1)
-        row_gp.addWidget(QLabel("Jugadores:"))
+        row_gp.addWidget(QLabel(tr("dlg.game.players_label", "Players:")))
         row_gp.addWidget(self.players_edit)
         gp_widget = QWidget()
         gp_widget.setLayout(row_gp)
-        meta_form.addRow("Género:", gp_widget)
+        meta_form.addRow(tr("dlg.game.genre_label", "Genre:"), gp_widget)
 
         row_cr = QHBoxLayout()
         self.cloneof_edit = QLineEdit(game.get("cloneof") or "")
-        self.cloneof_edit.setPlaceholderText("ROM padre (si es clon)")
+        self.cloneof_edit.setPlaceholderText(tr("dlg.game.cloneof_placeholder", "Parent ROM (if clone)"))
         self.rating_edit = QLineEdit(game.get("rating") or "")
-        self.rating_edit.setPlaceholderText("Clasificación / Rating")
+        self.rating_edit.setPlaceholderText(tr("dlg.game.rating_placeholder", "Classification / Rating"))
         self.crc_edit = QLineEdit(game.get("crc") or "")
-        self.crc_edit.setPlaceholderText("CRC")
+        self.crc_edit.setPlaceholderText(tr("dlg.game.crc_placeholder", "CRC"))
         self.crc_edit.setFixedWidth(95)
         row_cr.addWidget(self.cloneof_edit, 1)
-        row_cr.addWidget(QLabel("Rating:"))
+        row_cr.addWidget(QLabel(tr("dlg.game.rating_label", "Rating:")))
         row_cr.addWidget(self.rating_edit, 1)
-        row_cr.addWidget(QLabel("CRC:"))
+        row_cr.addWidget(QLabel(tr("dlg.game.crc_label", "CRC:")))
         row_cr.addWidget(self.crc_edit)
         cr_widget = QWidget()
         cr_widget.setLayout(row_cr)
-        meta_form.addRow("Clon de:", cr_widget)
+        meta_form.addRow(tr("dlg.game.cloneof_label", "Clone of:"), cr_widget)
 
         sourcefile_val = game.get("sourcefile") or ""
         if not sourcefile_val:
@@ -2289,14 +2524,14 @@ class GameEditDialog(QDialog):
             except Exception:
                 pass
         self.sourcefile_edit = QLineEdit(sourcefile_val)
-        self.sourcefile_edit.setPlaceholderText("Archivo fuente driver MAME (ej: capcom/cps1.cpp, neogeo.cpp)")
-        meta_form.addRow("Sourcefile:", self.sourcefile_edit)
+        self.sourcefile_edit.setPlaceholderText(tr("dlg.game.sourcefile_placeholder", "MAME driver source file (e.g., capcom/cps1.cpp, neogeo.cpp)"))
+        meta_form.addRow(tr("dlg.game.sourcefile_label", "Sourcefile:"), self.sourcefile_edit)
 
         # Orientación de pantalla (útil para Bezel HUD vertical/horizontal)
         self.orientation_combo = QComboBox()
-        self.orientation_combo.addItem("Automático (según XML / Metadatos)", "")
-        self.orientation_combo.addItem("Horizontal (Estándar)", "horizontal")
-        self.orientation_combo.addItem("Vertical (TATE)", "vertical")
+        self.orientation_combo.addItem(tr("dlg.game.orient_auto", "Automatic (from XML / Metadata)"), "")
+        self.orientation_combo.addItem(tr("dlg.game.orient_h", "Horizontal (Standard)"), "horizontal")
+        self.orientation_combo.addItem(tr("dlg.game.orient_v", "Vertical (TATE)"), "vertical")
         cur_orient = ""
         meta_json_raw = game.get("xml_metadata") or "{}"
         try:
@@ -2308,86 +2543,94 @@ class GameEditDialog(QDialog):
         idx_or = self.orientation_combo.findData(cur_orient.lower())
         if idx_or >= 0:
             self.orientation_combo.setCurrentIndex(idx_or)
-        meta_form.addRow("Orientación:", self.orientation_combo)
+        meta_form.addRow(tr("dlg.game.orient_label", "Orientation:"), self.orientation_combo)
 
         self.override_combo = QComboBox()
-        self.override_combo.addItem("Heredar emulador de la lista (por defecto)", None)
+        self.override_combo.addItem(tr("dlg.game.inherit_emu", "Inherit list emulator (default)"), None)
         emulators = self.db.get_emulators()
         for emu in emulators:
             self.override_combo.addItem(f"{emu['name']} ({emu['executable']})", emu["id"])
         idx = self.override_combo.findData(game["emulator_override_id"])
         if idx >= 0:
             self.override_combo.setCurrentIndex(idx)
-        form.addRow("Emulador individual", self.override_combo)
+        form.addRow(tr("dlg.game.override_emu_label", "Individual emulator"), self.override_combo)
 
         self.bezel_hud_combo = QComboBox()
-        self.bezel_hud_combo.addItem("Heredar de la lista (por defecto)", "")
-        self.bezel_hud_combo.addItem("Activar Bezel HUD (Forzar para este juego)", "enabled")
-        self.bezel_hud_combo.addItem("Desactivar Bezel HUD (No mostrar)", "disabled")
+        self.bezel_hud_combo.addItem(tr("dlg.game.bezel_inherit", "Inherit from list (default)"), "")
+        self.bezel_hud_combo.addItem(tr("dlg.game.bezel_enable", "Enable Bezel HUD (Force for this game)"), "enabled")
+        self.bezel_hud_combo.addItem(tr("dlg.game.bezel_disable", "Disable Bezel HUD (Do not show)"), "disabled")
         idx_bh = self.bezel_hud_combo.findData(game.get("bezel_hud_mode") or "")
         if idx_bh >= 0:
             self.bezel_hud_combo.setCurrentIndex(idx_bh)
-        form.addRow("Bezel HUD (Marco)", self.bezel_hud_combo)
+        form.addRow(tr("dlg.game.bezel_hud_label", "Bezel HUD (Frame)"), self.bezel_hud_combo)
 
         self.args_edit = QLineEdit(game["launch_arguments"] or "")
-        self.args_edit.setPlaceholderText("Dejar vacío para usar los argumentos del emulador")
-        form.addRow("Argumentos propios", self.args_edit)
+        self.args_edit.setPlaceholderText(tr("dlg.game.args_placeholder", "Leave empty to use the emulator's arguments"))
+        form.addRow(tr("dlg.game.args_label", "Custom arguments"), self.args_edit)
 
         self.notes_edit = QTextEdit(game["notes"] or "")
         self.notes_edit.setMaximumHeight(70)
-        form.addRow("Notas / Sinopsis", self.notes_edit)
+        form.addRow(tr("dlg.game.notes_label", "Notes / Synopsis"), self.notes_edit)
 
-        self.favorite_cb = QCheckBox("⭐ Marcar como juego favorito")
+        self.favorite_cb = QCheckBox(tr("dlg.game.favorite_cb", "⭐ Mark as favorite game"))
         self.favorite_cb.setChecked(bool(int(game.get("is_favorite") or 0)))
-        form.addRow("Favorito", self.favorite_cb)
+        form.addRow(tr("dlg.game.favorite_label", "Favorite"), self.favorite_cb)
 
         self.tags_edit = QLineEdit(game.get("tags") or "")
-        self.tags_edit.setPlaceholderText("Etiquetas separadas por coma (ej: arcade, coop, local)")
-        form.addRow("Etiquetas", self.tags_edit)
+        self.tags_edit.setPlaceholderText(tr("dlg.game.tags_placeholder", "Comma-separated tags (e.g., arcade, coop, local)"))
+        form.addRow(tr("dlg.game.tags_label", "Tags"), self.tags_edit)
 
         manual_row = QHBoxLayout()
         self.manual_file_edit = QLineEdit(game.get("manual_file_path") or "")
-        self.manual_file_edit.setPlaceholderText("Ruta explícita de manual PDF individual (opcional)")
-        btn_pick_manual = QPushButton("📄 PDF…")
+        self.manual_file_edit.setPlaceholderText(tr("dlg.game.manual_placeholder", "Explicit path to individual PDF manual (optional)"))
+        btn_pick_manual = QPushButton(tr("dlg.game.manual_pick_btn", "📄 PDF…"))
         btn_pick_manual.clicked.connect(self._pick_manual_pdf)
-        btn_view_manual = QPushButton("📖 Ver")
-        btn_view_manual.setToolTip("Abrir el manual PDF en el visor integrado")
+        btn_view_manual = QPushButton(tr("dlg.game.manual_view_btn", "📖 View"))
+        btn_view_manual.setToolTip(tr("dlg.game.manual_view_tooltip", "Open the PDF manual in the built-in viewer"))
         btn_view_manual.clicked.connect(self._open_manual_preview)
         manual_row.addWidget(self.manual_file_edit, 1)
         manual_row.addWidget(btn_pick_manual)
         manual_row.addWidget(btn_view_manual)
-        form.addRow("Manual PDF (individual)", manual_row)
+        form.addRow(tr("dlg.game.manual_label", "PDF Manual (individual)"), manual_row)
 
         layout.addLayout(form)
         layout.addWidget(meta_group)
 
         from playnexus.db import format_play_time
-        stats_group = QGroupBox("Actividad y Telemetría")
+        stats_group = QGroupBox(tr("dlg.game.stats_group", "Activity & Telemetry"))
         stats_layout = QHBoxLayout(stats_group)
         play_count = int(game.get("play_count") or 0)
         play_time_txt = format_play_time(game.get("play_time_seconds") or 0)
-        last_played_txt = str(game.get("last_played") or "").strip() or "Nunca"
+        last_played_txt = str(game.get("last_played") or "").strip() or tr("dlg.game.never_played", "Never")
         self.stats_summary_label = QLabel(
-            f"<b>Partidas:</b> {play_count}   ·   <b>Tiempo:</b> {play_time_txt}   ·   <b>Última sesión:</b> {last_played_txt}"
+            tr(
+                "dlg.game.stats_summary",
+                "<b>Plays:</b> {plays}   ·   <b>Time:</b> {time}   ·   <b>Last session:</b> {last}",
+                plays=play_count,
+                time=play_time_txt,
+                last=last_played_txt,
+            )
         )
         self.stats_summary_label.setStyleSheet("color: #cbd5e1;")
         stats_layout.addWidget(self.stats_summary_label, 1)
-        reset_stats_btn = QPushButton("↺ Reiniciar stats")
-        reset_stats_btn.setToolTip("Poner en cero las partidas y el tiempo jugado de este juego")
+        reset_stats_btn = QPushButton(tr("dlg.game.reset_stats_btn", "↺ Reset stats"))
+        reset_stats_btn.setToolTip(tr("dlg.game.reset_stats_tooltip", "Reset play count and playtime for this game to zero"))
         reset_stats_btn.clicked.connect(self._reset_telemetry)
         stats_layout.addWidget(reset_stats_btn)
         layout.addWidget(stats_group)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        _localize_dialog_buttons(buttons)
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
     def _reset_telemetry(self):
+        from playnexus.db import format_play_time
         answer = QMessageBox.question(
             self,
-            "Reiniciar estadísticas",
-            f"¿Querés reiniciar a 0 las partidas y el tiempo jugado de '{self.game['title']}'?",
+            tr("dlg.game.reset_stats_title", "Reset statistics"),
+            tr("dlg.game.reset_stats_msg", "Do you want to reset plays and playtime to 0 for '{title}'?", title=self.game['title']),
             QMessageBox.Yes | QMessageBox.No,
         )
         if answer == QMessageBox.Yes and self.db and self.game.get("id"):
@@ -2396,11 +2639,22 @@ class GameEditDialog(QDialog):
                 self.game["play_time_seconds"] = 0
                 self.game["last_played"] = ""
                 self.stats_summary_label.setText(
-                    "<b>Partidas:</b> 0   ·   <b>Tiempo:</b> 0 min   ·   <b>Última sesión:</b> Nunca"
+                    tr(
+                        "dlg.game.stats_summary",
+                        "<b>Plays:</b> {plays}   ·   <b>Time:</b> {time}   ·   <b>Last session:</b> {last}",
+                        plays=0,
+                        time=format_play_time(0),
+                        last=tr("dlg.game.never_played", "Never"),
+                    )
                 )
 
     def pick_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Seleccionar archivo de juego", "", "Todos los archivos (*.*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("dlg.game.pick_file_title", "Select game file"),
+            "",
+            tr("dlg.common.all_files_filter", "All files (*.*)"),
+        )
         if path:
             self.path_edit.setText(path)
 
@@ -2409,7 +2663,11 @@ class GameEditDialog(QDialog):
         title = self.title_edit.text().strip()
         path = self.path_edit.text().strip()
         if not title or not path:
-            QMessageBox.warning(self, "Campos requeridos", "El título y la ruta del archivo son obligatorios.")
+            QMessageBox.warning(
+                self,
+                tr("dlg.game.err_required_title", "Required fields"),
+                tr("dlg.game.err_required_msg", "Title and file path are required."),
+            )
             return
 
         rom_name = self.rom_name_edit.text().strip() or Path(path).stem
@@ -2484,16 +2742,20 @@ class GameEditDialog(QDialog):
             )
             self.accept()
         except Exception as e:
-            QMessageBox.critical(self, "Error al guardar", f"No se pudo guardar la información del juego:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("dlg.game.err_save_title", "Save error"),
+                tr("dlg.game.err_save_msg", "Could not save game information:\n{error}", error=e),
+            )
 
     def _pick_manual_pdf(self):
         cur = self.manual_file_edit.text().strip()
         start_dir = str(Path(cur).parent) if cur and Path(cur).parent.is_dir() else ""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Seleccionar Manual PDF individual",
+            tr("dlg.game.pick_manual_title", "Select individual PDF Manual"),
             start_dir,
-            "Manuales PDF (*.pdf);;Todos los archivos (*.*)",
+            tr("dlg.game.pick_manual_filter", "PDF Manuals (*.pdf);;All files (*.*)"),
         )
         if path:
             self.manual_file_edit.setText(path)
@@ -2510,8 +2772,8 @@ class GameEditDialog(QDialog):
         if not pdf:
             QMessageBox.information(
                 self,
-                "Sin manual PDF",
-                "Todavía no hay ningún archivo .pdf asignado para este juego.",
+                tr("dlg.game.no_manual_title", "No PDF manual"),
+                tr("dlg.game.no_manual_msg", "No .pdf file has been assigned to this game yet."),
             )
             return
         dlg = ManualViewerDialog(
@@ -2523,29 +2785,36 @@ class GameEditDialog(QDialog):
         dlg.exec()
 
 
-RESOLUTIONS_LIST = [
-    ("Nativa / Automática (Recomendado)", "native"),
-    ("3840 x 2160 (4K Ultra HD - 16:9)", "3840x2160"),
-    ("2560 x 1440 (2K QHD - 16:9)", "2560x1440"),
-    ("1920 x 1080 (Full HD 1080p - 16:9)", "1920x1080"),
-    ("1600 x 900 (HD+ - 16:9)", "1600x900"),
-    ("1366 x 768 (Laptop HD - 16:9)", "1366x768"),
-    ("1280 x 720 (HD 720p - 16:9)", "1280x720"),
-    ("1920 x 1200 (WUXGA - 16:10)", "1920x1200"),
-    ("1680 x 1050 (16:10)", "1680x1050"),
-    ("1280 x 800 (16:10)", "1280x800"),
-    ("1280 x 1024 (SXGA - 5:4)", "1280x1024"),
-    ("1024 x 768 (XGA - 4:3)", "1024x768"),
-    ("800 x 600 (SVGA - 4:3)", "800x600"),
-    ("640 x 480 (VGA - 4:3)", "640x480"),
-    ("Personalizada...", "custom"),
-]
+def _get_resolutions_list() -> list[tuple[str, str]]:
+    return [
+        (tr("dlg.video.res_native", "Native / Automatic (Recommended)"), "native"),
+        ("3840 x 2160 (4K Ultra HD - 16:9)", "3840x2160"),
+        ("2560 x 1440 (2K QHD - 16:9)", "2560x1440"),
+        ("1920 x 1080 (Full HD 1080p - 16:9)", "1920x1080"),
+        ("1600 x 900 (HD+ - 16:9)", "1600x900"),
+        ("1366 x 768 (Laptop HD - 16:9)", "1366x768"),
+        ("1280 x 720 (HD 720p - 16:9)", "1280x720"),
+        ("1920 x 1200 (WUXGA - 16:10)", "1920x1200"),
+        ("1680 x 1050 (16:10)", "1680x1050"),
+        ("1280 x 800 (16:10)", "1280x800"),
+        ("1280 x 1024 (SXGA - 5:4)", "1280x1024"),
+        ("1024 x 768 (XGA - 4:3)", "1024x768"),
+        ("800 x 600 (SVGA - 4:3)", "800x600"),
+        ("640 x 480 (VGA - 4:3)", "640x480"),
+        (tr("dlg.video.res_custom", "Custom..."), "custom"),
+    ]
 
-SCREEN_MODES = [
-    ("Pantalla completa (Fullscreen)", "fullscreen"),
-    ("Ventana sin bordes (Borderless)", "borderless"),
-    ("Modo Ventana (Windowed)", "windowed"),
-]
+
+def _get_screen_modes() -> list[tuple[str, str]]:
+    return [
+        (tr("dlg.video.mode_fullscreen", "Fullscreen"), "fullscreen"),
+        (tr("dlg.video.mode_borderless", "Borderless Window"), "borderless"),
+        (tr("dlg.video.mode_windowed", "Windowed Mode"), "windowed"),
+    ]
+
+
+RESOLUTIONS_LIST = _get_resolutions_list()
+SCREEN_MODES = _get_screen_modes()
 
 
 class VideoSettingsDialog(QDialog):
@@ -2556,19 +2825,22 @@ class VideoSettingsDialog(QDialog):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
-        self.setWindowTitle("Configuración de Video y Pantalla")
+        self.setWindowTitle(tr("dlg.video.title", "Video & Display Settings"))
         self.setMinimumWidth(540)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(14)
 
-        header = QLabel("<b>Configuración de Video del Frontend</b>")
+        header = QLabel(tr("dlg.video.header", "<b>Frontend Video Settings</b>"))
         header.setStyleSheet("font-size: 11pt; color: #f1f3f9;")
         layout.addWidget(header)
 
         desc = QLabel(
-            "Configurá la resolución, modo de pantalla completa y monitor "
-            "con el que se ejecutará el Frontend de juegos (PlayNexus_Launcher.bat)."
+            tr(
+                "dlg.video.desc",
+                "Configure the resolution, fullscreen mode, and display "
+                "used when launching the game Frontend (PlayNexus_Launcher.bat).",
+            )
         )
         desc.setStyleSheet("color: #9aa5b8; font-size: 9pt;")
         desc.setWordWrap(True)
@@ -2579,17 +2851,17 @@ class VideoSettingsDialog(QDialog):
 
         # 1. Modo de Pantalla
         self.mode_combo = QComboBox()
-        for label, val in SCREEN_MODES:
+        for label, val in _get_screen_modes():
             self.mode_combo.addItem(label, val)
         self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
-        form.addRow("Modo de pantalla:", self.mode_combo)
+        form.addRow(tr("dlg.video.mode_label", "Display mode:"), self.mode_combo)
 
         # 2. Resolución
         self.res_combo = QComboBox()
-        for label, val in RESOLUTIONS_LIST:
+        for label, val in _get_resolutions_list():
             self.res_combo.addItem(label, val)
         self.res_combo.currentIndexChanged.connect(self._on_res_changed)
-        form.addRow("Resolución:", self.res_combo)
+        form.addRow(tr("dlg.video.res_label", "Resolution:"), self.res_combo)
 
         # 3. Resolución personalizada (ancho x alto)
         self.custom_row = QWidget()
@@ -2603,11 +2875,11 @@ class VideoSettingsDialog(QDialog):
         self.height_spin.setRange(480, 4320)
         self.height_spin.setValue(1080)
         self.height_spin.setSuffix(" px")
-        custom_layout.addWidget(QLabel("Ancho:"))
+        custom_layout.addWidget(QLabel(tr("dlg.video.width_label", "Width:")))
         custom_layout.addWidget(self.width_spin)
-        custom_layout.addWidget(QLabel("Alto:"))
+        custom_layout.addWidget(QLabel(tr("dlg.video.height_label", "Height:")))
         custom_layout.addWidget(self.height_spin)
-        form.addRow("Tamaño personalizado:", self.custom_row)
+        form.addRow(tr("dlg.video.custom_size_label", "Custom size:"), self.custom_row)
         self.custom_row.setVisible(False)
 
         # 4. Monitor / Pantalla de destino
@@ -2616,20 +2888,35 @@ class VideoSettingsDialog(QDialog):
         primary = QGuiApplication.primaryScreen()
         for idx, scr in enumerate(screens):
             geo = scr.geometry()
-            tag = " [Principal]" if scr == primary else ""
-            self.screen_combo.addItem(f"Monitor {idx + 1}: {geo.width()}x{geo.height()} ({scr.name()}){tag}", idx)
+            tag = tr("dlg.video.monitor_primary", " [Primary]") if scr == primary else ""
+            self.screen_combo.addItem(
+                tr(
+                    "dlg.video.monitor_item",
+                    "Monitor {num}: {w}x{h} ({name}){tag}",
+                    num=idx + 1,
+                    w=geo.width(),
+                    h=geo.height(),
+                    name=scr.name(),
+                    tag=tag,
+                ),
+                idx,
+            )
         self.screen_combo.currentIndexChanged.connect(self._update_info)
-        form.addRow("Monitor de destino:", self.screen_combo)
+        form.addRow(tr("dlg.video.monitor_label", "Target display:"), self.screen_combo)
 
         # 5. Escala de interfaz (UI Scale)
         self.scale_combo = QComboBox()
-        self.scale_combo.addItems(["100% (Normal)", "125%", "150%", "175%", "200% (4K)"])
-        form.addRow("Escala de la interfaz:", self.scale_combo)
+        self.scale_combo.addItem(tr("dlg.video.scale_100", "100% (Normal)"), "100% (Normal)")
+        self.scale_combo.addItem("125%", "125%")
+        self.scale_combo.addItem("150%", "150%")
+        self.scale_combo.addItem("175%", "175%")
+        self.scale_combo.addItem(tr("dlg.video.scale_200", "200% (4K)"), "200% (4K)")
+        form.addRow(tr("dlg.video.scale_label", "Interface scale:"), self.scale_combo)
 
         layout.addLayout(form)
 
         # Nota informativa
-        note_box = QGroupBox("Resumen de visualización")
+        note_box = QGroupBox(tr("dlg.video.summary_group", "Display summary"))
         note_layout = QVBoxLayout(note_box)
         self.info_label = QLabel()
         self.info_label.setStyleSheet("color: #a0aec0; font-size: 9pt;")
@@ -2639,6 +2926,7 @@ class VideoSettingsDialog(QDialog):
 
         # Botones
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        _localize_dialog_buttons(buttons)
         buttons.accepted.connect(self.save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -2664,19 +2952,40 @@ class VideoSettingsDialog(QDialog):
         s_idx = self.screen_combo.currentIndex()
         cur_screen = screens[s_idx] if 0 <= s_idx < len(screens) else QGuiApplication.primaryScreen()
         geo = cur_screen.geometry() if cur_screen else None
-        geo_str = f"{geo.width()}x{geo.height()}" if geo else "pantalla"
+        geo_str = f"{geo.width()}x{geo.height()}" if geo else tr("dlg.video.screen_fallback", "display")
 
         if mode == "fullscreen":
-            msg = f"El Frontend iniciará a <b>Pantalla completa</b> ocupando todo el monitor ({geo_str}). Ideal para gabinetes arcade y televisores."
+            msg = tr(
+                "dlg.video.info_fullscreen",
+                "The Frontend will start in <b>Fullscreen</b> filling the entire display ({geo}). Ideal for arcade cabinets and TVs.",
+                geo=geo_str,
+            )
         elif mode == "borderless":
-            msg = f"El Frontend iniciará en <b>Ventana sin bordes</b> adaptada a la resolución del monitor ({geo_str})."
+            msg = tr(
+                "dlg.video.info_borderless",
+                "The Frontend will start in a <b>Borderless Window</b> fitted to the display resolution ({geo}).",
+                geo=geo_str,
+            )
         else:
             if res == "native":
-                msg = f"Modo <b>Ventana</b> ajustado automáticamente a las dimensiones de la pantalla ({geo_str})."
+                msg = tr(
+                    "dlg.video.info_windowed_native",
+                    "<b>Windowed</b> mode automatically fitted to the display dimensions ({geo}).",
+                    geo=geo_str,
+                )
             elif res == "custom":
-                msg = f"Modo <b>Ventana</b> con resolución personalizada de <b>{self.width_spin.value()} x {self.height_spin.value()}</b> píxeles."
+                msg = tr(
+                    "dlg.video.info_windowed_custom",
+                    "<b>Windowed</b> mode with custom resolution of <b>{w} x {h}</b> pixels.",
+                    w=self.width_spin.value(),
+                    h=self.height_spin.value(),
+                )
             else:
-                msg = f"Modo <b>Ventana</b> con resolución fija de <b>{res}</b> píxeles."
+                msg = tr(
+                    "dlg.video.info_windowed_fixed",
+                    "<b>Windowed</b> mode with fixed resolution of <b>{res}</b> pixels.",
+                    res=res,
+                )
         self.info_label.setText(msg)
 
     def _load_current_settings(self):
@@ -2702,7 +3011,9 @@ class VideoSettingsDialog(QDialog):
             self.screen_combo.setCurrentIndex(mon_idx)
 
         scale = self.db.get_setting("video_ui_scale", "100% (Normal)")
-        idx_s = self.scale_combo.findText(scale)
+        idx_s = self.scale_combo.findData(scale)
+        if idx_s < 0:
+            idx_s = self.scale_combo.findText(scale)
         if idx_s >= 0:
             self.scale_combo.setCurrentIndex(idx_s)
 
@@ -2717,7 +3028,7 @@ class VideoSettingsDialog(QDialog):
         self.db.set_setting("video_custom_width", str(self.width_spin.value()))
         self.db.set_setting("video_custom_height", str(self.height_spin.value()))
         self.db.set_setting("video_monitor", str(self.screen_combo.currentData()))
-        self.db.set_setting("video_ui_scale", self.scale_combo.currentText())
+        self.db.set_setting("video_ui_scale", self.scale_combo.currentData() or self.scale_combo.currentText())
         self.accept()
 
 

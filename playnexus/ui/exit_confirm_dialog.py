@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QGraphicsDropShadowEffect
 )
 from PySide6.QtGui import QColor
+from playnexus.i18n import tr
 
 
 class ExitConfirmDialog(QDialog):
@@ -20,7 +21,7 @@ class ExitConfirmDialog(QDialog):
     def __init__(self, parent=None, db=None):
         super().__init__(parent)
         self.db = db
-        self.setWindowTitle("Salir de PlayNexus")
+        self.setWindowTitle(tr("exit_dlg.window_title", "Exit PlayNexus"))
         self.setFixedSize(480, 260)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -50,10 +51,10 @@ class ExitConfirmDialog(QDialog):
         header_layout.addSpacing(10)
 
         title_layout = QVBoxLayout()
-        title_lbl = QLabel("¿Deseas salir de PlayNexus?")
+        title_lbl = QLabel(tr("exit_dlg.title", "Exit PlayNexus?"))
         title_lbl.setFont(QFont("Segoe UI", 15, QFont.Bold))
         title_lbl.setStyleSheet("color: #ffffff; background: transparent; border: none;")
-        sub_lbl = QLabel("Se cerrará la aplicación y volverás a Windows.")
+        sub_lbl = QLabel(tr("exit_dlg.subtitle", "The application will close and return to Windows."))
         sub_lbl.setFont(QFont("Segoe UI", 10))
         sub_lbl.setStyleSheet("color: #9aa5b8; background: transparent; border: none;")
         title_layout.addWidget(title_lbl)
@@ -68,7 +69,7 @@ class ExitConfirmDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(16)
 
-        self.btn_cancel = QPushButton("Cancelar")
+        self.btn_cancel = QPushButton(tr("exit_dlg.cancel_btn", "Cancel"))
         self.btn_cancel.setFont(QFont("Segoe UI", 11, QFont.Bold))
         self.btn_cancel.setCursor(Qt.PointingHandCursor)
         self.btn_cancel.setStyleSheet("""
@@ -86,7 +87,7 @@ class ExitConfirmDialog(QDialog):
         """)
         self.btn_cancel.clicked.connect(self.reject)
 
-        self.btn_exit = QPushButton("Salir del Frontend")
+        self.btn_exit = QPushButton(tr("exit_dlg.exit_btn", "Exit Frontend"))
         self.btn_exit.setFont(QFont("Segoe UI", 11, QFont.Bold))
         self.btn_exit.setCursor(Qt.PointingHandCursor)
         self.btn_exit.setStyleSheet("""

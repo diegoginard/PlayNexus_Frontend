@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from playnexus.db import APP_DIR
+from playnexus.i18n import tr
 from playnexus.services.rom_manager import MediaRequirementSpec, RomAuditResult
 from playnexus.services.scraper.cache import ScraperCache
 from playnexus.services.scraper.http_utils import download_media_to_slot
@@ -142,18 +143,18 @@ class CompositeScraperEngine:
         failed: dict[str, str] = {}
         for key in slot_keys:
             if cancel_check and cancel_check():
-                failed[key] = "Cancelado"
+                failed[key] = tr("svc.scraper.cancelled", "Cancelled")
                 continue
             spec = specs_by_key.get(key)
             asset = candidate.assets.get(key)
             if not spec:
-                failed[key] = "Slot no declarado en el layout"
+                failed[key] = tr("svc.scraper.slot_undeclared", "Slot not declared in layout")
                 continue
             if not spec.folder_exists:
-                failed[key] = "Carpeta no configurada o inexistente"
+                failed[key] = tr("svc.scraper.folder_not_configured", "Folder not configured or missing")
                 continue
             if not asset or not asset.url:
-                failed[key] = "No disponible en este candidato"
+                failed[key] = tr("svc.scraper.candidate_unavailable", "Not available in this candidate")
                 continue
 
             saved_path, msg = download_media_to_slot(
@@ -170,7 +171,7 @@ class CompositeScraperEngine:
             if saved_path:
                 downloaded[key] = saved_path
             else:
-                failed[key] = msg or "Error de descarga"
+                failed[key] = msg or tr("svc.scraper.download_error", "Download error")
         return downloaded, failed
 
     def scrape_rom(
@@ -191,7 +192,7 @@ class CompositeScraperEngine:
                 title=rom.title,
                 stem=rom.stem,
                 status="skipped",
-                message="Ítem sin nombre base de ROM",
+                message=tr("svc.scraper.item_no_rom_stem", "Item has no ROM base name"),
             )
 
         needed_slots: list[str] = []
@@ -200,7 +201,7 @@ class CompositeScraperEngine:
             spec = specs_by_key.get(key)
             if not spec or not spec.folder_exists:
                 if spec and not spec.folder_exists:
-                    skipped_reasons[key] = "Carpeta sin configurar"
+                    skipped_reasons[key] = tr("svc.scraper.folder_unconfigured_short", "Folder not configured")
                 continue
             cur_slot = rom.slots.get(key)
             has_valid = bool(cur_slot and cur_slot.status == "ok")
@@ -215,7 +216,7 @@ class CompositeScraperEngine:
                 stem=rom.stem,
                 status="skipped",
                 failed_slots=skipped_reasons,
-                message="Sin slots pendientes para descargar",
+                message=tr("svc.scraper.no_pending_slots", "No pending slots to download"),
             )
 
         system = get_system_by_key(options.system_key)
@@ -292,7 +293,7 @@ class CompositeScraperEngine:
                 title=rom.title,
                 stem=rom.stem,
                 status="not_found",
-                message="Sin coincidencias confiables online",
+                message=tr("svc.scraper.no_reliable_matches", "No reliable online matches found"),
             )
 
         best_candidate.assets.update(merged_assets)
@@ -313,15 +314,16 @@ class CompositeScraperEngine:
             overwrite=options.overwrite_metadata,
         )
 
+        unavailable_msg = tr("svc.scraper.candidate_unavailable", "Not available in this candidate")
         if downloaded:
             status = "downloaded" if len(downloaded) == len(needed_slots) else "partial"
-            msg = f"Descargados: {', '.join(downloaded.keys())}"
+            msg = tr("svc.scraper.downloaded_slots", "Downloaded: {slots}", slots=", ".join(downloaded.keys()))
         elif failed:
-            status = "not_found" if all("No disponible" in v for v in failed.values()) else "partial"
+            status = "not_found" if all(v == unavailable_msg for v in failed.values()) else "partial"
             msg = "; ".join(f"{k}: {v}" for k, v in list(failed.items())[:2])
         else:
             status = "not_found"
-            msg = "Sin archivos compatibles para los slots elegidos"
+            msg = tr("svc.scraper.no_compatible_files", "No compatible files for the selected slots")
 
         return RomScrapeOutcome(
             game_id=rom.game_id,

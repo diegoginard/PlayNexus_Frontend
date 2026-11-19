@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
     QLabel, QFrame
 )
 
+from playnexus.i18n import tr
+
 
 class PythonHighlighter(QSyntaxHighlighter):
     """Resaltador de sintaxis Python para el editor de código de layouts."""
@@ -190,17 +192,17 @@ class LayoutCodeEditorWidget(QWidget):
         top_bar = QHBoxLayout()
         top_bar.setContentsMargins(0, 0, 0, 0)
 
-        title_lbl = QLabel("💻  theme_layout.py (Live Editor)")
+        title_lbl = QLabel(tr("studio.code_editor.title", "💻  theme_layout.py (Live Editor)"))
         title_lbl.setStyleSheet("font-weight: bold; color: #cbd5e1; font-size: 10pt;")
         top_bar.addWidget(title_lbl)
 
         top_bar.addStretch()
 
-        self.status_lbl = QLabel("✓ Sintaxis Válida")
+        self.status_lbl = QLabel(tr("studio.code_editor.valid_syntax", "✓ Valid Syntax"))
         self.status_lbl.setStyleSheet("color: #4ade80; font-size: 9pt; font-weight: bold;")
         top_bar.addWidget(self.status_lbl)
 
-        self.btn_apply = QPushButton("⚡ Aplicar al Canvas (Hot Reload)")
+        self.btn_apply = QPushButton(tr("studio.code_editor.apply_btn", "⚡ Apply to Canvas (Hot Reload)"))
         self.btn_apply.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #8b5cf6, stop:1 #6d28d9);
@@ -238,12 +240,14 @@ class LayoutCodeEditorWidget(QWidget):
         code = self.editor.toPlainText()
         try:
             ast.parse(code)
-            self.status_lbl.setText("✓ Sintaxis Válida")
+            self.status_lbl.setText(tr("studio.code_editor.valid_syntax", "✓ Valid Syntax"))
             self.status_lbl.setStyleSheet("color: #4ade80; font-size: 9pt; font-weight: bold;")
             self.btn_apply.setEnabled(True)
             return True
         except SyntaxError as e:
-            self.status_lbl.setText(f"⚠ Error Línea {e.lineno}: {e.msg}")
+            self.status_lbl.setText(
+                tr("studio.code_editor.syntax_error", "⚠ Error Line {line}: {msg}", line=e.lineno, msg=e.msg)
+            )
             self.status_lbl.setStyleSheet("color: #f87171; font-size: 9pt; font-weight: bold;")
             return False
 

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem,
     QStyleOptionViewItem, QStyledItemDelegate, QStyle
 )
+from playnexus.i18n import tr
 from playnexus.ui.layouts.base import (
     BaseLayout,
     CoverPreloadWorker,
@@ -54,9 +55,10 @@ class BannerItemDelegate(QStyledItemDelegate):
             if not game_data:
                 return
 
-            title = game_data.get("title", "Desconocido")
+            title = game_data.get("title") or tr("layout.unknown", "Unknown")
             platform = game_data.get("platform")
-            emu = game_data.get("effective_name", "Sin emulador")
+            raw_emu = game_data.get("effective_name")
+            emu = tr("layout.no_emulator", "No emulator") if not raw_emu or raw_emu == "Sin emulador" else raw_emu
             source = game_data.get("source", "")
             game_id = game_data.get("id", 0)
             rom_path = game_data.get("rom_path", "")
@@ -137,7 +139,7 @@ class BannerItemDelegate(QStyledItemDelegate):
             # Emulador (linea inferior)
             emu_font = QFont("Segoe UI", 8)
             painter.setFont(emu_font)
-            source_icon = "★" if source == "juego" else "◆" if source == "lista" else "○"
+            source_icon = "★" if source in ("juego", "game") else "◆" if source in ("lista", "list") else "○"
             emu_color = QColor(0x4a, 0xde, 0x80) if not is_selected else QColor(180, 255, 200)
             painter.setPen(emu_color)
             painter.drawText(QRect(text_x, banner_rect.y() + 52, text_w, 18),
@@ -166,7 +168,7 @@ class BannerLayout(BaseLayout):
     barra de color lateral unica, titulo, plataforma, emulador y tamano.
     """
     LAYOUT_NAME = "Banners"
-    LAYOUT_DESCRIPTION = "Lista de tarjetas horizontales con miniaturas y datos ricos"
+    LAYOUT_DESCRIPTION = tr("layout.banner_desc", "Horizontal card list with thumbnails and rich details")
 
     def __init__(self, parent=None):
         super().__init__(parent)

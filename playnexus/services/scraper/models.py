@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from playnexus.db import APP_DIR
+from playnexus.i18n import tr
 
 _KEY_FILENAME = ".key"
 _SECRET_PREFIX = "enc1:"
@@ -93,7 +94,7 @@ def _encode_secret(raw: str, key_dir: Path | str | None = None) -> str:
     resolved_dir = _resolve_secret_key_dir(key_dir=key_dir)
     master_key = _load_or_create_secret_key(resolved_dir, create=True)
     if not master_key:
-        raise RuntimeError("No se pudo inicializar la llave local de cifrado.")
+        raise RuntimeError(tr("svc.scraper.err_init_key", "Could not initialize local encryption key."))
     enc_key, mac_key = _derive_subkeys(master_key)
     nonce = secrets.token_bytes(_NONCE_BYTES)
     ciphertext = _xor_keystream(enc_key, nonce, text.encode("utf-8"))

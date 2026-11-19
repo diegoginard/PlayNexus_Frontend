@@ -6,6 +6,8 @@ guardando la configuración en la base de datos de PlayNexus.
 
 from PySide6.QtCore import Qt
 
+from playnexus.i18n import tr
+
 # Identificadores de acciones configurables
 ACTION_CLOSE_EMULATOR = "close_emulator"
 ACTION_CLOSE_FRONTEND = "close_frontend"
@@ -29,110 +31,184 @@ ACTION_NAV_STEP5 = ACTION_NAV_STEP5_FWD
 ACTION_PAGE_UP = ACTION_NAV_STEP5_BACK
 ACTION_PAGE_DOWN = ACTION_NAV_STEP5_FWD
 
+_ACTION_TEXT_DEFAULTS = {
+    ACTION_NAV_UP: (
+        "Move Up (Wheel / List)",
+        "Moves up one item in the game wheel or lists",
+    ),
+    ACTION_NAV_DOWN: (
+        "Move Down (Wheel / List)",
+        "Moves down one item in the game wheel or lists",
+    ),
+    ACTION_NAV_LETTER_BACK: (
+        "Previous Letter",
+        "Jumps to the first game of the previous letter in alphabetical order",
+    ),
+    ACTION_NAV_LETTER_FWD: (
+        "Next Letter",
+        "Jumps to the first game of the next letter in alphabetical order",
+    ),
+    ACTION_NAV_STEP5_BACK: (
+        "Jump Back 5 Games",
+        "Quickly moves backward 5 games at a time in the list",
+    ),
+    ACTION_NAV_STEP5_FWD: (
+        "Jump Forward 5 Games",
+        "Quickly moves forward 5 games at a time in the list",
+    ),
+    ACTION_SELECT: (
+        "Select / Enter / Launch",
+        "Launches the selected game or enters the selected system or list",
+    ),
+    ACTION_NAV_BACK: (
+        "Go Back (Menus / Lists)",
+        "Returns to the previous menu or list of lists in hierarchical navigation",
+    ),
+    ACTION_CLOSE_FRONTEND: (
+        "Close Frontend (PlayNexus)",
+        "Closes the frontend window and returns to the system",
+    ),
+    ACTION_CLOSE_EMULATOR: (
+        "Close Running Emulator",
+        "Closes the active emulator process and restores the frontend",
+    ),
+    ACTION_MUTE: (
+        "Mute / Unmute Video Audio",
+        "Toggles the video snap audio in the visual layout",
+    ),
+    ACTION_TOGGLE_FPS: (
+        "Show / Hide FPS (Overlay)",
+        "Toggles the on-screen FPS counter, render time, and resolution display",
+    ),
+    ACTION_TOGGLE_BEZEL: (
+        "Show / Hide Bezel (In-Game)",
+        "Shows or hides the decorative bezel frame during emulation so you can view emulator menus",
+    ),
+    ACTION_TOGGLE_FAVORITE: (
+        "Add / Remove Favorite",
+        "Adds or removes the selected game from your favorites without interrupting the wheel or video",
+    ),
+    ACTION_FRONTEND_MENU: (
+        "Arcade Quick Menu (In-Frontend)",
+        "Opens the overlay quick menu with search, randomizer, filters, layout, and power options",
+    ),
+}
+
+
+def _action_label(action_id: str) -> str:
+    default_name = _ACTION_TEXT_DEFAULTS.get(action_id, (action_id, ""))[0]
+    return tr(f"svc.controls.action.{action_id}.name", default_name)
+
+
+def _action_desc(action_id: str) -> str:
+    default_desc = _ACTION_TEXT_DEFAULTS.get(action_id, ("", ""))[1]
+    return tr(f"svc.controls.action.{action_id}.desc", default_desc)
+
+
 # Metadatos de cada acción (nombre para mostrar, descripción, tecla por defecto y botón mando por defecto)
 ACTIONS_INFO = [
     {
         "id": ACTION_NAV_UP,
-        "name": "Subir (Ruleta / Lista)",
-        "desc": "Sube un elemento en la ruleta de juegos o en las listas",
+        "name": _action_label(ACTION_NAV_UP),
+        "desc": _action_desc(ACTION_NAV_UP),
         "default": "Up",
         "default_pad": "D-Pad Up",
     },
     {
         "id": ACTION_NAV_DOWN,
-        "name": "Bajar (Ruleta / Lista)",
-        "desc": "Baja un elemento en la ruleta de juegos o en las listas",
+        "name": _action_label(ACTION_NAV_DOWN),
+        "desc": _action_desc(ACTION_NAV_DOWN),
         "default": "Down",
         "default_pad": "D-Pad Down",
     },
     {
         "id": ACTION_NAV_LETTER_BACK,
-        "name": "Saltar letra hacia atrás",
-        "desc": "Salta al primer juego de la letra anterior en orden alfabético",
+        "name": _action_label(ACTION_NAV_LETTER_BACK),
+        "desc": _action_desc(ACTION_NAV_LETTER_BACK),
         "default": "Left",
         "default_pad": "D-Pad Left",
     },
     {
         "id": ACTION_NAV_LETTER_FWD,
-        "name": "Saltar letra hacia adelante",
-        "desc": "Salta al primer juego de la siguiente letra en orden alfabético",
+        "name": _action_label(ACTION_NAV_LETTER_FWD),
+        "desc": _action_desc(ACTION_NAV_LETTER_FWD),
         "default": "Right",
         "default_pad": "D-Pad Right",
     },
     {
         "id": ACTION_NAV_STEP5_BACK,
-        "name": "Saltar de 5 en 5 hacia atrás",
-        "desc": "Retrocede rápidamente saltando de 5 en 5 juegos en la lista",
+        "name": _action_label(ACTION_NAV_STEP5_BACK),
+        "desc": _action_desc(ACTION_NAV_STEP5_BACK),
         "default": "PageUp",
         "default_pad": "LB",
     },
     {
         "id": ACTION_NAV_STEP5_FWD,
-        "name": "Saltar de 5 en 5 hacia adelante",
-        "desc": "Avanza rápidamente saltando de 5 en 5 juegos en la lista",
+        "name": _action_label(ACTION_NAV_STEP5_FWD),
+        "desc": _action_desc(ACTION_NAV_STEP5_FWD),
         "default": "PageDown",
         "default_pad": "RB",
     },
     {
         "id": ACTION_SELECT,
-        "name": "Seleccionar / Entrar / Ejecutar",
-        "desc": "Ejecuta el juego o entra al sistema o lista seleccionada",
+        "name": _action_label(ACTION_SELECT),
+        "desc": _action_desc(ACTION_SELECT),
         "default": "Return",
         "default_pad": "A",
     },
     {
         "id": ACTION_NAV_BACK,
-        "name": "Volver atrás (Menús / Listas)",
-        "desc": "Retrocede al menú anterior o lista de listas en navegación jerárquica",
+        "name": _action_label(ACTION_NAV_BACK),
+        "desc": _action_desc(ACTION_NAV_BACK),
         "default": "Backspace",
         "default_pad": "B",
     },
     {
         "id": ACTION_CLOSE_FRONTEND,
-        "name": "Cerrar frontend (PlayNexus)",
-        "desc": "Cierra la ventana del frontend y vuelve al sistema",
+        "name": _action_label(ACTION_CLOSE_FRONTEND),
+        "desc": _action_desc(ACTION_CLOSE_FRONTEND),
         "default": "Escape",
         "default_pad": "",
     },
     {
         "id": ACTION_CLOSE_EMULATOR,
-        "name": "Cerrar emulador en ejecución",
-        "desc": "Cierra el proceso del emulador activo y restaura el frontend",
+        "name": _action_label(ACTION_CLOSE_EMULATOR),
+        "desc": _action_desc(ACTION_CLOSE_EMULATOR),
         "default": "Escape",
         "default_pad": "Back+Start",
     },
     {
         "id": ACTION_MUTE,
-        "name": "Silenciar / Activar audio video",
-        "desc": "Alterna el sonido del video snap en el diseño visual",
+        "name": _action_label(ACTION_MUTE),
+        "desc": _action_desc(ACTION_MUTE),
         "default": "M",
         "default_pad": "Y",
     },
     {
         "id": ACTION_TOGGLE_FPS,
-        "name": "Mostrar / Ocultar FPS (Overlay)",
-        "desc": "Alterna la visualización del contador de FPS, tiempo de render y resolución en pantalla",
+        "name": _action_label(ACTION_TOGGLE_FPS),
+        "desc": _action_desc(ACTION_TOGGLE_FPS),
         "default": "F10",
         "default_pad": "R-Thumb",
     },
     {
         "id": ACTION_TOGGLE_BEZEL,
-        "name": "Activar / Ocultar Bezel (En emulación)",
-        "desc": "Muestra u oculta el marco decorativo (bezel) durante la emulación para ver menús del emulador",
+        "name": _action_label(ACTION_TOGGLE_BEZEL),
+        "desc": _action_desc(ACTION_TOGGLE_BEZEL),
         "default": "F11",
         "default_pad": "L-Thumb",
     },
     {
         "id": ACTION_TOGGLE_FAVORITE,
-        "name": "Marcar / Quitar Favorito",
-        "desc": "Agrega o quita el juego seleccionado de tus favoritos sin interrumpir la ruleta ni el video",
+        "name": _action_label(ACTION_TOGGLE_FAVORITE),
+        "desc": _action_desc(ACTION_TOGGLE_FAVORITE),
         "default": "F",
         "default_pad": "X",
     },
     {
         "id": ACTION_FRONTEND_MENU,
-        "name": "Menú Rápido Arcade (In-Frontend)",
-        "desc": "Abre el menú rápido superpuesto con búsqueda, ruleta aleatoria, filtros, layout y energía",
+        "name": _action_label(ACTION_FRONTEND_MENU),
+        "desc": _action_desc(ACTION_FRONTEND_MENU),
         "default": "Tab",
         "default_pad": "Start",
     },
@@ -480,12 +556,13 @@ def get_all_bindings(db=None) -> list[dict]:
     """Retorna una lista con la información completa, tecla actual y botón de joystick de cada acción."""
     result = []
     for info in ACTIONS_INFO:
-        current_key = get_binding(db, info["id"])
-        current_pad = get_gamepad_binding(db, info["id"])
+        aid = info["id"]
+        current_key = get_binding(db, aid)
+        current_pad = get_gamepad_binding(db, aid)
         result.append({
-            "id": info["id"],
-            "name": info["name"],
-            "desc": info["desc"],
+            "id": aid,
+            "name": _action_label(aid),
+            "desc": _action_desc(aid),
             "key": current_key,
             "default": info["default"],
             "pad": current_pad,
@@ -544,7 +621,7 @@ def matches_gamepad_action(pressed_inputs: set[str], action: str, db=None) -> bo
         return False
 
     assigned = get_gamepad_binding(db, action)
-    if not assigned or assigned in ("Sin asignar", "-"):
+    if not assigned or assigned in ("Sin asignar", "Unassigned", "-"):
         return False
 
     # Si es una combinación compuesta por '+' (ej: Back+Start)

@@ -15,12 +15,14 @@ if str(app_root) not in sys.path:
     sys.path.insert(0, str(app_root))
 
 import playnexus
+from playnexus.i18n import init_i18n
 from playnexus.ui.player_window import run_player
 
 def main():
     try:
         from playnexus.db import Database
         db = Database()
+        init_i18n(db)
         driver = db.get_setting("video_driver", "d3d11")
         if driver:
             os.environ["QSG_RHI_BACKEND"] = driver
