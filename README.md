@@ -1,8 +1,259 @@
-# PlayNexus v1.3.5 — Frontend de Emulación para Windows
+<a id="english"></a>
+
+# PlayNexus v1.4.0 — Emulation Frontend for Windows
+
+> **Language:** **English** | [Español](#spanish)
 
 ![PlayNexus Logo](PlayNexus_Logo.png)
 
-**PlayNexus** es un frontend modular, rápido y elegante para organizar, visualizar y ejecutar videojuegos retro y modernos mediante emuladores y lanzadores en Windows 10 y Windows 11. Desarrollado con **Python 3.11+**, **PySide6** (Qt) y almacenamiento 100% portable en **texto plano (`.txt`)**.
+**PlayNexus** is a fast, modular, and customizable emulation frontend for organizing, browsing, and launching retro and modern video games on Windows 10 and Windows 11. Built with **Python 3.11+**, **PySide6 (Qt)**, an **OpenGL hardware-accelerated GPU rendering pipeline**, and 100% portable **plain-text (`.txt`)** storage.
+
+Its design takes inspiration from classic concepts in **Attract-Mode** and **RocketLauncher**—especially library organization, emulator management, per-system layouts, bezels, and launch automation—implemented through a clean, portable, native Python/Qt architecture.
+
+---
+
+## 🚀 Quick Start Guide
+
+PlayNexus can run directly via its **standalone executables** (no Python installation required), via helper `.bat` scripts, or from source in a Python virtual environment.
+
+### 1. Standalone Executables in `dist/` (100% Clean & Portable Distribution)
+Running `python build_executables.py` compiles and assembles a clean, self-contained portable package inside **`dist/`**:
+- **`dist/PlayNexus_Config.exe`**: Launches the **Library Configurator & Management UI** without requiring Python or external dependencies.
+- **`dist/PlayNexus_Launcher.exe`**: Launches the fullscreen **Frontend / Arcade Player Mode** directly.
+- **Portable directory structure created inside `dist/`**:
+  - `dist/config/`: Factory-clean `settings.txt` (defaulting to `app_language = en`) and `emulator_templates.txt`.
+  - `dist/lang/`: Plain-text UI language packs (`en.txt`, `es.txt`, plus any custom `<code>.txt` translations you add).
+  - `dist/emulators/`: Clean folder ready for user-configured emulator profiles.
+  - `dist/lists/`: Clean folder ready for your game lists and menus.
+  - `dist/icons/`: System and arcade icons.
+  - `dist/Layouts/`: Ready-to-use system themes and visual layouts (CRT TVs, consoles, wheels, showcase, etc.).
+  - `dist/splash/`: Folder for the intro splash video.
+  - `dist/PlayNexus_Logo.png` and `dist/app_icon.ico`: Application logo and multi-resolution icon.
+  *(Note: `dist/`, `emulators/`, `lists/`, and `backups/` are excluded from Git via `.gitignore` to keep the repository clean).*
+
+### 2. Batch Launchers & Utilities (`.bat`)
+- **`PlayNexus.bat`**: Interactive selector menu to launch Frontend Mode, Configurator Mode, or build executables.
+- **`PlayNexus_Launcher.bat`**: Starts fullscreen Frontend Mode using `.venv`.
+- **`PlayNexus_Config.bat`**: Starts Configurator Mode with automatic Python/dependency setup.
+- **`build_executables.bat` / `Compilar_EXE.bat`**: Automates PyInstaller builds into `dist/`.
+
+### 3. Manual Developer Setup (PowerShell or CMD)
+1. **Create and activate the virtual environment:**
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
+2. **Launch the Configurator:**
+   ```powershell
+   python -m playnexus
+   ```
+3. **Launch Frontend / Player Mode:**
+   ```powershell
+   python -m playnexus --player
+   ```
+
+---
+
+## 📋 Key Features
+
+### 1. Multi-Language Interface via `lang/*.txt` (`i18n.py`)
+- **English by default (`en`)** on first launch, with complete **English (`lang/en.txt`)** and **Spanish (`lang/es.txt`)** packs included.
+- **Open & extensible plain-text format:** Add any language simply by copying `lang/en.txt` to `lang/<code>.txt` (UTF-8), editing `_lang_code`, `_lang_name`, and the translated values (`key = text`).
+- **Dynamic language selector:** Switch languages under *⚙ System Settings → 🌐 Language / Idioma* with a **Reload languages** button and an optional one-click restart to apply the language across every window, dialog, overlay, and service.
+- **Resilient fallback chain:** Missing keys or broken placeholders in community packs automatically fall back to `lang/en.txt` and built-in defaults without crashing the UI.
+
+### 2. Hardware-Accelerated OpenGL Rendering (`gpu_renderer.py`)
+- **60+ FPS GPU scene compositor (`GpuSceneViewport` / `GpuQuadPipeline`):** Batches quads, homographies (`corner_pins`), premultiplied textures (`Target2D` + trilinear mipmaps without alpha halos), and retro shader FBO passes on the GPU, with automatic `QPainter` software fallback (`frontend_render_backend`).
+- **Zero-copy GPU video playback (`GpuVideoSurface` / `GpuVideoPlayerWidget`):** Uploads `NV12`, `YUV420P`, and `RGBA/BGRA` `QVideoFrame` planes directly to OpenGL shaders without CPU `frame.toImage()` or `fbo.toImage()` readbacks.
+- **Safe context & VRAM lifecycle:** Synchronized cleanup across widget hides, tab switches, Layout Studio Sandbox mode changes (`Windowed` / `Borderless` / `Fullscreen`), and parent teardowns.
+
+### 3. PC & Windows Games Support (Attract-Mode Style)
+- Integrates native Windows games, shortcuts (`.lnk`), batch scripts (`.bat`, `.cmd`), and executables (`.exe`).
+- **System command launcher & one-click template:** Register `cmd` / `cmd.exe` cleanly via `PATH` or load **«Load Windows Games template (cmd.exe)»** (`/c "[romfilename]"`).
+- **Smart working directory (`cwd`):** Automatically sets the working directory to the game's folder when launching `.bat`, `.cmd`, or `.lnk` targets.
+- **Attract-Mode & LaunchBox compatible argument tokens:**
+  - `[romfilename]`, `[rom_filename]`, `[rom]`, `%rom%`, `%1`: Normalized full path (`C:\...`).
+  - `[rompath]`, `[rom_path]`, `[romdir]`: Game directory.
+  - `[romname]`, `[rom_name]`, `[name]`, `[cleanromname]`: Filename without extension.
+  - Python-style placeholders: `{rom}`, `{rom_dir}`, `{rom_name}`.
+
+### 4. Asynchronous Scanning with Live Progress & Debug Console
+- Dedicated background `QThread` scanner keeps Windows responsive on massive catalogs (e.g., full MAME/Arcade sets).
+- Live progress bar, imported/skipped counters, and real-time processing log.
+
+### 5. Lists, Smart Filtered Lists & System Menus
+- **Games Lists (`games`):** Tied to one or more ROM folders with automatic scanning and extension normalization.
+- **Filtered Lists (`filtered`):** Dynamic rule-based subsets linked to a source list (genres, years, manufacturers, non-clones, favorites, etc.).
+- **System Menus (`menu`):** Hierarchical navigation menus grouping multiple system lists, with custom icons (`icons/` included) and dedicated artwork paths (`boxart`, `wheel`, `video`, `flyer`, `cartart`, `cabinet`, `marquee`, `bezel`, `manual`).
+
+### 6. Advanced Rule Filtering Engine
+- Available for both Filtered Lists and standard Games Lists (`sourcefile`, `cloneof`, `romof`, `year`, `manufacturer`, `status`, `title`, `name`, etc.) with `contains`, `equals`, `starts with`, `ends with`, `empty` operators, `AND`/`OR` matching, and live match-count preview.
+
+### 7. Flexible Extensions & Multi-Folder ROM Configuration
+- Built-in extension presets for PC Games, SNES, GBA, PS1, PS2, Mega Drive, N64, NDS, PSP, Arcade (`.zip;.7z;<DIR>`), or custom extensions.
+- Semicolon-separated (`;`) multi-folder ROM paths, `scan_subfolders`, and `exclude_folder_if_zip` options.
+
+### 8. Emulator Management, Templates & Launch Priority
+- Centralized emulator profiles stored individually in `emulators/*.txt`, plus quick templates (`config/emulator_templates.txt`) editable in *System Settings*.
+- **Mandatory launch priority:**
+  1. Per-game emulator override.
+  2. List default emulator.
+  3. Guided prompt if unconfigured.
+- Smart RetroArch core detection and duplicate-instance launch guard.
+
+### 9. Layout Engine, Unified Tables & 19 System Themes
+- **19 autonomous console & arcade themes (`Layouts/<System>/theme_layout.py`):** **Main Menu**, **At-The-Arcade Flex**, **Atari Jaguar**, **Atari Jaguar CD**, **NEC PC-FX**, **NEC TurboGrafx-16**, **NEC TurboGrafx-CD**, **Nintendo 64**, **Nintendo Gameboy Advance**, **Nintendo Gamecube**, **Nintendo Virtual Boy**, **Sega 32X**, **Sega CD**, **Sega Dreamcast**, **Sega Genesis**, **Sega Saturn**, **Sony Playstation**, **Sony PlayStation Portable**, and **Super Nintendo Entertainment System** (plus shared `gtc-common` assets).
+- **Generic views:** **Wheel**, **Grid** (zoomable), **Showcase**, **Banners**, and **Details** (`table_utils.py` sortable technical view), plus automatic minimization/restoration around emulator launches.
+- **Standardized vertical wheel navigation & commit-on-release:** Smooth 60 FPS wheel scrolling with next items ordered above center and previous items below center, continuous video playback during scrolling, and debounced/on-release artwork commits (~180 ms).
+
+### 10. Display, Resolutions & Multi-Monitor Settings
+- **Window modes:** Exclusive Fullscreen, Borderless Window, Standard Windowed.
+- **Resolutions:** Native monitor resolution, presets (4K, 2K, 1080p, 720p, 16:10, 4:3), or exact pixel dimensions, plus target monitor selection and HiDPI UI scaling (`100%`–`200%`).
+
+### 11. Gamepad / Joystick Controls & Global Exit
+- Windows XInput / DirectInput gamepad support (D-Pad, analog sticks, buttons) working seamlessly alongside keyboard bindings.
+- **Global emulator Kill Switch:** Cleanly exit running emulators with `Escape` (or configured key) or `Back+Start` gamepad combo while automatically muting/pausing frontend media during gameplay.
+
+### 12. Foreground Bezel Overlays (Transparent Win32 Bezel HUD)
+- Per-list `bezel_hud_path` with strict resolution (`<rom_name>.png` → `default_v.png` for vertical / `default.png` for horizontal), configurable `bezel_delay` and `bezel_fade`, per-game override (`Inherit` / `Force Enable` / `Disable`), click-through overlay (`WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE`), and real-time toggle hotkey (`F11` / `L-Thumb`).
+
+### 13. Intro Splash Video, Loading/Exit Screens & Exit Confirmation
+- Optional fullscreen intro splash video (`PlayNexus_Launcher.exe`) with instant skip via keyboard/gamepad/mouse.
+- Per-emulator timed fullscreen `TOPMOST` Loading/Exit HUD (`nombrerom_i/o.<ext>` → `default/default_i/o.<ext>` → `splash/loading.jpg`).
+- Arcade modal exit confirmation dialog navigable by keyboard and gamepad.
+
+### 14. Arcade Screensaver (`screensaver.py`)
+- Smart inactivity timer with 4 weighted random modes (**Basic Movie**, **2×2 Movie Collage**, **4×4 Image Collage**, **RGB Movie**), deep OLED/CRT blank screen timer, and instant **Select** jump straight to the showcased game.
+
+### 15. Layout Studio 2.0 (Real-Time WYSIWYG Editor & Sandbox)
+- Executes and edits real `ThemeLayout` classes directly (`1920x1080` canonical canvas), with 4-point perspective pinning (`corner_pins`), Z-order/opacity/lock controls, 60 FPS animation timeline (`0.00s`–`5.00s`), auto-backups (`Layouts/<Theme>/backups/`), and live multi-resolution **Sandbox** preview (`Windowed`, `Borderless`, `Fullscreen`).
+
+### 16. Rom Manager, Strict `MEDIA_REQUIREMENTS` Audit & Online Scraper
+- Audits only the exact media slots declared by each layout's `MEDIA_REQUIREMENTS`, with per-row quick actions (open folder, replace ROM, safe literal delete), dual image/PDF/seekable video preview, drag-and-drop media slotting, and CSV export.
+- Integrated multi-source scraper (**ArcadeItalia ADB**, **Libretro Thumbnails**, **ScreenScraper API v2** with CRC/MD5/SHA1 matching and `enc1:` encrypted local credentials).
+
+### 17. Pro Toolkit, RetroAchievements, In-App PDF Manual Viewer & Quick Menu
+- **Pro Toolkit:** Batch Auto-Trim for transparent/black borders, cancelable `ffmpeg` MP4 normalizer (`-movflags +faststart`), and non-destructive 1G1R duplicate auditor.
+- **RetroAchievements Web API v1:** `rcheevos`-compatible MD5 hashing, local cache, achievements viewer, plus automatic play-count / play-time / last-played telemetry.
+- **In-App PDF Viewer:** Memory-buffered `QPdfDocument` reader navigable with keyboard/gamepad.
+- **Player Quick Menu & On-Screen Search:** Live filtering, sorting, shader/particle switching, and virtual keyboard inside `PlayerWindow`.
+- **Retro GPU Shaders, Ambient Particles & Audio Guardian:** `CRT Aperture`, `CRT Bloom`, `LCD Handheld`, `VHS`, 4 particle presets, and automatic WASAPI audio-device switch recovery (`AudioDeviceGuardian`).
+
+---
+
+## 🗂 Project Structure
+
+```text
+PlayNexus_Frontend/
+├── README.md                 # Bilingual documentation (English + Español)
+├── GEMINI.md                 # Project architecture directives & guidelines
+├── requirements.txt          # Python dependencies (PySide6, etc.)
+├── PlayNexus.bat             # Interactive selector menu (.bat)
+├── PlayNexus_Config.bat      # Direct Configurator launcher (.bat)
+├── PlayNexus_Launcher.bat    # Direct Frontend / Player launcher (.bat)
+├── build_executables.bat     # PyInstaller build script (.bat)
+├── Compilar_EXE.bat          # Quick compile shortcut (.bat)
+├── build_executables.py      # Builds standalone .exe files & portable dist/ bundle
+├── entry_config.py           # Entry point for PlayNexus_Config.exe
+├── entry_launcher.py         # Entry point for PlayNexus_Launcher.exe
+├── PlayNexus_Logo.png        # Project logo
+├── PlayNexus_icon.png        # Master high-resolution icon
+├── app_icon.ico              # Multi-resolution Windows icon
+├── lang/                     # Plain-text UI language files (extensible by users)
+│   ├── en.txt                # English language pack (default)
+│   └── es.txt                # Spanish language pack
+├── splash/                   # Splash screen video & fallback loading image
+├── dist/                     # Clean standalone portable build (.exe + resources)
+│   ├── PlayNexus_Config.exe
+│   ├── PlayNexus_Launcher.exe
+│   ├── PlayNexus_Logo.png
+│   ├── app_icon.ico
+│   ├── config/               # Clean factory settings.txt & emulator_templates.txt
+│   ├── lang/                 # Bundled lang/*.txt files (users can add more here)
+│   ├── emulators/
+│   ├── lists/
+│   ├── icons/
+│   ├── Layouts/
+│   └── splash/
+├── config/                   # Local configuration (settings.txt, emulator_templates.txt)
+├── emulators/                # User-created emulator .txt files (gitignored)
+├── lists/                    # User game lists & menus .txt files (gitignored)
+├── icons/                    # System & arcade icons (.png)
+├── Layouts/                  # 19 dedicated console & arcade themes + gtc-common
+└── playnexus/
+    ├── __init__.py           # QtMultimedia FFmpeg setup & early i18n initialization
+    ├── __version__.py        # Centralized app version (v1.4.0)
+    ├── __main__.py           # CLI router (--player or Configurator)
+    ├── db.py                 # Portable .txt storage engine & game telemetry
+    ├── i18n.py               # Plain-text lang/*.txt loader, fallback & restart helper
+    ├── services/
+    │   ├── audio_guard.py    # WASAPI / QtMultimedia audio device hot-swap recovery
+    │   ├── controls.py       # Keyboard & gamepad action bindings
+    │   ├── emulator_manager.py # Process watcher, bezel delay/fade, global kill switch
+    │   ├── emulator_templates.py # Quick emulator templates loader/editor
+    │   ├── gamepad.py        # Controller polling & event manager
+    │   ├── launcher.py       # Emulator resolution, token expansion & launch logic
+    │   ├── library.py        # Extension normalization, MAME XML, rules & scanning
+    │   ├── media.py          # Media & manual PDF resolver
+    │   ├── retroachievements.py # RetroAchievements API v1 client & MD5 hasher
+    │   ├── rom_manager.py    # MEDIA_REQUIREMENTS audit, ROM replace & safe delete
+    │   ├── rom_toolkit.py    # Auto-Trim, Video Normalizer (ffmpeg) & 1G1R auditor
+    │   ├── themes.py         # Theme discovery & generic media specs
+    │   └── scraper/          # Multi-source online scraper package (ADB, Libretro, SS v2)
+    └── ui/
+        ├── bezel_overlay.py  # Transparent click-through Bezel HUD window
+        ├── cover_utils.py    # Dynamic cover generator & async art loader
+        ├── dialogs.py        # Lists, Emulators, Templates, Scan, Filters & Video dialogs
+        ├── exit_confirm_dialog.py # Arcade exit confirmation modal
+        ├── frontend_quick_menu.py # In-player Quick Menu & virtual keyboard
+        ├── frontend_tab.py   # Frontend video, shader, Screensaver & Splash settings
+        ├── gpu_renderer.py   # OpenGL quad/homography pipeline, VRAM cache & video surface
+        ├── loading_overlay.py# Topmost Loading/Exit HUD overlay
+        ├── main_window.py    # Main Configurator window & library management
+        ├── manual_viewer.py  # In-app QPdfDocument PDF manual reader
+        ├── particles.py      # Ambient particle presets & overlay renderer
+        ├── player_window.py  # Fullscreen Arcade Player / Frontend window
+        ├── ra_dialogs.py     # RetroAchievements UI & batch sync dialogs
+        ├── rom_manager_tab.py# Rom Manager tab (audit, previewer, actions & drag-drop)
+        ├── scraper_dialogs.py# Online Scraper configuration & batch dialogs
+        ├── screensaver.py    # 4-mode dynamic Arcade Screensaver
+        ├── settings_tab.py   # Controls, Emulator Behavior, Video, Templates & Language UI
+        ├── shaders.py        # Retro GLSL FBO shaders with CPU QPainter fallback
+        ├── splash_screen.py  # Fullscreen splash intro player
+        ├── table_utils.py    # Shared table sorting & resizing helpers
+        ├── toolkit_dialogs.py# Pro Toolkit dialogs (Auto-Trim, Normalizer, 1G1R)
+        ├── layout_studio/    # Layout Studio 2.0 WYSIWYG editor, timeline & Sandbox
+        └── layouts/          # Generic views (Wheel, Grid, Showcase, Banners, Table) & loader
+```
+
+---
+
+## 💾 Plain-Text Data Persistence (100% Portable)
+
+PlayNexus stores all configuration, translations, and library data in human-readable plain-text files inside the application folder—never touching the Windows Registry or `AppData`:
+
+- **`lang/<code>.txt`**: Plain-text localization files (`_lang_code`, `_lang_name`, `key = value`) automatically discovered at startup and from Settings.
+- **`config/settings.txt`**: General settings (`app_language`, controls, video, shaders/particles, encrypted `enc1:` scraper/RA credentials).
+- **`config/.key`**: Local symmetric key used to decrypt `enc1:` credentials (excluded from Git).
+- **`config/emulator_templates.txt`**: Quick emulator templates catalog.
+- **`emulators/<EmulatorName>.txt`**: Individual emulator parameters (local user files, ignored in Git).
+- **`lists/<ListName>.txt`**: Per-list settings (`[List]`) and game catalog (`[Games]`) with telemetry and overrides (local user files, ignored in Git).
+
+---
+---
+
+<a id="spanish"></a>
+
+# 🌐 Versión en Español
+
+> **Idioma:** [English](#english) | **Español**
+
+# PlayNexus v1.4.0 — Frontend de Emulación para Windows
+
+![PlayNexus Logo](PlayNexus_Logo.png)
+
+**PlayNexus** es un frontend modular, rápido y elegante para organizar, visualizar y ejecutar videojuegos retro y modernos mediante emuladores y lanzadores en Windows 10 y Windows 11. Desarrollado con **Python 3.11+**, **PySide6 (Qt)**, motor de **renderizado acelerado por GPU (OpenGL)**, sistema **multi-idioma basado en archivos `.txt` (`lang/`)** y almacenamiento 100 % portable en **texto plano (`.txt`)**.
 
 Su desarrollo toma como referencia funcionalidades y conceptos de **Attract-Mode** y **RocketLauncher**, especialmente en la organización de bibliotecas de videojuegos, gestión de emuladores, configuración de sistemas y automatización del lanzamiento de juegos, incorporando una arquitectura propia, modular y orientada a la portabilidad.
 
@@ -12,30 +263,28 @@ Su desarrollo toma como referencia funcionalidades y conceptos de **Attract-Mode
 
 PlayNexus puede ejecutarse directamente mediante sus **ejecutables independientes** (sin necesidad de tener Python instalado), mediante scripts `.bat` automatizados o desde la consola de comandos.
 
-### 1. Ejecutables independientes en carpeta `dist/` (Distribución 100% limpia y portable)
+### 1. Ejecutables independientes en carpeta `dist/` (Distribución 100 % limpia y portable)
 Al ejecutar `python build_executables.py`, se compilan y ensamblan todos los archivos necesarios dentro de la carpeta **`dist/`**, lista para usarse de forma autónoma en limpio (o comprimirse en `.zip` para llevar a cualquier equipo):
 - **`dist/PlayNexus_Config.exe`**: Abre directamente el **Configurador de Biblioteca** sin requerir Python ni dependencias externas.
 - **`dist/PlayNexus_Launcher.exe`**: Inicia directamente el **Modo Frontend / Reproductor** en pantalla completa.
 - **Estructura autónoma incluida en `dist/`**:
-  - `dist/config/`: `settings.txt` con ajustes limpios de fábrica y `emulator_templates.txt` con el catálogo de plantillas rápidas.
+  - `dist/config/`: `settings.txt` limpio de fábrica (`app_language = en` por defecto) y `emulator_templates.txt` con el catálogo de plantillas rápidas.
+  - `dist/lang/`: Archivos de idioma en texto plano (`en.txt`, `es.txt` y cualquier `<codigo>.txt` adicional que agregue el usuario).
   - `dist/emulators/`: Carpeta limpia preparada para dar de alta emuladores.
   - `dist/lists/`: Carpeta limpia preparada para tus listas de juegos.
   - `dist/icons/`: Logotipos e iconos de consolas y arcades.
-  - `dist/Layouts/`: Temas y diseños visuales listos para usar (CRT tv, consolas, wheel, showcase, etc.).
+  - `dist/Layouts/`: Temas y diseños visuales listos para usar (CRT TV, consolas, wheel, showcase, etc.).
   - `dist/splash/`: Carpeta preparada para el video de presentación (Splash Screen).
   - `dist/PlayNexus_Logo.png` y `dist/app_icon.ico`: Logotipo e icono de la aplicación.
-  *(Nota: La carpeta `dist/` se encuentra excluida del repositorio Git mediante `.gitignore` para mantener limpio el control de versiones).*
+  *(Nota: las carpetas `dist/`, `emulators/`, `lists/` y `backups/` están excluidas de Git mediante `.gitignore`).*
 
-### 2. Lanzadores y utilidades por scripts (.bat)
-- **`PlayNexus.bat`**: Menú selector interactivo que te permite elegir entre iniciar el Frontend, el Configurador o compilar los ejecutables.
-- **`PlayNexus_Launcher.bat`**: Inicia el Modo Frontend en pantalla completa creando o utilizando el entorno virtual `.venv`.
+### 2. Lanzadores y utilidades por scripts (`.bat`)
+- **`PlayNexus.bat`**: Menú selector interactivo que permite elegir entre iniciar el Frontend, el Configurador o compilar los ejecutables.
+- **`PlayNexus_Launcher.bat`**: Inicia el Modo Frontend en pantalla completa utilizando el entorno virtual `.venv`.
 - **`PlayNexus_Config.bat`**: Inicia el Modo Configurador con detección automática de Python y dependencias.
-- **`build_executables.bat` / `Compilar_EXE.bat`**: Automatiza la compilación con PyInstaller y genera la distribución limpia y portable en la carpeta `dist/`.
-
----
+- **`build_executables.bat` / `Compilar_EXE.bat`**: Automatiza la compilación con PyInstaller y genera la distribución limpia y portable en `dist/`.
 
 ### 3. Instalación manual para desarrollo (PowerShell o CMD)
-Si preferís ejecutar desde el entorno de desarrollo:
 1. **Crear y activar el entorno virtual:**
    ```powershell
    python -m venv .venv
@@ -43,11 +292,11 @@ Si preferís ejecutar desde el entorno de desarrollo:
    pip install -r requirements.txt
    ```
 2. **Ejecutar el Configurador:**
-   ```bash
+   ```powershell
    python -m playnexus
    ```
 3. **Ejecutar el Modo Frontend / Jugador:**
-   ```bash
+   ```powershell
    python -m playnexus --player
    ```
 
@@ -55,202 +304,49 @@ Si preferís ejecutar desde el entorno de desarrollo:
 
 ## 📋 Características principales
 
-### 1. Soporte para Juegos de PC y Windows (Estilo Attract-Mode)
-PlayNexus permite integrar juegos nativos de Windows, accesos directos (`.lnk`), scripts por lotes (`.bat`, `.cmd`) y ejecutables (`.exe`):
-- **Lanzador mediante comandos de sistema:** Podés registrar emuladores utilizando `cmd` o `cmd.exe` sin necesidad de escribir la ruta absoluta (se resuelve automáticamente a través del `PATH` del sistema).
-- **Plantilla rápida en un clic:** En el diálogo de emuladores contás con el botón **«⚙ Cargar plantilla para Juegos de Windows (cmd.exe)»** que configura automáticamente el ejecutable `cmd` con los argumentos `/c "[romfilename]"` y plataforma `PC Games`.
-- **Directorio de trabajo (`cwd`) inteligente:** Al ejecutar scripts `.bat`, `.cmd` o accesos directos `.lnk`, PlayNexus sitúa automáticamente el directorio de trabajo en la carpeta donde reside el juego, asegurando que cargue sus archivos locales, configuraciones y librerías sin errores de ruta.
-- **Comodines de argumentos compatibles con Attract-Mode y LaunchBox:**
-  - `[romfilename]`, `[rom_filename]`, `[rom]`, `%rom%`, `%1`: Ruta completa al archivo del juego con barras invertidas normalizadas de Windows (`C:\...`).
-  - `[rompath]`, `[rom_path]`, `[romdir]`: Directorio donde se aloja el juego.
-  - `[romname]`, `[rom_name]`, `[name]`, `[cleanromname]`: Nombre del archivo sin extensión.
-  - Comodines estilo Python estándar: `{rom}`, `{rom_dir}`, `{rom_name}`.
-  - Soporte inteligente de rutas con espacios, evitando la fragmentación de argumentos tanto si se colocan entre comillas como si no.
+### 1. Soporte Multi-Idioma mediante `lang/*.txt` (`i18n.py`)
+- **Inglés (`en`) predeterminado al iniciar por primera vez**, incluyendo traducciones completas en **[lang/en.txt](lang/en.txt)** y **[lang/es.txt](lang/es.txt)**.
+- **Extensible por texto plano:** Podés agregar cualquier idioma copiando `lang/en.txt` como `lang/<codigo>.txt` (UTF-8), ajustando `_lang_code`, `_lang_name` y traduciendo las líneas `clave = texto`.
+- **Selector dinámico en Configuración:** Desde *⚙ Configuración del Sistema → 🌐 Idioma / Language*, PlayNexus detecta todos los `.txt` de `lang/`, permite recargar la lista al instante y ofrece reiniciar la ventana automáticamente al guardar para aplicar el nuevo idioma en toda la aplicación.
+- **Cadena de respaldo segura:** Si a un archivo comunitario le faltan claves o tiene placeholders inválidos, respalda automáticamente en `lang/en.txt` y textos por defecto sin errores.
 
-### 2. Escaneo Asíncrono con Progreso en Vivo y Consola de Depuración
-- **Escaneo e importación en segundo plano:** El proceso de búsqueda e importación de juegos se ejecuta en un hilo de trabajo dedicado (`QThread`), garantizando que la interfaz permanezca totalmente fluida y sin bloqueos de Windows (*"no responde"*).
-- **Ventana de progreso en vivo:** Muestra una barra de porcentaje, contadores de archivos encontrados, juegos importados y juegos omitidos.
-- **Consola de depuración en tiempo real:** Permite observar detalladamente qué archivo se está procesando, qué juego coincidió con las reglas y qué ROMs fueron filtradas.
-- **Optimización para XML pesados de MAME/Arcade:** El guardado y validación de listas no bloquea la interfaz al trabajar con catálogos masivos de decenas de miles de juegos (ej. Taito G-Net o conjuntos completos de MAME).
+### 2. Motor de Renderizado GPU OpenGL (`gpu_renderer.py`)
+- **Pipeline por lotes OpenGL (`GpuSceneViewport` / `GpuQuadPipeline`):** Composición GPU a >60 FPS, homografías proyectivas (`corner_pins`), texturas premultiplicadas sin halos con mipmaps trilineales, shaders en FBO y respaldo automático a `QPainter` (`frontend_render_backend`).
+- **Video directo en GPU (`GpuVideoSurface` / `GpuVideoPlayerWidget`):** Subida directa de planos `NV12`, `YUV420P` y `RGBA/BGRA` desde `QVideoFrame` sin conversiones en CPU ni readbacks de FBO.
+- **Ciclo de vida OpenGL limpio:** Liberación segura de texturas, FBOs, shaders y superficies de video al ocultar pestañas, cambiar de modo en el Sandbox o cerrar ventanas.
 
-### 3. Listas y Menús Jerárquicos
-- **Tipos de listas configurables:**
-  - **Juegos (`games`):** Lista estándar asociada a una o más carpetas de ROMs con escaneo automático.
-  - **Sublista filtrada (`filtered`):** Lista dinámica generada a partir de otra lista según criterios específicos (ej. juegos de carreras, clones excluidos, fabricantes).
-  - **Menú de Sistemas (`menu`):** Menú jerárquico de navegación que agrupa otras listas (ideal para crear menús principales estilo "Arcades", "Consolas" o "Computadoras").
-- **Iconos por sistema:** Soporte para asignar iconos individuales (`icon_path`) a cada lista para mostrarlos en selectores y ruedas de navegación. Incluye una carpeta `icons/` con logotipos listos para usar (Arcade, SNES, Genesis, Saturn, PS1, Atomiswave, Naomi, N64, Jaguar, etc.).
-- **Carpetas de medios y arte dedicadas:** Configuración por lista para rutas independientes de `boxart`, `wheel` (logos transparentes), `video` (snaps), `flyer`, `cartart`, `cabinet`, `marquee` y `bezel` (artwork de layout).
+### 3. Soporte para Juegos de PC y Windows (Estilo Attract-Mode)
+- Integración nativa de ejecutables (`.exe`), accesos directos (`.lnk`) y scripts (`.bat`, `.cmd`) con `cmd` / `cmd.exe`, plantilla rápida **«Cargar plantilla para Juegos de Windows (cmd.exe)»**, ajuste automático de `cwd` y comodines compatibles con Attract-Mode y LaunchBox (`[romfilename]`, `[rompath]`, `[romname]`, `{rom}`, `{rom_dir}`, `{rom_name}`).
 
-### 4. Sistema Avanzado de Filtros por Reglas
-Disponible tanto para **Listas Filtradas** como para **Listas Comunes**:
-- Permite filtrar ROMs durante el escaneo para que sólo se importen los títulos que cumplan condiciones concretas.
-- **Campos evaluables:** `sourcefile` (archivo de driver/fuente en XMLs de arcade), `cloneof`, `romof`, `year`, `manufacturer`, `status`, `title`, `name`, entre otros.
-- **Operadores flexibles:** `contiene`, `no contiene`, `es igual a`, `comienza con`, `termina con`, `está vacío`, `no está vacío`.
-- **Modos de combinación:** Coincidir con todas las reglas (`AND`) o con al menos una (`OR`).
-- **Vista previa interactiva:** Botón de previsualización que calcula y muestra en vivo cuántos juegos coincidirán antes de guardar.
+### 4. Escaneo Asíncrono con Progreso en Vivo y Consola de Depuración
+- Búsqueda e importación en hilo dedicado (`QThread`) sin bloquear la interfaz ante catálogos masivos MAME/Arcade, con contadores en vivo y registro detallado.
 
-### 5. Configuración Flexible de Extensiones y Carpetas de ROMs
-- **Selector de presets:** Opciones rápidas para PC Games (`.lnk;.bat;.cmd;.exe`), SNES, GBA, PS1, PS2, Mega Drive, N64, NDS, PSP, Arcade (`.zip;.7z;<DIR>`) o personalización manual.
-- **Múltiples carpetas de ROMs:** Soporte para asociar múltiples directorios separados por punto y coma (`;`).
-- **Opciones de escaneo:**
-  - Activar o desactivar exploración de subcarpetas (`scan_subfolders`).
-  - Opción de excluir carpetas descomprimidas si existe un archivo `.zip` con el mismo nombre (`exclude_folder_if_zip`).
-  - Normalización automática de extensiones (limpieza de espacios, eliminación de duplicados, minúsculas automáticas y prevención de errores).
+### 5. Listas, Sublistas Filtradas, Menús Jerárquicos y Filtros por Reglas
+- Listas de juegos (`games`), listas filtradas dinámicas (`filtered`) y menús jerárquicos de sistemas (`menu`) con iconos (`icons/`) y carpetas independientes de medios (`boxart`, `wheel`, `video`, `flyer`, `cartart`, `cabinet`, `marquee`, `bezel`, `manual`).
+- Motor de reglas por campos (`sourcefile`, `cloneof`, `year`, `manufacturer`, `title`, etc.) con operadores flexibles, combinación `AND`/`OR` y vista previa en vivo de coincidencias.
 
-### 6. Gestión de Emuladores y Prioridad de Lanzamiento
-- Administrador centralizado de emuladores con soporte para cualquier ejecutable o comando del sistema.
-- **Plantillas rápidas configurables:** Al dar de alta o editar un emulador, el selector desplegable **«Plantilla rápida»** permite autocompletar nombre, ejecutable, argumentos y plataforma con un solo clic (Juegos de Windows, RetroArch y núcleos habituales, MAME, DuckStation, PCSX2, Dolphin, PPSSPP, Flycast, RPCS3, etc.).
-- **Gestor de plantillas en Configuración del Sistema:** En la pestaña *⚙ Configuración del Sistema* podés agregar tus propias plantillas personalizadas con sus ejecutables y argumentos preferidos, editarlas, eliminarlas o restablecer las predeterminadas, quedando inmediatamente disponibles en el selector rápido.
-- **Prioridad obligatoria al lanzar un juego:**
-  1. *Prioridad 1:* Emulador asignado individualmente al juego (sobrescritura por título).
-  2. *Prioridad 2:* Emulador predeterminado configurado en la lista activa.
-  3. *Prioridad 3:* Guía asistida si no se ha configurado ninguno.
-- **Detección inteligente de núcleos RetroArch:** Corrección automática de rutas si el usuario especificó un `.dll` en una subcarpeta o ruta diferente.
-- **Prevención de múltiples instancias:** Evita abrir copias duplicadas del mismo juego ante dobles clics rápidos o pulsaciones repetidas de joystick.
+### 6. Extensiones Flexibles, Gestión de Emuladores y Prioridad de Lanzamiento
+- Presets rápidos de extensiones, soporte multi-carpeta separado por `;`, detección de subcarpetas y exclusión de carpetas con `.zip` duplicado.
+- Perfiles individuales en `emulators/*.txt`, catálogo editable de plantillas rápidas (`config/emulator_templates.txt`), detección de núcleos RetroArch, guardia anti-doble instancia y prioridad obligatoria:
+  1. Emulador asignado individualmente al juego.
+  2. Emulador predeterminado de la lista.
+  3. Guía asistida si no hay emulador configurado.
 
-### 7. Motor de Layouts, Tablas Unificadas y Temas por Sistema
-PlayNexus ofrece un sistema modular y nativo de presentación visual en PySide6 (`playnexus/ui/layouts/`) con múltiples estilos:
-- **Temas por Consola y Arcade (`Layouts/<Sistema>/`):** 19 layouts autónomos en `theme_layout.py` (más recursos compartidos en `gtc-common` y `Media`) con renderizado de televisores CRT (`tv.png`), consola física (`console.png`), cartuchos/discos, mandos, video snaps y fondos temáticos. Incluye soporte completo para **Main Menu**, **At-The-Arcade Flex**, **Atari Jaguar**, **Atari Jaguar CD**, **NEC PC-FX**, **NEC TurboGrafx-16**, **NEC TurboGrafx-CD**, **Nintendo 64**, **Nintendo Gameboy Advance**, **Nintendo Gamecube**, **Nintendo Virtual Boy**, **Sega 32X**, **Sega CD**, **Sega Dreamcast**, **Sega Genesis**, **Sega Saturn**, **Sony Playstation**, **Sony PlayStation Portable** y **Super Nintendo Entertainment System**.
-- **Wheel (Rueda Arcade Clásica):** Rueda curva de logos transparentes con previsualización de video en vivo y carga asíncrona de arte (`wheel_worker.py`).
-- **Grid (Estantería / Cuadrícula):** Cuadrícula de carátulas dinámicas o personalizadas con control deslizante de zoom en vivo.
-- **Showcase (Modo Cinemático / Big Screen):** Vista cinematográfica con banner superior, tipografía destacada y carrusel inferior de selección rápida.
-- **Banners (Tarjetas Horizontales):** Filas amplias con resumen visual y detalles técnicos estilo Steam / LaunchBox.
-- **Detalles (Tabla Técnica y Unificación Global):** Vista completa y ordenable por columnas; además, todas las tablas del configurador comparten este comportamiento mediante `table_utils.py` (columnas redimensionables manualmente, ordenación alfanumérica/numérica inteligente y carga segura en segundo plano).
-- **Lanzamiento limpio desde la Biblioteca:** Al ejecutar un juego desde el Configurador, la ventana principal se minimiza automáticamente (si no lo estaba) y se restaura al cerrar el emulador para que no oculte la ventana del juego.
+### 7. Motor de Layouts, Tablas Unificadas y 19 Temas por Sistema
+- **19 layouts temáticos autónomos (`Layouts/<Sistema>/theme_layout.py`):** **Main Menu**, **At-The-Arcade Flex**, **Atari Jaguar**, **Atari Jaguar CD**, **NEC PC-FX**, **NEC TurboGrafx-16**, **NEC TurboGrafx-CD**, **Nintendo 64**, **Nintendo Gameboy Advance**, **Nintendo Gamecube**, **Nintendo Virtual Boy**, **Sega 32X**, **Sega CD**, **Sega Dreamcast**, **Sega Genesis**, **Sega Saturn**, **Sony Playstation**, **Sony PlayStation Portable** y **Super Nintendo Entertainment System** (con recursos compartidos en `gtc-common`).
+- **Vistas genéricas:** **Wheel**, **Grid**, **Showcase**, **Banners** y **Detalles** (`table_utils.py`).
+- **Navegación vertical estándar y *Commit on Release*:** Desplazamiento fluido de ruleta a 60 FPS sin pausar el video previo ni el de fondo durante el giro, con carga sincronizada al soltar la tecla o al vencer el debounce (~180 ms).
 
-### 8. Configuración de Video, Resoluciones y Pantalla
-- **Modos de visualización:**
-  - *Pantalla completa (Fullscreen):* Ideal para gabinetes arcade y televisores.
-  - *Ventana sin bordes (Borderless):* Expansión a pantalla completa sin bordes de ventana.
-  - *Modo Ventana (Windowed):* Ventana redimensionable y centrada.
-- **Resoluciones:** 4K UHD, 2K QHD, Full HD (1080p), 720p, relaciones 16:10, 4:3 arcade clásico, resolución nativa automática o personalización exacta en píxeles.
-- **Soporte multi-monitor:** Selección del monitor específico donde se abrirá el Frontend.
-- **Escala de interfaz (UI Scale):** Ajustes de escala (100%, 125%, 150%, 175%, 200%) para pantallas de alta densidad (HiDPI).
+### 8. Video, Controles, Bezels HUD, Splash, Loading Screen y Salvapantallas
+- Modos Fullscreen, Borderless y Ventana, múltiples monitores, escala HiDPI (`100%`–`200%`), control simultáneo por teclado y gamepad (XInput/DirectInput) y tecla/combo global para cerrar emuladores silenciando el frontend durante la partida.
+- **Bezel HUD transparente Click-Through** (`WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE`) con resolución por ROM/orientación (`default_v.png`/`default.png`), retardo/fade configurable y atajo en vivo (`F11` / `L-Thumb`).
+- **Splash Screen** con salto instantáneo, **Loading/Exit Screen** (`nombrerom_i/o` → `default_i/o` → `splash/loading.jpg`), confirmación modal arcade al salir y **Salvapantallas Arcade** con 4 modos (*Basic Movie*, *Movie Collage 2×2*, *Image Collage 4×4*, *RGB Movie*), apagado de pantalla y salto directo al juego mostrado al presionar Select.
 
-### 9. Control por Gamepad / Joystick y Salida Global
-- Soporte para gamepads mediante API de Windows (XInput / DirectInput): navegación por D-Pad, sticks analógicos y botones de acción.
-- **Salida rápida de emuladores (`Kill Switch`):** Permite cerrar cualquier emulador en ejecución al presionar `Escape` o el combo de joystick `Back+Start`.
-- **Silenciador automático de video:** Pausa y silencia los videos y sonidos de fondo del Frontend mientras el emulador está en ejecución, reanudándolos al salir.
-
-### 10. Bezels Superpuestos en Primer Plano (Bezel HUD / Overlay Transparente)
-PlayNexus puede proyectar marcos decorativos (bezels) flotantes directamente por encima de la ventana del emulador en tiempo de ejecución:
-- **Carpeta independiente de Bezel HUD:** La carpeta de Bezel HUD (`bezel_hud_path`) se configura por lista y es totalmente independiente de los bezels de artwork del frontend (`bezel_path`).
-- **Resolución estricta por ROM y orientación de pantalla:** Al iniciar el juego, PlayNexus busca únicamente dentro de la carpeta HUD seleccionada:
-  1. `<nombre_rom>.png` (o el nombre base de la ROM).
-  2. Si no se encuentra:
-     - Para juegos con pantalla vertical (detectados automáticamente por rotación MAME 90°/270°, resolución o configuración manual): busca primero **`default_v.png`**. Si no existe en la carpeta, recurre a **`default.png`**.
-     - Para juegos con pantalla horizontal estándar: busca estrictamente **`default.png`**.
-  3. Si ninguno de los archivos existe, no se proyecta ningún bezel.
-  *(No busca en ninguna otra carpeta ni utiliza heurísticas de nombres alternativos).*
-- **Retardo (`bezel_delay`) y fundido (`bezel_fade`) configurable por emulador:**
-  - En la edición de cada emulador se puede calibrar el tiempo de espera en segundos (`Retardo de inicio del Bezel HUD`) para que emuladores que demoran en arrancar o cambiar de modo de video abran limpiamente antes de proyectar el marco.
-  - Duración de animación de fundido suave configurable (`Duración del Fade-in`).
-  - **Protección anti-crasheos:** Los comandos de cierre de salida forzada quedan bloqueados durante la inicialización del bezel para evitar cierres prematuros de emuladores durante transiciones gráficas delicadas.
-- **Control por lista y anulación (override) por ROM:**
-  - Se puede activar o desactivar el HUD para toda la lista de juegos.
-  - Cada juego cuenta con una opción individual en el panel de detalles y edición para:
-    - *Heredar de la lista (por defecto)*.
-    - *Activar Bezel HUD (Forzar)*: muestra el bezel aunque la lista lo tenga desactivado.
-    - *Desactivar Bezel HUD*: oculta el bezel para esta ROM aunque la lista lo tenga activado.
-- **Tecnología Click-Through (Win32 Overlay):** El marco se dibuja en una ventana sin bordes en primer plano con atributos `WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_NOACTIVATE`. El mouse, teclado y joystick traspasan la ventana hacia el emulador sin perder el foco ni sufrir pérdida de rendimiento.
-- **Alternar/Ocultar Bezel en tiempo real durante la emulación:** Se puede presionar en cualquier momento la tecla o botón de mando asignado en la pestaña de Controles de la Configuración del Sistema (por defecto `F11` en teclado o `L-Thumb`/`L3` en gamepad) para ocultar o restaurar el marco decorativo al instante. Esto permite visualizar y operar con comodidad los menús de pausa, configuraciones y barras de herramientas internas del emulador (ej: al pulsar Escape en DuckStation o menús en MAME/RetroArch) sin que el bezel tape ninguna opción.
-- **Ciclo de vida y recuperación de primer plano limpio:** Se proyecta automáticamente y se destruye de inmediato al terminar el juego, devolviendo el foco a PlayNexus mediante `AttachThreadInput` sin alterar modificadores del teclado ni activar menús del sistema.
-
-### 11. Pantalla de Bienvenida con Video (Splash Screen de Intro)
-- **Video cinematográfico al iniciar:** Permite reproducir un video de introducción a pantalla completa al arrancar el Frontend (`PlayNexus_Launcher.exe`) antes de cargar la biblioteca.
-- **Configuración en la pestaña Modo Frontend:**
-  - Casilla para activar o desactivar la pantalla de bienvenida.
-  - Campo de ruta para el video (soporta `.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`, etc.).
-  - Botón **«Examinar…»** y botón de prueba en vivo **«▶ Probar video»** en el monitor de destino.
-- **Salto instantáneo (Skip):** Cualquier pulsación de tecla, botón del gamepad o clic de ratón saltea el video al instante para entrar directamente a la biblioteca.
-- **Sincronización fluida:** Al terminar o saltar la intro, el layout activo comienza de inmediato la reproducción de su video de fondo o snaps temáticos sin requerir mover la ruleta.
-
-### 12. Pantallas de Carga y Cierre (Loading Screen HUD)
-- **Ocultamiento de transiciones de Windows:** Al iniciar un juego o cerrarlo, se despliega una pantalla de carga a pantalla completa (`TOPMOST`) que enmascara los parpadeos del escritorio, cambios de resolución y demoras del emulador.
-- **Tiempos configurables por Emulador:**
-  - **Apertura (In):** Segundos que se mantiene la pantalla al arrancar el emulador antes de desvanecerse suavemente.
-  - **Cierre (Out):** Segundos que se mantiene la pantalla al pulsar la tecla o combo de cierre mientras el emulador finaliza y el layout de PlayNexus recupera el foco.
-- **Carpeta única por Lista de Juegos (`loading_path`) con jerarquía de prioridad:**
-  - Cada lista permite configurar una única carpeta de Loading Screens, la cual se organiza de forma modular:
-    1. **Prioridad 1 (Por juego / ROM):** Subcarpeta con el nombre de la ROM conteniendo `nombrerom_i.<ext>` (apertura) y `nombrerom_o.<ext>` (cierre).
-    2. **Prioridad 2 (Por defecto del sistema / lista):** Subcarpeta `default/` conteniendo `default_i.<ext>` y `default_o.<ext>`.
-    3. **Prioridad 3 (Genérico global):** Si no existe arte asignado en la lista, recurre automáticamente a la imagen predeterminada en `splash/loading.jpg` (o PNG/WebP).
-
-### 13. Confirmación Segura de Salida del Sistema
-- **Diálogo modal arcade con confirmación:** Al pulsar la tecla configurada para cerrar el frontend (por defecto `Escape`) o combo de mando (`Back+Start`), se despliega una ventana interactiva de confirmación que evita salidas involuntarias.
-- **Navegación completa por Joystick y Teclado:** Se puede alternar entre «Cancelar» y «Salir del Frontend» mediante las flechas o D-Pad, confirmar con Enter/Botón A o cancelar directamente con Escape/Botón B.
-
-### 14. Sistema de Salvapantallas (Screensaver Arcade)
-Inspirado y perfeccionado a partir del script oficial de Attract-Mode (`screensaver.nut`), PlayNexus incluye un motor nativo y dinámico de salvapantallas en PySide6:
-- **Detección inteligente de inactividad:** Se activa automáticamente al transcurrir el tiempo configurado sin interacción (por defecto 3 minutos) y se pausa de forma transparente mientras haya un emulador en juego.
-- **Cuatro modos visuales con rotación ponderada aleatoria:**
-  1. **Video a pantalla completa (`Basic Movie`):** Reproduce video snaps de juegos aleatorios con el logotipo del juego (`wheel` o `boxart`) flotante con sombra suave y transiciones de fade-in y fade-out.
-  2. **Collage de videos 2x2 (`Movie Collage`):** Cuadrícula de 4 videos simultáneos. Uno de los cuadrantes reproduce audio temático mientras los otros 3 permanecen en silencio para evitar saturación de sonido. Al finalizar un video se reemplaza por otro o rota el modo.
-  3. **Collage de imágenes 4x4 (`Image Collage`):** Mosaico dinámico de 16 capturas o carátulas donde cada 100 ms se reemplaza una celda al azar. Duración de 12 segundos antes de dar paso al siguiente modo.
-  4. **Efecto RGB animado (`RGB Movie`):** Video dividido en 3 columnas; la franja central modula dinámicamente colores RGB mientras las columnas laterales realizan un scroll vertical continuo en loop.
-- **Apagado profundo de pantalla (Blank Screen):** Pasa a negro absoluto (`#000000`) tras N minutos (por defecto 60 min) para proteger paneles OLED/CRT y ahorrar energía.
-- **Interactividad y salto directo al juego (On Select):**
-  - Mover el mouse, tocar cualquier tecla ordinaria o presionar botones del mando despierta el Frontend al instante reanudando el layout activo.
-  - Al presionar la acción **SELECT** (tecla `Enter` o botón `A` del mando), el salvapantallas se cierra y salta directamente al juego exhibido en ese preciso momento, seleccionándolo en la rueda o lista.
-- **Configuración completa en la pestaña *Modo Frontend*:** Tiempo de espera (1 a 120 min), selección de modos habilitados, selector de arte superpuesto (*Wheel*, *Flyer*, *Marquee* o *Ninguno*), activación de sonido, relación de aspecto y botón **«▶ Probar salvapantallas»**.
-
-### 15. Layout Studio 2.0 (Editor Visual WYSIWYG e Interactivo en Tiempo Real)
-La pestaña **🎨 Layout Studio** ofrece un entorno de edición visual y de código en tiempo real para todos los temas de `Layouts/`:
-- **Ejecución directa del código real (`theme_layout.py`):** Lee, instancia y ejecuta directamente el `ThemeLayout` de cada layout sin diccionarios paralelos ni heurísticas, respetando el 100 % de sus elementos locales y compartidos (`gtc-common`, puntero, sombra de ruleta, scanlines, consola, cartucho/disco, flyer, cabinet, marquee, barra inferior).
-- **Plantilla canónica estandarizada (`canonical_template.py`):** Los nuevos temas se generan respetando requerimientos explícitos de medios (`MEDIA_REQUIREMENTS`), orden estricto de fuentes/recursos, compromiso de medios al soltar el botón (*Commit on Release* / *debounce* ~180 ms) sin pausar el video en curso y reanudación automática de animaciones al volver de un emulador.
-- **Edición en tiempo real en el lienzo 16:9 (`1920x1080`):**
-  - Arrastrar y redimensionar cualquier elemento con gizmos interactivos.
-  - **Deformación 4 Puntos (`🔮 Deformación 4 Puntos`):** Transformación proyectiva de perspectiva (`QTransform.quadToQuad` / `corner_pins`) arrastrando individualmente cada esquina de cualquier capa.
-  - Gestión de orden de capas (Z-Order), visibilidad individual, opacidad y bloqueo.
-  - **Línea de tiempo de animaciones:** Controles de reproducción a 60 FPS (`▶ Play`, `⏸ Pausa`, `⏮ 0.0s`, `±0.1s` y barra deslizante de `0.00s` a `5.00s`) para previsualizar las trayectorias reales de entrada y flotación de cada elemento.
-- **Restablecimiento y copias de seguridad automáticas:**
-  - Botón **`🔄 Restablecer Cambios`** para devolver todos los elementos a su posición, tamaño, forma y visibilidad originales de fábrica.
-  - Al guardar (`💾 Guardar Cambios`), genera automáticamente un respaldo fechado en `Layouts/<Tema>/backups/` antes de escribir en `theme_layout.py`.
-- **Sandbox Interactivo en Vivo (`▶ Probar en Sandbox`):**
-  - Selector de modo de visualización (`🪟 Modo Ventana`, `🖥 Pantalla Completa`, `🔲 Ventana sin Bordes`) y selector de resolución (`1280x720`, `1920x1080`, `1600x900`, `1366x768`, `2560x1440`, `3840x2160`, `16:10`, `5:4`, `4:3` y `Nativa del Monitor`).
-  - Sincronización en tiempo real de geometrías, shaders y partículas entre el Studio y la ventana del Sandbox mediante caché de texturas pre-escaladas (`_studio_pix_cache`).
-
-### 16. Rom Manager, Auditoría Estricta y Gestión Completa de Medios
-La pestaña **🧰 Rom Manager** centraliza la auditoría y mantenimiento de colecciones y artes (`rom_manager_tab.py` / `rom_manager.py`):
-- **Auditoría 100 % guiada por `MEDIA_REQUIREMENTS`:** Solo audita y solicita exactamente los slots y extensiones declarados en el `theme_layout.py` activo para la lista (videos, wheels, boxart, flyer, cartart/discart, cabinet, marquee, bezel, manuales PDF, etc.).
-- **Columna `Opciones` por fila en la tabla:** Botones directos de acción rápida por ROM:
-  - `📂` Abrir carpeta donde reside la ROM en el Explorador.
-  - `🔁` Reemplazar archivo ROM (con opción de conservar, copiar/renombrar o limpiar artes asociadas).
-  - `🗑` Eliminar literalmente el juego del disco (ROM + todas sus artes exclusivas, protegiendo archivos compartidos con otros juegos o versiones) y quitarlo de la lista.
-- **Previsualizador dual y barra de tiempo dedicada:**
-  - Visor integrado de imágenes (con cuadrícula de transparencia para PNG/WEBP), portada/apertura de manuales PDF y reproductor de video con línea de tiempo completa (`_VideoSeekSlider` con salto directo por clic), volumen, bucle y auto-reproducción.
-  - Soporte **Drag & Drop** sobre el visor para copiar y renombrar automáticamente la media al slot seleccionado, además de sugerencias difusas para archivos huérfanos en la carpeta.
-- **Exportación de reportes:** Exportación completa de la auditoría a CSV para revisión externa.
-
-### 17. Scraper Online Multi-Fuente (Boxart 2D/3D, Videos y Metadatos)
-Integrado directamente dentro del Rom Manager (`playnexus/services/scraper/` y `scraper_dialogs.py`) para descarga puntual o por lotes:
-- **ArcadeItalia (ADB):** Descarga de snaps MP4, wheels, flyers, cabinets, marquees, bezels y metadatos completos de MAME / Arcade.
-- **Libretro Thumbnails:** Descarga gratuita de boxarts y logos/wheels para ~127 sistemas/consolas sin necesidad de API key, con índice cacheado en local.
-- **ScreenScraper API v2:** Búsqueda interactiva y coincidencia exacta por hashes (**CRC32 / MD5 / SHA1**), prioridad de regiones configurable y descarga de media variada (`box-3D`, `box-2D`, `support-2D`, videos, flyers, bezels y manuales PDF).
-- **Cifrado portable de credenciales:** Las claves y usuarios de ScreenScraper (así como las de RetroAchievements) se guardan cifrados localmente en `config/settings.txt` usando el prefijo `enc1:` y llave aleatoria en `config/.key` (excluida de Git).
-
-### 18. Pro Toolkit (Optimización de Artes, Videos y Auditoría 1G1R)
-Herramientas integradas para depurar y estandarizar bibliotecas grandes (`rom_toolkit.py` y `toolkit_dialogs.py`):
-- **Auto-Trim de Wheels y Logos:** Recorte automático de bordes transparentes o negros sobrantes (con respaldo `.bak`, motor Pillow o respaldo nativo Qt).
-- **Normalizador de Videos Preview:** Conversión por lotes vía `ffmpeg` a MP4 H.264/AAC ligero (`-movflags +faststart`) optimizado para carga instantánea en la ruleta, con ejecución cancelable.
-- **Auditor 1G1R / Duplicados no destructivo:** Agrupación inteligente por título canónico, soporte multi-disco (`Disc 1`, `Disc 2`, etc.), detección de `cloneof`, prioridad regional configurable y movimiento seguro de duplicados a `_duplicates/`.
-
-### 19. RetroAchievements (Web API v1) y Telemetría de Juego
-- **Integración oficial de solo lectura (`retroachievements.py` / `ra_dialogs.py`):** Cálculo de hashes MD5 según especificaciones de `rcheevos` por sistema (Arcade/NES/SNES/N64/PS1/etc.), caché local persistente para evitar bloqueos de interfaz, diálogo de detalle de logros por juego y sincronización por lotes.
-- **Telemetría automática en biblioteca:** Registro por juego de **cantidad de partidas**, **tiempo total jugado** y **fecha de última partida**, visible tanto en el Configurador como en el Modo Frontend (`db.py`).
-
-### 20. Visor Integrado de Manuales PDF
-- **Lectura in-app sin bloquear archivos (`manual_viewer.py`):** Utiliza `PySide6.QtPdf.QPdfDocument` cargado en memoria mediante `QBuffer` para permitir consultar manuales escaneados directamente desde la Biblioteca, el Rom Manager y el Frontend Arcade (navegable también con teclado/gamepad), con respaldo limpio al visor del sistema si `QtPdf` no está disponible.
-
-### 21. Menú Rápido Arcade y Búsqueda en Vivo
-- **Overlay superpuesto dentro de `PlayerWindow` (`frontend_quick_menu.py`):** Navegable al 100 % con teclado o mando para cambiar filtros en caliente (*Todos*, *Solo Favoritos*, *Sin jugar*, *Ya jugados*), ordenación, búsqueda instantánea con **teclado virtual en pantalla**, alternancia de shaders/partículas en vivo y acciones rápidas del sistema.
-
-### 22. Pipeline de Shaders Retro y Partículas Ambientales
-- **Shaders retro en GPU con respaldo CPU (`shaders.py`):** `CRT Aperture` (curvatura, máscara y scanlines), `CRT Bloom`, `LCD Handheld` y `VHS / Arcade Analógico` ejecutados vía `QOpenGLFramebufferObject` con fallback automático a `QPainter`, aplicables sobre `TV_RECT` o pantalla completa (`global`).
-- **Partículas ambientales (`particles.py`):** Pool liviano pre-asignado (`Chispas Arcade`, `Polvo Neón`, `Nieve / Destellos`, `Campo Estelar Parallax`) configurable por tema o desde el menú rápido con selector de nivel de rendimiento.
-
-### 23. Guardián de Audio de Windows (`AudioDeviceGuardian`)
-- **Recuperación automática ante cambios de salida de audio (`audio_guard.py`):** Escucha eventos `QMediaDevices.audioOutputsChanged` y fallos WASAPI (`AUDCLNT_E_DEVICE_INVALIDATED` / `QRtAudioEngine`) habituales al entrar/salir de emuladores HDMI o cambiar resolución, reasignando automáticamente los reproductores y efectos de sonido activos (`QAudioOutput` / `QSoundEffect`).
+### 9. Layout Studio 2.0, Rom Manager, Scraper, Pro Toolkit, RetroAchievements y Extras
+- **Layout Studio 2.0:** Edición directa sobre `ThemeLayout` real en lienzo `1920x1080`, deformación proyectiva 4 puntos (`corner_pins`), línea de tiempo de animaciones a 60 FPS, copias de seguridad locales en `Layouts/<Tema>/backups/` y **Sandbox en vivo** multi-resolución.
+- **Rom Manager y Scraper Multi-Fuente:** Auditoría estricta guiada por `MEDIA_REQUIREMENTS`, reemplazo y borrado literal seguro de ROM+artes exclusivas, previsualizador dual imagen/PDF/video con timeline, exportación CSV y scraping integrado con **ArcadeItalia (ADB)**, **Libretro Thumbnails** y **ScreenScraper API v2** (con cifrado local `enc1:` mediante `config/.key`).
+- **Pro Toolkit:** Auto-Trim de wheels/logos, normalizador MP4 vía `ffmpeg` y auditor no destructivo 1G1R/duplicados.
+- **RetroAchievements API v1, Visor PDF in-app, Menú Rápido Arcade, Shaders/Partículas y Guardián WASAPI (`audio_guard.py`).**
 
 ---
 
@@ -258,116 +354,49 @@ Herramientas integradas para depurar y estandarizar bibliotecas grandes (`rom_to
 
 ```text
 PlayNexus_Frontend/
-├── README.md                 # Documentación técnica y guía de uso
-├── gemini.md                 # Reglas y directivas de arquitectura del proyecto
-├── requirements.txt          # Dependencias del proyecto (PySide6)
-├── PlayNexus.bat             # Menú interactivo de selección (.bat)
-├── PlayNexus_Config.bat      # Lanzador directo del Modo Configurador (.bat)
-├── PlayNexus_Launcher.bat    # Lanzador directo del Modo Frontend / Jugador (.bat)
+├── README.md                 # Documentación bilingüe (English + Español)
+├── GEMINI.md                 # Reglas y directivas de arquitectura del proyecto
+├── requirements.txt          # Dependencias del proyecto (PySide6, etc.)
+├── PlayNexus.bat             # Menú interactivo (.bat)
+├── PlayNexus_Config.bat      # Lanzador del Configurador (.bat)
+├── PlayNexus_Launcher.bat    # Lanzador del Frontend / Jugador (.bat)
 ├── build_executables.bat     # Script de compilación (.bat)
 ├── Compilar_EXE.bat          # Acceso rápido de compilación (.bat)
-├── build_executables.py      # Script de compilación y ensamblado de la carpeta dist/ limpia
+├── build_executables.py      # Genera ejecutables y distribución limpia en dist/
 ├── entry_config.py           # Punto de entrada para PlayNexus_Config.exe
 ├── entry_launcher.py         # Punto de entrada para PlayNexus_Launcher.exe
 ├── PlayNexus_Logo.png        # Logotipo del proyecto
-├── PlayNexus_icon.png        # Icono maestro de alta resolución (1254x1254)
-├── app_icon.ico              # Icono multi-resolución de Windows (256, 128, 64, 48, 32, 24, 16 px)
-├── splash/                   # Carpeta de videos de presentación (Splash Screen)
-├── dist/                     # Distribución independiente 100% limpia y portable (.exe y recursos)
-│   ├── PlayNexus_Config.exe  # Ejecutable del Configurador
-│   ├── PlayNexus_Launcher.exe# Ejecutable del Frontend / Jugador
-│   ├── PlayNexus_Logo.png    # Logotipo del aplicativo
-│   ├── app_icon.ico          # Icono del aplicativo
-│   ├── config/               # Configuración limpia (settings.txt, emulator_templates.txt)
-│   ├── emulators/            # Directorio limpio para registrar emuladores
-│   ├── lists/                # Directorio limpio para listas de juegos
-│   ├── icons/                # Iconos de consolas y arcades
-│   ├── Layouts/              # Diseños y temas visuales nativos
-│   └── splash/               # Video de presentación (Splash Screen)
-├── config/                   # Configuración del entorno de desarrollo
-├── emulators/                # Archivos .txt de emuladores del entorno local
-├── lists/                    # Archivos .txt de listas locales (ignorados en Git)
-├── icons/                    # Logotipos e iconos de consolas y arcades (.png)
-├── Layouts/                  # Carpetas de temas y layouts dedicados por consola y arcade
+├── PlayNexus_icon.png        # Icono maestro de alta resolución
+├── app_icon.ico              # Icono multi-resolución de Windows
+├── lang/                     # Archivos de idioma en texto plano (.txt)
+│   ├── en.txt                # Paquete en inglés (predeterminado)
+│   └── es.txt                # Paquete en español
+├── splash/                   # Video de bienvenida e imagen loading por defecto
+├── dist/                     # Distribución portable compilada (.exe + recursos + dist/lang/)
+├── config/                   # Configuración local (settings.txt, emulator_templates.txt)
+├── emulators/                # Perfiles locales de emuladores (.txt, ignorados en Git)
+├── lists/                    # Listas locales de juegos y menús (.txt, ignorados en Git)
+├── icons/                    # Iconos de sistemas y arcades (.png)
+├── Layouts/                  # 19 temas dedicados por consola/arcade + gtc-common
 └── playnexus/
-    ├── __init__.py
-    ├── __version__.py        # Versión centralizada del sistema (v1.3.5)
-    ├── __main__.py           # Enrutador principal (--player o configurador)
-    ├── db.py                 # Motor de almacenamiento en memoria, telemetría y archivos .txt
-    ├── services/
-    │   ├── __init__.py
-    │   ├── audio_guard.py    # Recuperación automática WASAPI / QtMultimedia (AUDCLNT_E_DEVICE_INVALIDATED)
-    │   ├── controls.py       # Mapeo y gestión de controles de teclado
-    │   ├── emulator_manager.py # Monitoreo de procesos, retardos, fade, HUD y salida global
-    │   ├── emulator_templates.py # Carga, edición y persistencia de plantillas rápidas
-    │   ├── gamepad.py        # Lectura y eventos de joystick / gamepad
-    │   ├── launcher.py       # Resolución de emuladores, comodines Attract-Mode y ejecución
-    │   ├── library.py        # Normalización de extensiones, XML de MAME, filtros y escaneo
-    │   ├── media.py          # Resolución y búsqueda de medios (video, wheel, carátulas, bezels, PDF)
-    │   ├── retroachievements.py # Cliente API v1, hashes MD5 rcheevos y caché local
-    │   ├── rom_manager.py    # Auditoría MEDIA_REQUIREMENTS, reemplazo de ROM y borrado seguro
-    │   ├── rom_toolkit.py    # Pro Toolkit: Auto-Trim, Video Normalizer (ffmpeg) y Auditor 1G1R
-    │   ├── themes.py         # Carga y detección de temas personalizados y specs de medios
-    │   └── scraper/          # Paquete de scraping online (ArcadeItalia, Libretro, ScreenScraper)
-    │       ├── __init__.py
-    │       ├── cache.py      # Caché JSON persistente de búsquedas e índices
-    │       ├── engine.py     # Motor compuesto paralelo / automático de scraping
-    │       ├── http_utils.py # Utilidades HTTP, rate-limit y cálculo de hashes CRC/MD5/SHA1
-    │       ├── models.py     # Modelos, config y cifrado portable de credenciales (enc1:)
-    │       ├── providers.py  # Proveedores ArcadeItalia, Libretro Thumbnails y ScreenScraper v2
-    │       └── systems.py    # Mapeo normalizado de sistemas/plataformas
-    └── ui/
-        ├── __init__.py
-        ├── bezel_overlay.py  # Ventana de overlay transparente para Bezel HUD con fade
-        ├── cover_utils.py    # Generador procedural de carátulas dinámicas y carga de arte
-        ├── dialogs.py        # Diálogos: Listas, Emuladores (retardo/fade/loading), Escaneo, Filtros
-        ├── exit_confirm_dialog.py # Diálogo modal de confirmación de salida del Frontend
-        ├── frontend_quick_menu.py # Menú Rápido Arcade y teclado virtual en vivo
-        ├── frontend_tab.py   # Configuración de video, pantalla, shaders, Salvapantallas y Splash
-        ├── loading_overlay.py# Ventana a pantalla completa para Loading HUD (apertura/cierre)
-        ├── main_window.py    # Ventana principal del Configurador (y sincronización con biblioteca)
-        ├── manual_viewer.py  # Visor integrado de manuales PDF (QPdfDocument en memoria)
-        ├── particles.py      # Sistema liviano de partículas ambientales
-        ├── player_window.py  # Ventana del Modo Frontend / Jugador (pantalla completa)
-        ├── ra_dialogs.py     # Diálogos de credenciales, detalle y sincronización RetroAchievements
-        ├── rom_manager_tab.py# Pestaña Rom Manager (auditoría, previsualizador, opciones y borrado)
-        ├── scraper_dialogs.py# Diálogos del Scraper Online (puntual, lote y configuración)
-        ├── screensaver.py    # Motor de salvapantallas arcade (4 modos visuales + apagado)
-        ├── settings_tab.py   # Pestaña de configuración general y controles
-        ├── shaders.py        # Pipeline de shaders retro (GLSL FBO con fallback CPU QPainter)
-        ├── splash_screen.py  # Reproductor a pantalla completa del video de bienvenida
-        ├── table_utils.py    # Utilidades compartidas estilo Detalles para todas las tablas
-        ├── toolkit_dialogs.py# Diálogos de Auto-Trim, Normalizador MP4 y Auditor 1G1R
-        ├── layout_studio/    # Entorno visual de diseño de layouts 2.0 en tiempo real
-        │   ├── __init__.py
-        │   ├── canonical_template.py # Plantilla canónica y validación MEDIA_REQUIREMENTS
-        │   ├── canvas.py         # Lienzo WYSIWYG interactivo 16:9, gizmos y deformación 4 puntos
-        │   ├── code_editor.py    # Editor de código Python con resaltado y Hot Reload
-        │   ├── inspector.py      # Inspector de capas (Z-Order), geometría y propiedades
-        │   ├── models.py         # Modelos de datos (LayoutProject, LayoutElement)
-        │   ├── runtime_hook.py   # Introspección AST/píxel y renderizado en vivo de ThemeLayout
-        │   ├── studio_tab.py     # Pestaña principal, línea de tiempo y Sandbox multi-resolución
-        │   └── templates.py      # Generador de plantillas base para nuevos layouts
-        └── layouts/          # Fábrica y modos de layouts
-            ├── __init__.py
-            ├── base.py       # Clase base abstracta BaseLayout (caché y lifecycle de medios)
-            ├── banner_layout.py    # Modo Banners horizontales
-            ├── grid_layout.py      # Modo Cuadrícula con zoom regulable
-            ├── showcase_layout.py  # Modo Cinemático / Showcase
-            ├── table_layout.py     # Modo Tabla técnica de detalles
-            ├── theme_layout.py     # Cargador dinámico de layouts temáticos por sistema
-            ├── wheel_layout.py     # Rueda arcade interactiva
-            └── wheel_worker.py     # Hilo trabajador para renderizado suave de la rueda
+    ├── __init__.py           # Inicialización de QtMultimedia FFmpeg e i18n temprano
+    ├── __version__.py        # Versión centralizada (v1.4.0)
+    ├── __main__.py           # Enrutador CLI (--player o Configurador)
+    ├── db.py                 # Motor de almacenamiento en texto plano y telemetría
+    ├── i18n.py               # Motor de carga multi-idioma desde lang/*.txt y reinicio
+    ├── services/             # Controles, emuladores, gamepad, biblioteca, medios, RA, toolkit, scraper
+    └── ui/                   # Configurador, Player, diálogos, shaders, GPU, Layout Studio y layouts
 ```
 
 ---
 
-## 💾 Persistencia de datos en Texto Plano (100% Portable)
+## 💾 Persistencia de datos en Texto Plano (100 % Portable)
 
-PlayNexus almacena toda la información de manera legible y portable en archivos de texto plano directamente dentro de la carpeta del proyecto, sin crear entradas en el registro ni carpetas ocultas en `AppData`:
+PlayNexus almacena toda su configuración, idiomas y biblioteca en archivos de texto plano legibles dentro de la carpeta del programa, sin usar el Registro de Windows ni `AppData`:
 
-- **`config/settings.txt`**: Ajustes generales, controles asignados, modos de video, shaders/partículas y credenciales cifradas (`enc1:`) para ScreenScraper y RetroAchievements.
-- **`config/.key`**: Llave simétrica local utilizada para descifrar las credenciales `enc1:` (excluida del repositorio mediante `.gitignore`).
-- **`config/emulator_templates.txt`**: Catálogo de plantillas rápidas de emuladores (nombre, ejecutable, argumentos, plataforma, descripción, retardo/fade de Bezel y tiempos de Loading Screen).
-- **`emulators/<NombreEmulador>.txt`**: Parámetros de cada emulador (`executable`, `arguments`, `platform`, `bezel_delay`, `bezel_fade`, `loading_time`, `exit_loading_time`).
-- **`lists/<NombreLista>.txt`**: Configuración de cada lista (`[List]`: rutas de ROMs, layout, icono, filtros, medios, Bezel HUD, carpeta única de carga `loading_path`) y catálogo completo de juegos (`[Games]`: título, archivo, emulador individual, modo de Bezel HUD, telemetría de partidas/tiempo jugado y metadatos).
+- **`lang/<codigo>.txt`**: Archivos de traducción en texto plano (`_lang_code`, `_lang_name`, `clave = valor`) detectados automáticamente al iniciar y desde Configuración.
+- **`config/settings.txt`**: Ajustes generales (`app_language`, controles, pantalla/video, shaders/partículas y credenciales cifradas `enc1:`).
+- **`config/.key`**: Llave simétrica local para descifrar credenciales `enc1:` (excluida de Git).
+- **`config/emulator_templates.txt`**: Catálogo editable de plantillas rápidas de emuladores.
+- **`emulators/<NombreEmulador>.txt`**: Parámetros locales de cada emulador (ignorados en Git).
+- **`lists/<NombreLista>.txt`**: Configuración (`[List]`) y juegos (`[Games]`) de cada lista/menú con telemetría y overrides (ignorados en Git).
