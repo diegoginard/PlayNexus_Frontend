@@ -1,7 +1,0 @@
-# Configuración de Emulador: Yaba Sanshiro 2
-id = 9
-name = Yaba Sanshiro 2
-executable = C:/Attract/Emu/Sega Saturn/Yaba Sanshiro 2/yabasanshiro.exe
-arguments = "{rom}"
-platform = 
-created_at = 2026-10-26 03:59:35

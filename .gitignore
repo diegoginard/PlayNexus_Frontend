@@ -36,8 +36,13 @@ config/scraper_cache/
 config/ra_cache/
 config/.key
 
-# Listas de juegos
+# Listas de juegos y perfiles locales creados por el usuario
 lists/*.txt
+emulators/
+
+# Respaldos locales de layouts
+backups/
+backup/
 
 # PyInstaller
 build/
