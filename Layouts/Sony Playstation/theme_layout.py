@@ -1151,7 +1151,7 @@ class ThemeLayout(BaseLayout):
             game_idx = (self.selected_index + offset) % n_games
             game = self.games[game_idx]
 
-            pos = (7.0 + offset) + self._wheel_spin_offset
+            pos = (7.0 - offset) - self._wheel_spin_offset
             if pos < 0.0 or pos >= 13.0:
                 continue
 
@@ -1368,10 +1368,10 @@ class ThemeLayout(BaseLayout):
             sr = self._get_scaled_canvas()
             pos_y = pos.y()
             if pos_y < sr.y() + sr.height() * 0.45:
-                self._navigate_steps(-1)
+                self._navigate_steps(1)
                 self._commit_selection()
             elif pos_y > sr.y() + sr.height() * 0.55:
-                self._navigate_steps(1)
+                self._navigate_steps(-1)
                 self._commit_selection()
             else:
                 gid = self.get_selected_game_id()

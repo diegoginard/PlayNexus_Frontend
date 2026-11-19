@@ -700,10 +700,10 @@ class ThemeLayout(BaseLayout):
                         self._select_sound_effect.play()
                     self.game_activated.emit(gid)
             elif dy < -25:
-                self._navigate_steps(1)
+                self._navigate_steps(-1)
                 self._commit_selection()
             elif dy > 25:
-                self._navigate_steps(-1)
+                self._navigate_steps(1)
                 self._commit_selection()
             event.accept()
             return
@@ -901,7 +901,7 @@ class ThemeLayout(BaseLayout):
         center_node = 7
 
         for i in range(len(self.CONVEYOR_X)):
-            slot_idx = i - center_node
+            slot_idx = center_node - i
             game_idx = (self.selected_index + slot_idx) % n
             game = self.games[game_idx]
             gid = game.get("id")

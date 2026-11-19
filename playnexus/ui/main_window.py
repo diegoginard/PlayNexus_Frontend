@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QHeaderView,
     QPushButton, QComboBox, QLineEdit, QFileDialog, QMessageBox, QSplitter,
     QGroupBox, QFormLayout, QAbstractItemView, QMenu, QToolBar, QStackedWidget,
-    QFrame, QTabWidget, QCheckBox
+    QFrame, QTabWidget, QCheckBox, QScrollArea, QSizePolicy
 )
 from playnexus.db import Database, format_play_time
 from playnexus.services.library import (
@@ -158,6 +158,30 @@ QTabBar::tab:selected {
 QTabBar::tab:hover:!selected {
     background-color: #202536;
     color: #e2e8f0;
+}
+QScrollArea {
+    background: transparent;
+    border: none;
+}
+QScrollBar:vertical {
+    background: #141722;
+    width: 8px;
+    margin: 2px 0 2px 0;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical {
+    background: #353d54;
+    min-height: 28px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #4e597a;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
 }
 """
 
@@ -334,92 +358,132 @@ class MainWindow(QMainWindow):
 
         splitter.addWidget(center_widget)
 
-        # Panel Derecho: Detalles del Juego y Lanzamiento
+        # Panel Derecho: Detalles del Juego (con scroll) y Lanzamiento fijo abajo
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
 
-        details_group = QGroupBox("Detalles y ejecución")
-        form = QFormLayout(details_group)
+        details_scroll = QScrollArea()
+        details_scroll.setWidgetResizable(True)
+        details_scroll.setFrameShape(QFrame.NoFrame)
+        details_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        details_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
-        self.game_name = QLabel("—")
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 6, 4)
+        scroll_layout.setSpacing(10)
+
+        details_group = QGroupBox("Detalles")
+        details_lay = QVBoxLayout(details_group)
+        details_lay.setContentsMargins(12, 16, 12, 12)
+        details_lay.setSpacing(9)
+
+        def _add_detail_field(caption: str, field_widget: QWidget):
+            block = QVBoxLayout()
+            block.setContentsMargins(0, 0, 0, 0)
+            block.setSpacing(2)
+            lbl = QLabel(caption)
+            lbl.setStyleSheet("color: #8e9bb0; font-size: 8.5pt; font-weight: 600;")
+            block.addWidget(lbl)
+            block.addWidget(field_widget)
+            details_lay.addLayout(block)
+
+        def _prep_detail_label(lbl: QLabel):
+            lbl.setWordWrap(True)
+            lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            return lbl
+
+        self.game_name = _prep_detail_label(QLabel("—"))
         self.game_name.setFont(QFont("Segoe UI", 12, QFont.Bold))
-        self.game_name.setWordWrap(True)
+        self.game_name.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        self.game_rom_code = QLabel("—")
+        self.game_rom_code = _prep_detail_label(QLabel("—"))
         self.game_rom_code.setStyleSheet("color: #c4b5fd; font-weight: 600;")
         self.game_rom_code.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        self.game_meta_info = QLabel("—")
-        self.game_meta_info.setWordWrap(True)
+        self.game_meta_info = _prep_detail_label(QLabel("—"))
         self.game_meta_info.setStyleSheet("color: #9ba7bc; font-size: 9pt;")
         self.game_meta_info.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        self.game_path = QLabel("—")
-        self.game_path.setWordWrap(True)
+        self.game_path = _prep_detail_label(QLabel("—"))
+        self.game_path.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
         self.game_path.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        self.game_size = QLabel("—")
+        self.game_size = _prep_detail_label(QLabel("—"))
 
-        self.effective_emu = QLabel("—")
+        self.effective_emu = _prep_detail_label(QLabel("—"))
         self.effective_emu.setStyleSheet("font-weight: 600; color: #a5b4fc;")
 
         self.override_combo = QComboBox()
+        self.override_combo.setMinimumHeight(32)
+        self.override_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.override_combo.setMinimumContentsLength(14)
         self.override_combo.currentIndexChanged.connect(self.save_override)
 
         self.game_bezel_combo = QComboBox()
+        self.game_bezel_combo.setMinimumHeight(32)
+        self.game_bezel_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.game_bezel_combo.setMinimumContentsLength(14)
         self.game_bezel_combo.addItem("Heredar de la lista (por defecto)", "")
         self.game_bezel_combo.addItem("Activar Bezel HUD (Forzar)", "enabled")
         self.game_bezel_combo.addItem("Desactivar Bezel HUD", "disabled")
         self.game_bezel_combo.currentIndexChanged.connect(self.save_game_bezel_hud)
 
-        self.game_tags_label = QLabel("—")
-        self.game_tags_label.setWordWrap(True)
+        self.game_tags_label = _prep_detail_label(QLabel("—"))
         self.game_tags_label.setStyleSheet("color: #93c5fd; font-size: 9pt;")
 
-        self.game_stats_label = QLabel("—")
-        self.game_stats_label.setWordWrap(True)
+        self.game_stats_label = _prep_detail_label(QLabel("—"))
         self.game_stats_label.setStyleSheet("color: #cbd5e1; font-size: 9pt;")
 
-        form.addRow("Título:", self.game_name)
-        form.addRow("ROM / Código:", self.game_rom_code)
-        form.addRow("Propiedades:", self.game_meta_info)
-        form.addRow("Etiquetas:", self.game_tags_label)
-        form.addRow("Actividad:", self.game_stats_label)
-        form.addRow("Archivo:", self.game_path)
-        form.addRow("Tamaño:", self.game_size)
-        form.addRow("Emulador activo:", self.effective_emu)
-        form.addRow("Emulador individual:", self.override_combo)
-        form.addRow("Bezel HUD:", self.game_bezel_combo)
+        _add_detail_field("Título", self.game_name)
+        _add_detail_field("ROM / Código", self.game_rom_code)
+        _add_detail_field("Propiedades", self.game_meta_info)
+        _add_detail_field("Etiquetas", self.game_tags_label)
+        _add_detail_field("Actividad", self.game_stats_label)
+        _add_detail_field("Archivo", self.game_path)
+        _add_detail_field("Tamaño", self.game_size)
+        _add_detail_field("Emulador activo", self.effective_emu)
+        _add_detail_field("Emulador individual", self.override_combo)
+        _add_detail_field("Bezel HUD", self.game_bezel_combo)
 
         ra_row_w = QWidget()
         ra_row_lay = QHBoxLayout(ra_row_w)
         ra_row_lay.setContentsMargins(0, 0, 0, 0)
         ra_row_lay.setSpacing(6)
-        self.game_ra_label = QLabel("—")
+        self.game_ra_label = _prep_detail_label(QLabel("—"))
         self.game_ra_label.setStyleSheet("color: #fde047; font-weight: 600;")
         self.ra_detail_btn = QPushButton("🏆 Logros")
+        self.ra_detail_btn.setMinimumHeight(30)
+        self.ra_detail_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.ra_detail_btn.setEnabled(False)
         self.ra_detail_btn.setToolTip("Ver o actualizar logros de RetroAchievements")
         self.ra_detail_btn.clicked.connect(self._open_selected_game_ra)
         ra_row_lay.addWidget(self.game_ra_label, 1)
         ra_row_lay.addWidget(self.ra_detail_btn)
-        form.addRow("RetroAchievements:", ra_row_w)
+        _add_detail_field("RetroAchievements", ra_row_w)
 
         manual_row_w = QWidget()
         manual_row_lay = QHBoxLayout(manual_row_w)
         manual_row_lay.setContentsMargins(0, 0, 0, 0)
         manual_row_lay.setSpacing(6)
-        self.game_manual_label = QLabel("—")
+        self.game_manual_label = _prep_detail_label(QLabel("—"))
         self.manual_view_btn = QPushButton("📖 Ver Manual")
+        self.manual_view_btn.setMinimumHeight(30)
+        self.manual_view_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.manual_view_btn.setEnabled(False)
         self.manual_view_btn.setToolTip("Abrir el manual PDF del juego")
         self.manual_view_btn.clicked.connect(self._open_selected_game_manual)
         manual_row_lay.addWidget(self.game_manual_label, 1)
         manual_row_lay.addWidget(self.manual_view_btn)
-        form.addRow("Manual PDF:", manual_row_w)
+        _add_detail_field("Manual PDF", manual_row_w)
 
-        right_layout.addWidget(details_group)
+        scroll_layout.addWidget(details_group)
+        scroll_layout.addStretch()
+
+        details_scroll.setWidget(scroll_content)
+        right_layout.addWidget(details_scroll, 1)
 
         self.fav_toggle_btn = QPushButton("☆  Agregar a Favoritos")
         self.fav_toggle_btn.setMinimumHeight(34)
@@ -429,29 +493,14 @@ class MainWindow(QMainWindow):
 
         self.launch_btn = QPushButton("▶  EJECUTAR JUEGO")
         self.launch_btn.setObjectName("primary")
-        self.launch_btn.setMinimumHeight(48)
+        self.launch_btn.setMinimumHeight(46)
         self.launch_btn.clicked.connect(self.launch_selected)
         right_layout.addWidget(self.launch_btn)
 
-        tip_box = QFrame()
-        tip_box.setStyleSheet("background-color: #1a1e28; border-radius: 6px; padding: 10px; margin-top: 10px;")
-        tip_layout = QVBoxLayout(tip_box)
-        tip_title = QLabel("<b>Prioridad de emulador</b>")
-        tip_desc = QLabel(
-            "1. Emulador individual del juego (si está asignado).<br>"
-            "2. Emulador predeterminado de la lista.<br><br>"
-            "<i>Doble clic en un juego para iniciar inmediatamente.</i>"
-        )
-        tip_desc.setStyleSheet("color: #9aa5b8; font-size: 9pt;")
-        tip_layout.addWidget(tip_title)
-        tip_layout.addWidget(tip_desc)
-        right_layout.addWidget(tip_box)
-
-        right_layout.addStretch()
-        right_widget.setMinimumWidth(280)
+        right_widget.setMinimumWidth(300)
         splitter.addWidget(right_widget)
 
-        splitter.setSizes([230, 720, 310])
+        splitter.setSizes([230, 690, 340])
         outer.addWidget(splitter)
 
         # Contenedor con pestañas principales

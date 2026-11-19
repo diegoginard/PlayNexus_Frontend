@@ -658,7 +658,7 @@ class LayoutCanvasWidget(QWidget):
                     break
 
             for offset in range(-half_slots, half_slots + 1):
-                game = games[(sel_idx + offset) % n]
+                game = games[(sel_idx - offset) % n]
                 angle = (offset / float(half_slots + 1)) * (math.pi * 0.42)
                 curv_x = math.cos(angle)
                 curv_y = math.sin(angle)

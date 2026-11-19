@@ -1159,7 +1159,7 @@ class ThemeLayout(BaseLayout):
             game_idx = (self.selected_index + offset) % n_games
             game = self.games[game_idx]
 
-            pos = (7.0 + offset) + self._wheel_spin_offset
+            pos = (7.0 - offset) - self._wheel_spin_offset
             if pos < 0.0 or pos >= 13.0:
                 continue
 

@@ -8,8 +8,13 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem,
     QStyleOptionViewItem, QStyledItemDelegate, QStyle
 )
-from playnexus.ui.layouts.base import BaseLayout
-from playnexus.ui.cover_utils import load_cover, palette_for_title
+from playnexus.ui.layouts.base import (
+    BaseLayout,
+    CoverPreloadWorker,
+    CoverCacheLRU,
+    make_rounded_cover_pixmap,
+)
+from playnexus.ui.cover_utils import generate_placeholder_cover, palette_for_title
 
 
 class BannerItemDelegate(QStyledItemDelegate):
@@ -17,12 +22,22 @@ class BannerItemDelegate(QStyledItemDelegate):
 
     ITEM_H = 84
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, cover_worker=None):
         super().__init__(parent)
-        self._thumb_cache: dict = {}
+        self._cover_worker = cover_worker
+        self._thumb_cache = CoverCacheLRU(max_items=512)
+        self._placeholder_cache = CoverCacheLRU(max_items=256)
+        self._rom_size_cache: dict[int, str] = {}
 
     def invalidate_cache(self):
         self._thumb_cache.clear()
+        self._rom_size_cache.clear()
+
+    def set_cached_thumb(self, key: tuple[int, int, int], value: QPixmap | bool):
+        self._thumb_cache.put(key, value)
+
+    def set_rom_size(self, game_id: int, size_str: str):
+        self._rom_size_cache[game_id] = size_str
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
         painter.save()
@@ -44,7 +59,6 @@ class BannerItemDelegate(QStyledItemDelegate):
             emu = game_data.get("effective_name", "Sin emulador")
             source = game_data.get("source", "")
             game_id = game_data.get("id", 0)
-            cover_path = game_data.get("cover_path")
             rom_path = game_data.get("rom_path", "")
             p = Path(rom_path)
             ext = p.suffix.upper() if p.suffix else ".ROM"
@@ -80,21 +94,23 @@ class BannerItemDelegate(QStyledItemDelegate):
             thumb_h = banner_rect.height() - 10
             thumb_rect = QRect(thumb_x, banner_rect.y() + 5, thumb_w, thumb_h)
 
-            # Miniatura de la portada
+            # Miniatura pre-escalada sin I/O ni `.scaled()` dentro de `paint`
             cache_key = (game_id, thumb_w, thumb_h)
-            if cache_key not in self._thumb_cache:
-                pix = load_cover(cover_path, title, QSize(thumb_w, thumb_h))
-                self._thumb_cache[cache_key] = pix
-            pix = self._thumb_cache[cache_key]
-
-            thumb_path = QPainterPath()
-            thumb_path.addRoundedRect(thumb_rect.x(), thumb_rect.y(), thumb_rect.width(), thumb_rect.height(), 6, 6)
-            painter.setClipPath(thumb_path)
-            scaled = pix.scaled(thumb_rect.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            dx = thumb_rect.x() + (thumb_rect.width() - scaled.width()) // 2
-            dy = thumb_rect.y() + (thumb_rect.height() - scaled.height()) // 2
-            painter.drawPixmap(dx, dy, scaled)
-            painter.setClipRect(rect)
+            cached = self._thumb_cache.get(cache_key)
+            if isinstance(cached, QPixmap) and not cached.isNull():
+                painter.drawPixmap(thumb_rect.x(), thumb_rect.y(), cached)
+            else:
+                if cached is None and self._cover_worker is not None:
+                    if not self._cover_worker.isRunning():
+                        self._cover_worker.start()
+                    self._cover_worker.queue_game(game_data, thumb_w, thumb_h, priority=True)
+                ph_key = (title, thumb_w, thumb_h)
+                ph = self._placeholder_cache.get(ph_key)
+                if ph is None or ph.isNull():
+                    ph_raw = generate_placeholder_cover(title, QSize(thumb_w, thumb_h))
+                    ph = make_rounded_cover_pixmap(ph_raw, thumb_w, thumb_h, radius=6)
+                    self._placeholder_cache.put(ph_key, ph)
+                painter.drawPixmap(thumb_rect.x(), thumb_rect.y(), ph)
 
             # Area de texto
             text_x = thumb_x + thumb_w + 12
@@ -128,12 +144,8 @@ class BannerItemDelegate(QStyledItemDelegate):
                              Qt.AlignLeft | Qt.AlignVCenter,
                              f"{source_icon}  {emu[:40]}" + ("..." if len(emu) > 40 else ""))
 
-            # Tamano del archivo (derecha)
-            if p.exists():
-                mb = p.stat().st_size / (1024 * 1024)
-                size_str = f"{mb:.1f} MB"
-            else:
-                size_str = "?"
+            # Tamano del archivo (cacheado sin `stat()` por frame)
+            size_str = self._rom_size_cache.get(game_id, "--")
             painter.setPen(QColor(100, 110, 130))
             size_font = QFont("Segoe UI", 7)
             painter.setFont(size_font)
@@ -162,7 +174,15 @@ class BannerLayout(BaseLayout):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self._delegate = BannerItemDelegate()
+        self._cover_worker = CoverPreloadWorker(
+            self,
+            aspect_mode=Qt.KeepAspectRatioByExpanding,
+            collect_rom_size=True,
+        )
+        self._cover_worker.cover_loaded.connect(self._on_cover_loaded)
+        self._cover_worker.rom_size_loaded.connect(self._on_rom_size_loaded)
+
+        self._delegate = BannerItemDelegate(cover_worker=self._cover_worker)
         self.list_widget = QListWidget()
         self.list_widget.setSpacing(4)
         self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -180,10 +200,33 @@ class BannerLayout(BaseLayout):
 
         layout.addWidget(self.list_widget)
 
+    def _on_cover_loaded(self, gid: int, tw: int, th: int, img):
+        if img is not None and not img.isNull():
+            rounded = make_rounded_cover_pixmap(img, tw, th, radius=6)
+            self._delegate.set_cached_thumb((gid, tw, th), rounded)
+            if self.isVisible():
+                self.list_widget.viewport().update()
+        else:
+            self._delegate.set_cached_thumb((gid, tw, th), False)
+
+    def _on_rom_size_loaded(self, gid: int, size_str: str):
+        self._delegate.set_rom_size(gid, size_str)
+        if self.isVisible():
+            self.list_widget.viewport().update()
+
     def render_games(self):
         self.list_widget.blockSignals(True)
         self.list_widget.clear()
         self._delegate.invalidate_cache()
+        if hasattr(self, "_cover_worker") and self._cover_worker:
+            self._cover_worker.clear()
+            if self.games:
+                tw, th = 60, BannerItemDelegate.ITEM_H - 16
+                if not self._cover_worker.isRunning():
+                    self._cover_worker.start()
+                self._cover_worker.queue_games(self.games[:30], tw, th, priority=True)
+                if len(self.games) > 30:
+                    self._cover_worker.queue_games(self.games[30:], tw, th, priority=False)
 
         for g in self.games:
             item = QListWidgetItem()
@@ -227,3 +270,9 @@ class BannerLayout(BaseLayout):
             game_id = item.data(Qt.UserRole)
             global_pos = self.list_widget.mapToGlobal(pos)
             self.context_menu_requested.emit(game_id, global_pos)
+
+    def closeEvent(self, event):
+        if hasattr(self, "_cover_worker") and self._cover_worker:
+            self._cover_worker.stop()
+        if event is not None:
+            super().closeEvent(event)

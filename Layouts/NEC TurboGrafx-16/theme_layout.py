@@ -1159,7 +1159,7 @@ class ThemeLayout(BaseLayout):
             game_idx = (self.selected_index + offset) % n_games
             game = self.games[game_idx]
 
-            pos = (7.0 + offset) + self._wheel_spin_offset
+            pos = (7.0 - offset) - self._wheel_spin_offset
             if pos < 0.0 or pos >= 13.0:
                 continue
 
@@ -1367,7 +1367,7 @@ class ThemeLayout(BaseLayout):
             n_games = len(self.games)
             if n_games > 0:
                 for offset in range(-6, 7):
-                    pos_idx = (7.0 + offset) + self._wheel_spin_offset
+                    pos_idx = (7.0 - offset) - self._wheel_spin_offset
                     if 0.0 <= pos_idx < 13.0:
                         i0 = int(math.floor(pos_idx))
                         i1 = min(i0 + 1, 13)

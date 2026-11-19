@@ -10,7 +10,11 @@ from PySide6.QtWidgets import (
     QStackedWidget, QStyle
 )
 
-from playnexus.ui.layouts.base import BaseLayout, WheelPreloadWorker
+from playnexus.ui.layouts.base import (
+    BaseLayout,
+    WheelPreloadWorker,
+    CoverCacheLRU,
+)
 from playnexus.services.media import resolve_game_media, find_media_file, IMAGE_EXTS
 from playnexus.ui.cover_utils import load_cover
 from playnexus.services.controls import (
@@ -30,11 +34,31 @@ class WheelItemDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._wheel_worker = wheel_worker
         self._wheel_cache = {}  # game_id -> QPixmap or None
-        self._scaled_cache = {} # (game_id, is_selected, max_w, max_h) -> QPixmap
+        self._scaled_cache = CoverCacheLRU(max_items=400)  # (game_id, is_selected, max_w, max_h) -> QPixmap
 
     def invalidate_cache(self):
         self._wheel_cache.clear()
         self._scaled_cache.clear()
+
+    def precache_scaled_variants(self, game_id: int, wheel_pix: QPixmap, viewport_w: int) -> None:
+        """Pre-escala variantes normal y seleccionada fuera de `paint()`."""
+        if wheel_pix is None or wheel_pix.isNull():
+            return
+        card_w = max(80, int(viewport_w) - 12)
+        card_h = 66
+        variants = (
+            (False, card_w - 24, card_h - 16),
+            (True, int((card_w - 16) * 1.20), int((card_h - 8) * 1.20)),
+        )
+        for is_sel, mw, mh in variants:
+            if mw <= 0 or mh <= 0:
+                continue
+            key = (game_id, is_sel, mw, mh)
+            if self._scaled_cache.get(key) is None:
+                self._scaled_cache.put(
+                    key,
+                    wheel_pix.scaled(QSize(mw, mh), Qt.KeepAspectRatio, Qt.SmoothTransformation),
+                )
 
     def sizeHint(self, option, index):
         return QSize(260, 70)
@@ -106,15 +130,16 @@ class WheelItemDelegate(QStyledItemDelegate):
 
                 cache_key = (game_id, is_selected, max_w, max_h)
                 scaled = self._scaled_cache.get(cache_key)
-                if not scaled or scaled.isNull():
-                    scaled = wheel_pix.scaled(QSize(max_w, max_h), Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    if len(self._scaled_cache) > 400:
-                        self._scaled_cache.clear()
-                    self._scaled_cache[cache_key] = scaled
-
-                draw_x = card_rect.x() + (card_rect.width() - scaled.width()) // 2
-                draw_y = card_rect.y() + (card_rect.height() - scaled.height()) // 2
-                painter.drawPixmap(draw_x, draw_y, scaled)
+                if scaled is not None and not scaled.isNull():
+                    draw_x = card_rect.x() + (card_rect.width() - scaled.width()) // 2
+                    draw_y = card_rect.y() + (card_rect.height() - scaled.height()) // 2
+                    painter.drawPixmap(draw_x, draw_y, scaled)
+                else:
+                    # Sin CPU QPixmap.scaled dentro de paint(): dibujar directo al rectángulo ajustado
+                    fit_sz = wheel_pix.size().scaled(QSize(max(1, max_w), max(1, max_h)), Qt.KeepAspectRatio)
+                    draw_x = card_rect.x() + (card_rect.width() - fit_sz.width()) // 2
+                    draw_y = card_rect.y() + (card_rect.height() - fit_sz.height()) // 2
+                    painter.drawPixmap(QRect(draw_x, draw_y, fit_sz.width(), fit_sz.height()), wheel_pix)
             else:
                 # Texto estilizado si no hay logo de wheel
                 font = QFont("Segoe UI", 12 if is_selected else 10, QFont.Bold)
@@ -143,6 +168,9 @@ class WheelLayout(BaseLayout):
         self._player_initialized = False  # Flag: media player aún no creado
         self.player = None
         self.audio_output = None
+        self.video_sink = None
+        self._pn_render_backend = "auto"
+        self._art_scaled_cache = CoverCacheLRU(max_items=64)
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(6, 6, 6, 6)
@@ -339,28 +367,35 @@ class WheelLayout(BaseLayout):
             self._init_timer.start()
 
     def _init_player(self):
-        """Inicializa QMediaPlayer y QVideoWidget de forma diferida (segura en Windows)."""
+        """Inicializa QMediaPlayer + GpuVideoPlayerWidget (OpenGL directo con fallback software)."""
         if self._player_initialized:
             return
         try:
-            from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
-            from PySide6.QtMultimediaWidgets import QVideoWidget
+            from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput, QVideoSink
+            from playnexus.ui.gpu_renderer import GpuVideoPlayerWidget
 
-            self.video_widget = QVideoWidget()
+            self.video_widget = GpuVideoPlayerWidget(
+                self,
+                background_color=QColor(0, 0, 0),
+                render_backend=getattr(self, "_pn_render_backend", "auto"),
+            )
             self.video_widget.setFocusPolicy(Qt.NoFocus)
-            self.video_widget.setStyleSheet("background-color: #000000;")
             self._video_stack.addWidget(self.video_widget)  # índice 1
+
+            self.video_sink = QVideoSink(self)
+            self.video_sink.videoFrameChanged.connect(self._on_video_frame)
 
             self.player = QMediaPlayer(self)
             self.audio_output = QAudioOutput(self)
             self.audio_output.setVolume(0.35)
             self.player.setAudioOutput(self.audio_output)
-            self.player.setVideoOutput(self.video_widget)
+            self.player.setVideoSink(self.video_sink)
             self.player.setLoops(QMediaPlayer.Infinite)
             self.player.mediaStatusChanged.connect(self._on_media_status_changed)
             self.player.errorOccurred.connect(self._on_player_error)
 
             self._player_initialized = True
+            self.update_effects()
 
             # Si ya hay un juego seleccionado, reproducir su video ahora
             if self.current_media.get("video"):
@@ -370,6 +405,40 @@ class WheelLayout(BaseLayout):
             # Si falla (driver incompatible), seguimos sin video — no crashea la app
             print(f"[WheelLayout] No se pudo inicializar el reproductor de video: {e}")
             self._player_initialized = True  # Marcar como "intentado" para no reintentar
+
+    def _on_video_frame(self, frame):
+        if self.video_widget is not None:
+            self.video_widget.present_frame(frame)
+
+    def apply_render_backend(self, render_backend: str | None) -> bool:
+        """Cambia dinámicamente entre GPU OpenGL y Software en `video_widget`."""
+        from playnexus.ui.gpu_renderer import normalize_render_backend
+
+        norm = normalize_render_backend(render_backend)
+        self._pn_render_backend = norm
+        if self.video_widget is not None and hasattr(self.video_widget, "set_render_backend"):
+            self.video_widget.set_render_backend(norm)
+            self.update_effects()
+            return bool(self.video_widget.is_gpu_active())
+        return False
+
+    def update_effects(self):
+        """Sincroniza shaders TV_RECT y partículas con `GpuVideoPlayerWidget`."""
+        if self.video_widget is None or not hasattr(self.video_widget, "set_effects"):
+            return
+        try:
+            from playnexus.ui.shaders import resolve_widget_effect_settings
+
+            sh_p, sh_t, pt_p, fx_perf = resolve_widget_effect_settings(self)
+            vid_sh = sh_p if sh_t == "tv_rect" else "none"
+            vid_pt = pt_p if sh_t == "tv_rect" else "none"
+            self.video_widget.set_effects(
+                shader_preset=vid_sh,
+                particle_preset=vid_pt,
+                perf_profile=fx_perf,
+            )
+        except Exception:
+            pass
 
     def _on_media_status_changed(self, status):
         if not self.player:
@@ -420,6 +489,8 @@ class WheelLayout(BaseLayout):
                 self.player.stop()
             except Exception:
                 pass
+        if self.video_widget is not None and hasattr(self.video_widget, "clear_frame"):
+            self.video_widget.clear_frame()
         self._video_stack.setCurrentIndex(0)
 
     def set_games(self, games: list):
@@ -433,6 +504,9 @@ class WheelLayout(BaseLayout):
         if not img.isNull():
             pix = QPixmap.fromImage(img)
             self.delegate._wheel_cache[gid] = pix
+            vp_w = self.wheel_list.viewport().width() if hasattr(self, "wheel_list") else 280
+            if vp_w > 20:
+                self.delegate.precache_scaled_variants(gid, pix, vp_w)
             if self.isVisible():
                 self.wheel_list.viewport().update()
 
@@ -541,6 +615,8 @@ class WheelLayout(BaseLayout):
                 self.player.setSource(QUrl())
             except Exception:
                 pass
+        if self.video_widget is not None and hasattr(self.video_widget, "clear_frame"):
+            self.video_widget.clear_frame()
         self._video_stack.setCurrentIndex(0)
 
     def _on_wheel_item_changed(self, current, previous):
@@ -612,9 +688,14 @@ class WheelLayout(BaseLayout):
         # 1. Box Art
         box_file = self.current_media.get("boxart")
         if box_file and os.path.isfile(box_file):
-            pix = QPixmap(box_file).scaled(
-                self.boxart_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
+            bsz = self.boxart_label.size()
+            bkey = ("boxart", box_file, bsz.width(), bsz.height())
+            pix = self._art_scaled_cache.get(bkey)
+            if pix is None or pix.isNull():
+                raw_pix = QPixmap(box_file)
+                pix = raw_pix.scaled(bsz, Qt.KeepAspectRatio, Qt.SmoothTransformation) if not raw_pix.isNull() else QPixmap()
+                if not pix.isNull():
+                    self._art_scaled_cache.put(bkey, pix)
             self.boxart_label.setPixmap(pix)
             self.boxart_label.setVisible(True)
         else:
@@ -629,7 +710,13 @@ class WheelLayout(BaseLayout):
         # 2. Wheel Logo grande
         wheel_file = self.current_media.get("wheel")
         if wheel_file and os.path.isfile(wheel_file):
-            w_pix = QPixmap(wheel_file).scaled(QSize(220, 50), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            wkey = ("wheel_hdr", wheel_file, 220, 50)
+            w_pix = self._art_scaled_cache.get(wkey)
+            if w_pix is None or w_pix.isNull():
+                raw_wp = QPixmap(wheel_file)
+                w_pix = raw_wp.scaled(QSize(220, 50), Qt.KeepAspectRatio, Qt.SmoothTransformation) if not raw_wp.isNull() else QPixmap()
+                if not w_pix.isNull():
+                    self._art_scaled_cache.put(wkey, w_pix)
             self.wheel_logo_label.setPixmap(w_pix)
             self.wheel_logo_label.setVisible(True)
         else:
@@ -645,6 +732,8 @@ class WheelLayout(BaseLayout):
                 self._video_stack.setCurrentIndex(0)
         else:
             self._video_stack.setCurrentIndex(0)
+            if self.video_widget is not None and hasattr(self.video_widget, "clear_frame"):
+                self.video_widget.clear_frame()
             if self.player:
                 try:
                     self.player.stop()
@@ -828,6 +917,8 @@ class WheelLayout(BaseLayout):
                 self.player.setSource(QUrl())
             except Exception:
                 pass
+        if self.video_widget is not None and hasattr(self.video_widget, "clear_frame"):
+            self.video_widget.clear_frame()
         self._video_stack.setCurrentIndex(0)
 
     def hideEvent(self, event):

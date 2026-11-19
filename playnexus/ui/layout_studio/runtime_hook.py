@@ -4,12 +4,13 @@ import os
 import ast
 import math
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QRect, QRectF, QPointF
 from PySide6.QtGui import (
-    QPainter, QColor, QFont, QPen, QBrush, QTransform,
+    QPainter, QPainterPath, QColor, QFont, QFontMetricsF, QPen, QBrush, QTransform,
     QPolygonF, QImage, QPixmap
 )
 
@@ -195,6 +196,27 @@ def _get_cached_scaled_pixmap(
     return scaled
 
 
+def _get_widget_anim_clocks(inst) -> tuple[float, float, float]:
+    """Devuelve `(game_t, ambient_t, layout_t)` en segundos respetando el estado de pausa."""
+    now = time.time()
+    if getattr(inst, "_studio_is_paused", False):
+        g_p = getattr(inst, "_studio_paused_elapsed", None)
+        a_p = getattr(inst, "_studio_paused_ambient_elapsed", None)
+        l_p = getattr(inst, "_studio_paused_layout_elapsed", None)
+        if g_p is not None:
+            game_t = max(0.0, float(g_p))
+            ambient_t = max(0.0, float(a_p if a_p is not None else g_p))
+            layout_t = max(0.0, float(l_p if l_p is not None else g_p))
+            return game_t, ambient_t, layout_t
+
+    game_t = max(0.0, now - float(getattr(inst, "_studio_anim_start_time", now) or now))
+    amb_start = getattr(inst, "_studio_ambient_start_time", None)
+    lay_start = getattr(inst, "_studio_layout_start_time", None)
+    ambient_t = max(0.0, now - float(amb_start)) if amb_start else game_t
+    layout_t = max(0.0, now - float(lay_start)) if lay_start else game_t
+    return game_t, ambient_t, layout_t
+
+
 def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None = None, elem: LayoutElement | None = None):
     """
     Ejecuta el paso de renderizado nativo directamente sobre la instancia real `inst` (ThemeLayout)
@@ -231,8 +253,7 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
         if vid_img and not vid_img.isNull():
             sh_preset, sh_target, _pt_preset, fx_perf = resolve_widget_effect_settings(inst)
             if fx_perf != "off" and sh_preset != "none" and sh_target == "tv_rect":
-                start_ts = float(getattr(inst, "_studio_anim_start_time", 0.0) or 0.0)
-                elapsed = max(0.0, time.time() - start_ts) if start_ts > 0.0 else 0.0
+                _game_t, elapsed, _layout_t = _get_widget_anim_clocks(inst)
                 vid_img = apply_shader_to_image(vid_img, snap_rect.size(), sh_preset, elapsed=elapsed)
             if hasattr(inst, "SNAP_LOCAL_RECT"):
                 vw, vh = vid_img.width(), vid_img.height()
@@ -466,7 +487,7 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
             painter.setPen(QColor(elem.text_color))
             painter.drawText(rect, Qt.AlignVCenter | Qt.AlignLeft, txt.upper())
         elif elem.type == "effect" and not elem.resource_path:
-            elapsed = max(0.0, time.time() - float(getattr(inst, "_studio_anim_start_time", time.time())))
+            _game_t, elapsed, _layout_t = _get_widget_anim_clocks(inst)
             render_shader_overlay_painter(
                 painter,
                 rect,
@@ -888,6 +909,16 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
             _add_step("title_text", "Título del Juego (Footer)", "text", "", "")
             _add_step("counter_text", "Contador de Juegos (Footer)", "text", "", "")
 
+    # Si AST detectó `video_snap` antes que `bg_image` (p. ej. Main Menu), mover `bg_image`
+    # al fondo (índice 0) y reindexar `z_index` para respetar la precedencia de capas.
+    idx_bg = next((i for i, e in enumerate(elements) if e.id == "bg_image"), -1)
+    idx_vs = next((i for i, e in enumerate(elements) if e.id == "video_snap"), -1)
+    if idx_bg > idx_vs >= 0:
+        bg_elem = elements.pop(idx_bg)
+        elements.insert(0, bg_elem)
+        for idx, el in enumerate(elements):
+            el.z_index = (idx + 1) * 5
+
     return elements
 
 
@@ -1151,8 +1182,12 @@ def render_element_in_screen_space(
     if eid == "avatar":
         spix = _get_cached_rest_layer_pixmap(inst, "avatar", (ox, oy, ow, oh), dst_w, dst_h)
         if spix:
-            adx = int(round(getattr(inst, "_avatar_offset_x", 0.0) * scale_x * rel_sx))
-            ady = int(round(getattr(inst, "_avatar_offset_y", 0.0) * scale_y * rel_sy))
+            anim_tokens = (elem.anim_type or "").replace("+", ",")
+            if "avatar_float" in anim_tokens:
+                adx, ady = 0, 0
+            else:
+                adx = int(round(getattr(inst, "_avatar_offset_x", 0.0) * scale_x * rel_sx))
+                ady = int(round(getattr(inst, "_avatar_offset_y", 0.0) * scale_y * rel_sy))
             painter.drawPixmap(dst_x + adx, dst_y + ady, spix)
         painter.restore()
         return
@@ -1160,7 +1195,8 @@ def render_element_in_screen_space(
     if eid == "logo":
         spix = _get_cached_rest_layer_pixmap(inst, "logo", (ox, oy, ow, oh), dst_w, dst_h)
         if spix:
-            ady = int(round(mh * getattr(inst, "_logo_current_y_offset_ratio", 0.0)))
+            anim_tokens = (elem.anim_type or "").replace("+", ",")
+            ady = 0 if "logo_bounce" in anim_tokens else int(round(mh * getattr(inst, "_logo_current_y_offset_ratio", 0.0)))
             painter.drawPixmap(dst_x, dst_y + ady, spix)
         painter.restore()
         return
@@ -1168,11 +1204,12 @@ def render_element_in_screen_space(
     if eid == "pointer":
         spix = _get_cached_rest_layer_pixmap(inst, "pointer", (ox, oy, ow, oh), dst_w, dst_h)
         if spix:
+            anim_tokens = (elem.anim_type or "").replace("+", ",")
             rest_r = getattr(inst, "_pointer_rest_x_ratio", 0.0)
             cur_r = getattr(inst, "_pointer_current_x_ratio", rest_r)
             tick = getattr(inst, "_pointer_anim_tick", 0)
             pulse = int(round(mw * (rest_r - cur_r)))
-            osc = int(round(mw * (math.sin(tick * (8.0 / 60.0)) * 0.009375)))
+            osc = 0 if "pointer_pulse" in anim_tokens else int(round(mw * (math.sin(tick * (8.0 / 60.0)) * 0.009375)))
             if hasattr(inst, "_wheel_alpha"):
                 painter.setOpacity(painter.opacity() * (getattr(inst, "_wheel_alpha", 255.0) / 255.0))
             painter.drawPixmap(dst_x - pulse + osc, dst_y, spix)
@@ -1355,7 +1392,16 @@ def _compute_single_animation(atype: str, elem: LayoutElement, t: float, dur: fl
     return 0.0, 0.0, 1.0, 0.0
 
 
-def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, float, float, float]:
+_CONTINUOUS_ANIM_TYPES = frozenset({"avatar_float", "pointer_pulse", "disc_spin"})
+
+
+def compute_element_animation(
+    elem: LayoutElement,
+    t: float,
+    *,
+    ambient_t: float | None = None,
+    layout_t: float | None = None,
+) -> tuple[float, float, float, float]:
     """
     Calcula el desplazamiento cinemático (dx, dy), factor de opacidad y rotación angular
     según el instante de tiempo t (en segundos) para el elemento según su anim_type.
@@ -1373,7 +1419,13 @@ def compute_element_animation(elem: LayoutElement, t: float) -> tuple[float, flo
     tot_dx, tot_dy, tot_op, tot_rot = 0.0, 0.0, 1.0, 0.0
 
     for at in types:
-        dx, dy, op, rot = _compute_single_animation(at, elem, t, dur)
+        if at in _CONTINUOUS_ANIM_TYPES:
+            at_time = ambient_t if ambient_t is not None else t
+        elif at == "logo_bounce":
+            at_time = layout_t if layout_t is not None else t
+        else:
+            at_time = t
+        dx, dy, op, rot = _compute_single_animation(at, elem, at_time, dur)
         tot_dx += dx
         tot_dy += dy
         tot_op = min(1.0, tot_op * op)
@@ -1416,12 +1468,26 @@ def update_studio_effects(
     layout_widget.update()
 
 
+def _get_widget_target_rect(layout_widget, fallback_w: int, fallback_h: int) -> QRect:
+    """Obtiene el área canónica escalada desde `_get_target_rect()` o `_get_scaled_canvas()`."""
+    if hasattr(layout_widget, "_get_target_rect"):
+        return layout_widget._get_target_rect()
+    if hasattr(layout_widget, "_get_scaled_canvas"):
+        return layout_widget._get_scaled_canvas()
+    return QRect(0, 0, max(1, int(fallback_w)), max(1, int(fallback_h)))
+
+
 def apply_render_backend_to_layout(layout_widget, render_backend: str | None) -> bool:
     """Aplica dinámicamente el backend de renderizado ('auto', 'gpu' o 'software') sobre un layout."""
     if layout_widget is None:
         return False
     norm = normalize_render_backend(render_backend)
     layout_widget._pn_render_backend = norm
+    if not getattr(layout_widget, "_studio_override_installed", False) and hasattr(layout_widget, "apply_render_backend"):
+        try:
+            return bool(layout_widget.apply_render_backend(norm))
+        except Exception:
+            pass
     vp = getattr(layout_widget, "_gpu_viewport", None)
     permitted = is_gpu_rendering_permitted(norm)
     if vp is not None:
@@ -1625,7 +1691,9 @@ def _dynamic_layer_fingerprint(inst, elem: LayoutElement, cap_w: int, cap_h: int
             "wheel_list",
             sel,
             len(games),
-            round(float(getattr(inst, "_wheel_offset", 0.0) or 0.0), 3),
+            round(float(getattr(inst, "_wheel_offset", 0.0) or 0.0), 4),
+            round(float(getattr(inst, "_wheel_spin_offset", 0.0) or 0.0), 4),
+            round(float(getattr(inst, "_wheel_target_offset", 0.0) or 0.0), 4),
             round(float(getattr(inst, "_wheel_alpha", 255.0) or 255.0), 1),
             getattr(inst, "current_game_id", None),
             vis,
@@ -1643,7 +1711,9 @@ def _dynamic_layer_fingerprint(inst, elem: LayoutElement, cap_w: int, cap_h: int
             cap_w,
             cap_h,
         )
-    if eid in ("footer_frame", "title_text", "counter_text"):
+    if eid == "footer_frame":
+        return ("footer_frame", cap_w, cap_h)
+    if eid in ("title_text", "counter_text"):
         games = getattr(inst, "games", None) or []
         sel = int(getattr(inst, "selected_index", -1) or -1)
         cur_title = games[sel].get("title", "") if (0 <= sel < len(games)) else ""
@@ -1739,21 +1809,567 @@ def _get_cached_dynamic_layer_image(
     return img, rev
 
 
+def _enum_int(val: Any) -> int:
+    try:
+        return int(val.value)
+    except Exception:
+        try:
+            return int(val)
+        except Exception:
+            return 0
+
+
+def _path_norm_sig(path: QPainterPath, bx: float, by: float, bw: float, bh: float) -> tuple:
+    br = path.boundingRect()
+    inv_w = 24.0 / max(1.0, bw)
+    inv_h = 24.0 / max(1.0, bh)
+    elems: list[tuple[int, int, int]] = []
+    cnt = min(int(path.elementCount()), 32)
+    for idx in range(cnt):
+        el = path.elementAt(idx)
+        elems.append((
+            _enum_int(el.type),
+            round((float(el.x) - bx) * inv_w),
+            round((float(el.y) - by) * inv_h),
+        ))
+    return (
+        _enum_int(path.fillRule()),
+        int(path.elementCount()),
+        round((float(br.x()) - bx) * inv_w),
+        round((float(br.y()) - by) * inv_h),
+        round(float(br.width()) * inv_w),
+        round(float(br.height()) * inv_h),
+        tuple(elems),
+    )
+
+
+def _qrgba_key(col: QColor) -> int:
+    """Cuantiza suavemente canales RGBA intermedios de rotación para reutilizar tarjetas en GPU."""
+    a = int(col.alpha())
+    if a <= 0:
+        qa = 0
+    elif a >= 250:
+        qa = 255
+    else:
+        qa = min(240, max(16, (a // 24) * 24))
+    return (int(col.rgb()) & 0x00FFFFFF) | (qa << 24)
+
+
+def _rect_norm_sig(r: QRectF, bx: float, by: float, bw: float, bh: float) -> tuple[int, int, int, int]:
+    inv_w = 24.0 / max(1.0, bw)
+    inv_h = 24.0 / max(1.0, bh)
+    return (
+        round((float(r.x()) - bx) * inv_w),
+        round((float(r.y()) - by) * inv_h),
+        round(float(r.width()) * inv_w),
+        round(float(r.height()) * inv_h),
+    )
+
+
+def _make_canonical_to_ndc_mapper(
+    sx: float,
+    sy: float,
+    sw: float,
+    sh: float,
+    viewport_w: float,
+    viewport_h: float,
+    elem: LayoutElement,
+    *,
+    anim_dx: float = 0.0,
+    anim_dy: float = 0.0,
+    anim_rot: float = 0.0,
+):
+    """Devuelve una función que mapea 4 QPointF canónicos (1920x1080) a coordenadas NDC."""
+    scale_x = sw / float(CANONICAL_W)
+    scale_y = sh / float(CANONICAL_H)
+    ox, oy, ow, oh = (
+        elem.orig_rect
+        if (elem.orig_rect and len(elem.orig_rect) == 4)
+        else (elem.x, elem.y, elem.w, elem.h)
+    )
+    ox = float(ox)
+    oy = float(oy)
+    ow = max(1.0, float(ow))
+    oh = max(1.0, float(oh))
+    tot_rot = float(getattr(elem, "rotation", 0.0) or 0.0) + float(anim_rot or 0.0)
+    has_rot = abs(tot_rot) > 1e-4
+
+    pins = elem.corner_pins
+    if pins and len(pins) == 4:
+        src_poly = QPolygonF([
+            QPointF(ox, oy),
+            QPointF(ox + ow, oy),
+            QPointF(ox + ow, oy + oh),
+            QPointF(ox, oy + oh),
+        ])
+        dst_poly = QPolygonF([QPointF(p[0] + anim_dx, p[1] + anim_dy) for p in pins])
+        proj = QTransform()
+        if not QTransform.quadToQuad(src_poly, dst_poly, proj):
+            proj = QTransform()
+
+        rot_t = QTransform()
+        if has_rot:
+            rcx = ox + ow * 0.5
+            rcy = oy + oh * 0.5
+            rot_t.translate(rcx, rcy)
+            rot_t.rotate(tot_rot)
+            rot_t.translate(-rcx, -rcy)
+
+        def _map_pins(pts: list[QPointF]) -> list[tuple[float, float]]:
+            out: list[tuple[float, float]] = []
+            for pt in pts:
+                p_proj = proj.map(pt)
+                p_fin = rot_t.map(p_proj) if has_rot else p_proj
+                px = sx + p_fin.x() * scale_x
+                py = sy + p_fin.y() * scale_y
+                out.append(pixels_to_ndc(px, py, viewport_w, viewport_h))
+            return out
+
+        return _map_pins
+
+    tx = float(elem.x) + anim_dx
+    ty = float(elem.y) + anim_dy
+    tw = max(1.0, float(elem.w))
+    th = max(1.0, float(elem.h))
+    rel_sx = tw / ow
+    rel_sy = th / oh
+    rot_t = QTransform()
+    if has_rot:
+        rcx = sx + (tx + tw * 0.5) * scale_x
+        rcy = sy + (ty + th * 0.5) * scale_y
+        rot_t.translate(rcx, rcy)
+        rot_t.rotate(tot_rot)
+        rot_t.translate(-rcx, -rcy)
+
+    def _map_affine(pts: list[QPointF]) -> list[tuple[float, float]]:
+        out: list[tuple[float, float]] = []
+        for pt in pts:
+            can_x = tx + (pt.x() - ox) * rel_sx
+            can_y = ty + (pt.y() - oy) * rel_sy
+            px = sx + can_x * scale_x
+            py = sy + can_y * scale_y
+            if has_rot:
+                mp = rot_t.map(QPointF(px, py))
+                px, py = mp.x(), mp.y()
+            out.append(pixels_to_ndc(px, py, viewport_w, viewport_h))
+        return out
+
+    return _map_affine
+
+
+class _WheelGpuCollector:
+    """Pseudo-QPainter ligero que traduce los draws de ruleta del layout a quads GPU."""
+
+    def __init__(self, inst: Any, map_pts: Any, base_opacity: float, dpr_boost: float = 1.0) -> None:
+        self._inst = inst
+        self._map_pts = map_pts
+        self._base_op = float(base_opacity)
+        self._dpr_boost = max(1.0, min(2.0, float(dpr_boost)))
+        self.commands: list[GpuQuadCommand] = []
+
+        self._transform = QTransform()
+        self._opacity = 1.0
+        self._pen = QPen(Qt.GlobalColor.black)
+        self._brush = QBrush(Qt.BrushStyle.NoBrush)
+        self._font = QFont()
+        self._stack: list[tuple[QTransform, float, QPen, QBrush, QFont]] = []
+
+        self._vbatch: list[tuple] = []
+        self._vorigin: QTransform | None = None
+        self._vopacity: float = 1.0
+        self._vbbox: QRectF | None = None
+
+    def isActive(self) -> bool:  # noqa: N802
+        return True
+
+    def setRenderHint(self, *_args, **_kwargs) -> None:  # noqa: N802
+        return None
+
+    def transform(self) -> QTransform:
+        return QTransform(self._transform)
+
+    def opacity(self) -> float:
+        return self._opacity
+
+    def pen(self) -> QPen:
+        return QPen(self._pen)
+
+    def brush(self) -> QBrush:
+        return QBrush(self._brush)
+
+    def font(self) -> QFont:
+        return QFont(self._font)
+
+    def save(self) -> None:
+        self._stack.append((
+            QTransform(self._transform),
+            self._opacity,
+            QPen(self._pen),
+            QBrush(self._brush),
+            QFont(self._font),
+        ))
+
+    def restore(self) -> None:
+        self._flush_vbatch()
+        if self._stack:
+            t, op, pen, brush, font = self._stack.pop()
+            self._transform = t
+            self._opacity = op
+            self._pen = pen
+            self._brush = brush
+            self._font = font
+
+    def setOpacity(self, op: float) -> None:  # noqa: N802
+        self._opacity = float(op)
+
+    def setPen(self, pen: Any) -> None:  # noqa: N802
+        self._pen = QPen(pen)
+
+    def setBrush(self, brush: Any) -> None:  # noqa: N802
+        self._brush = brush if isinstance(brush, QBrush) else QBrush(brush)
+
+    def setFont(self, font: QFont) -> None:  # noqa: N802
+        self._font = QFont(font)
+
+    def translate(self, dx: float, dy: float = 0.0) -> None:
+        if isinstance(dx, QPointF):
+            self._transform.translate(dx.x(), dx.y())
+        else:
+            self._transform.translate(float(dx), float(dy))
+
+    def rotate(self, angle: float) -> None:
+        self._transform.rotate(float(angle))
+
+    def scale(self, sx: float, sy: float) -> None:
+        self._transform.scale(float(sx), float(sy))
+
+    def shear(self, sh: float, sv: float) -> None:
+        self._transform.shear(float(sh), float(sv))
+
+    def resetTransform(self) -> None:  # noqa: N802
+        self._transform = QTransform()
+
+    def setTransform(self, t: QTransform, combine: bool = False) -> None:  # noqa: N802
+        if combine:
+            self._transform = QTransform(t) * self._transform
+        else:
+            self._transform = QTransform(t)
+
+    def _emit_quad_for_rect(self, t: QTransform, rect: QRectF, pix: QPixmap | QImage, tex_key: Any, eff_op: float) -> None:
+        tl = t.map(QPointF(rect.left(), rect.top()))
+        tr = t.map(QPointF(rect.right(), rect.top()))
+        br = t.map(QPointF(rect.right(), rect.bottom()))
+        bl = t.map(QPointF(rect.left(), rect.bottom()))
+        self.commands.append(
+            GpuQuadCommand(
+                kind="pixmap",
+                dst_ndc_pts=self._map_pts([tl, tr, br, bl]),
+                opacity=eff_op,
+                tex_key=tex_key,
+                pixmap=pix,
+            )
+        )
+
+    def drawPixmap(self, *args) -> None:  # noqa: N802
+        self._flush_vbatch()
+        eff_op = max(0.0, min(1.0, self._opacity * self._base_op))
+        if eff_op <= 0.001 or not args:
+            return
+
+        src_rect: QRectF | None = None
+        if len(args) == 2:
+            target, pix = args
+            if isinstance(target, QPointF):
+                if pix is None or pix.isNull():
+                    return
+                dst_rect = QRectF(target.x(), target.y(), float(pix.width()), float(pix.height()))
+            else:
+                dst_rect = QRectF(target)
+        elif len(args) == 3:
+            if isinstance(args[0], (int, float)) and isinstance(args[1], (int, float)):
+                pix = args[2]
+                if pix is None or pix.isNull():
+                    return
+                dst_rect = QRectF(float(args[0]), float(args[1]), float(pix.width()), float(pix.height()))
+            else:
+                dst_rect = QRectF(args[0])
+                pix = args[1]
+                src_rect = QRectF(args[2])
+        elif len(args) == 5:
+            dst_rect = QRectF(float(args[0]), float(args[1]), float(args[2]), float(args[3]))
+            pix = args[4]
+        else:
+            return
+
+        if pix is None or pix.isNull() or dst_rect.width() <= 0.0 or dst_rect.height() <= 0.0:
+            return
+
+        if src_rect is not None and not src_rect.isNull():
+            sr = src_rect.toRect()
+            if sr.width() > 0 and sr.height() > 0 and (
+                sr.x() != 0 or sr.y() != 0 or sr.width() < pix.width() or sr.height() < pix.height()
+            ):
+                cropped = pix.copy(sr)
+                tex_key = ("wheel_pix_sub", pix.cacheKey(), sr.x(), sr.y(), sr.width(), sr.height())
+                self._emit_quad_for_rect(self._transform, dst_rect, cropped, tex_key, eff_op)
+                return
+
+        self._emit_quad_for_rect(self._transform, dst_rect, pix, ("wheel_pix", pix.cacheKey()), eff_op)
+
+    def _begin_vop(self, kind: str, data: Any, local_rect: QRectF) -> None:
+        if not self._vbatch:
+            self._vorigin = QTransform(self._transform)
+            self._vopacity = float(self._opacity)
+        rel_t = QTransform()
+        if self._vorigin is not None and self._vorigin != self._transform:
+            inv, ok = self._vorigin.inverted()
+            if ok:
+                rel_t = self._transform * inv
+
+        if rel_t.isIdentity():
+            mapped_rect = local_rect
+        else:
+            mapped_rect = rel_t.mapRect(local_rect)
+        self._vbbox = mapped_rect if self._vbbox is None else self._vbbox.united(mapped_rect)
+        self._vbatch.append((
+            kind,
+            data,
+            rel_t,
+            QPen(self._pen),
+            QBrush(self._brush),
+            QFont(self._font),
+            float(self._opacity),
+        ))
+
+    def fillPath(self, path: QPainterPath, brush: Any) -> None:  # noqa: N802
+        br = path.boundingRect().adjusted(-1.0, -1.0, 1.0, 1.0)
+        qbrush = brush if isinstance(brush, QBrush) else QBrush(brush)
+        self._begin_vop("fillPath", (QPainterPath(path), qbrush), br)
+
+    def drawPath(self, path: QPainterPath) -> None:  # noqa: N802
+        m = max(2.0, float(self._pen.widthF() or 1.0))
+        br = path.boundingRect().adjusted(-m, -m, m, m)
+        self._begin_vop("drawPath", QPainterPath(path), br)
+
+    def fillRect(self, *args) -> None:  # noqa: N802
+        if len(args) == 2:
+            r, brush = QRectF(args[0]), args[1]
+        elif len(args) == 5:
+            r = QRectF(float(args[0]), float(args[1]), float(args[2]), float(args[3]))
+            brush = args[4]
+        else:
+            return
+        qbrush = brush if isinstance(brush, QBrush) else QBrush(brush)
+        self._begin_vop("fillRect", (r, qbrush), r.adjusted(-1.0, -1.0, 1.0, 1.0))
+
+    def drawRect(self, *args) -> None:  # noqa: N802
+        if len(args) == 1:
+            r = QRectF(args[0])
+        elif len(args) == 4:
+            r = QRectF(float(args[0]), float(args[1]), float(args[2]), float(args[3]))
+        else:
+            return
+        m = max(2.0, float(self._pen.widthF() or 1.0))
+        self._begin_vop("drawRect", r, r.adjusted(-m, -m, m, m))
+
+    def drawRoundedRect(self, *args) -> None:  # noqa: N802
+        if len(args) >= 3 and not isinstance(args[0], (int, float)):
+            r = QRectF(args[0])
+            rx, ry = float(args[1]), float(args[2])
+        elif len(args) >= 6:
+            r = QRectF(float(args[0]), float(args[1]), float(args[2]), float(args[3]))
+            rx, ry = float(args[4]), float(args[5])
+        else:
+            return
+        m = max(2.0, float(self._pen.widthF() or 1.0))
+        self._begin_vop("drawRoundedRect", (r, rx, ry), r.adjusted(-m, -m, m, m))
+
+    def drawText(self, *args) -> None:  # noqa: N802
+        if len(args) == 3 and not isinstance(args[0], (int, float)):
+            r = QRectF(args[0])
+            flags = _enum_int(args[1])
+            text = str(args[2])
+            self._begin_vop("drawTextRect", (r, flags, text), r)
+        elif len(args) >= 2 and not isinstance(args[0], (int, float)):
+            r = QRectF(args[0])
+            text = str(args[1])
+            self._begin_vop("drawTextRect", (r, _enum_int(Qt.AlignmentFlag.AlignCenter), text), r)
+        elif len(args) == 3 and isinstance(args[0], (int, float)) and isinstance(args[1], (int, float)):
+            x, y, text = float(args[0]), float(args[1]), str(args[2])
+            fm = QFontMetricsF(self._font)
+            br = fm.boundingRect(text).translated(x, y).adjusted(-2.0, -2.0, 2.0, 2.0)
+            self._begin_vop("drawTextPt", (x, y, text), br)
+
+    def _flush_vbatch(self) -> None:
+        if not self._vbatch or self._vbbox is None or self._vorigin is None:
+            self._vbatch.clear()
+            self._vorigin = None
+            self._vbbox = None
+            return
+
+        eff_op = max(0.0, min(1.0, self._vopacity * self._base_op))
+        bbox = self._vbbox.normalized()
+        ops = list(self._vbatch)
+        origin = self._vorigin
+        vopacity = self._vopacity
+        self._vbatch.clear()
+        self._vorigin = None
+        self._vbbox = None
+
+        if eff_op <= 0.001 or bbox.width() <= 0.5 or bbox.height() <= 0.5:
+            return
+
+        bx, by = float(bbox.left()), float(bbox.top())
+        bw = max(2.0, float(bbox.width()))
+        bh = max(2.0, float(bbox.height()))
+        qw = min(1024, max(32, ((int(math.ceil(bw * self._dpr_boost)) + 15) // 16) * 16))
+        qh = min(1024, max(16, ((int(math.ceil(bh * self._dpr_boost)) + 15) // 16) * 16))
+
+        sig_ops: list[tuple] = []
+        for kind, data, _rel_t, pen, brush, font, op_val in ops:
+            pen_sig = (_qrgba_key(pen.color()), round(float(pen.widthF()), 1), _enum_int(pen.style()))
+            brush_sig = (_qrgba_key(brush.color()), _enum_int(brush.style()))
+            f_px = font.pixelSize() if font.pixelSize() > 0 else round(float(font.pointSizeF()))
+            font_sig = (font.family(), max(1, round((f_px / bh) * 20.0)), int(font.weight()), font.italic())
+            rel_op_q = round(op_val / max(1e-6, vopacity), 2)
+            if kind == "fillPath":
+                path, qbrush = data
+                sig_ops.append((kind, _path_norm_sig(path, bx, by, bw, bh), _qrgba_key(qbrush.color()), _enum_int(qbrush.style()), rel_op_q))
+            elif kind == "drawPath":
+                sig_ops.append((kind, _path_norm_sig(data, bx, by, bw, bh), pen_sig, brush_sig, rel_op_q))
+            elif kind == "fillRect":
+                r, qbrush = data
+                sig_ops.append((kind, _rect_norm_sig(r, bx, by, bw, bh), _qrgba_key(qbrush.color()), _enum_int(qbrush.style()), rel_op_q))
+            elif kind == "drawRect":
+                sig_ops.append((kind, _rect_norm_sig(data, bx, by, bw, bh), pen_sig, brush_sig, rel_op_q))
+            elif kind == "drawRoundedRect":
+                r, rx, ry = data
+                sig_ops.append((kind, _rect_norm_sig(r, bx, by, bw, bh), round(rx), round(ry), pen_sig, brush_sig, rel_op_q))
+            elif kind == "drawTextRect":
+                r, flags, text = data
+                sig_ops.append((kind, _rect_norm_sig(r, bx, by, bw, bh), flags, text, font_sig, pen_sig, rel_op_q))
+            elif kind == "drawTextPt":
+                x, y, text = data
+                sig_ops.append((kind, round((x - bx) / bw * 24.0), round((y - by) / bh * 24.0), text, font_sig, pen_sig, rel_op_q))
+
+        card_key = (qw, qh, tuple(sig_ops))
+        card_cache: OrderedDict[Any, tuple[QImage, int]] | None = getattr(self._inst, "_gpu_wheel_card_cache", None)
+        if card_cache is None:
+            card_cache = OrderedDict()
+            self._inst._gpu_wheel_card_cache = card_cache
+
+        cached = card_cache.get(card_key)
+        if cached is not None:
+            card_cache.move_to_end(card_key)
+            card_img, card_uid = cached
+        else:
+            card_img = QImage(qw, qh, QImage.Format.Format_RGBA8888_Premultiplied)
+            card_img.fill(Qt.GlobalColor.transparent)
+            p = QPainter(card_img)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            try:
+                p.scale(qw / bw, qh / bh)
+                p.translate(-bx, -by)
+                for kind, data, rel_t, pen, brush, font, op_val in ops:
+                    p.save()
+                    if not rel_t.isIdentity():
+                        p.setTransform(rel_t, True)
+                    p.setOpacity(max(0.0, min(1.0, op_val / max(1e-6, vopacity))))
+                    p.setPen(pen)
+                    p.setBrush(brush)
+                    p.setFont(font)
+                    if kind == "fillPath":
+                        path, qbrush = data
+                        p.fillPath(path, qbrush)
+                    elif kind == "drawPath":
+                        p.drawPath(data)
+                    elif kind == "fillRect":
+                        r, qbrush = data
+                        p.fillRect(r, qbrush)
+                    elif kind == "drawRect":
+                        p.drawRect(data)
+                    elif kind == "drawRoundedRect":
+                        r, rx, ry = data
+                        p.drawRoundedRect(r, rx, ry)
+                    elif kind == "drawTextRect":
+                        r, flags, text = data
+                        p.drawText(r, flags, text)
+                    elif kind == "drawTextPt":
+                        x, y, text = data
+                        p.drawText(QPointF(x, y), text)
+                    p.restore()
+            finally:
+                p.end()
+
+            card_uid = int(getattr(self._inst, "_gpu_wheel_card_seq", 0) or 0) + 1
+            self._inst._gpu_wheel_card_seq = card_uid
+            card_cache[card_key] = (card_img, card_uid)
+            while len(card_cache) > 192:
+                card_cache.popitem(last=False)
+
+        self._emit_quad_for_rect(origin, bbox, card_img, ("wheel_card", card_uid), eff_op)
+
+
+def _emit_wheel_gpu_commands(
+    layout_widget: Any,
+    elem: LayoutElement,
+    sx: float,
+    sy: float,
+    sw: float,
+    sh: float,
+    viewport_w: float,
+    viewport_h: float,
+    *,
+    anim_dx: float,
+    anim_dy: float,
+    anim_rot: float,
+    layer_op: float,
+) -> tuple[list[GpuQuadCommand], bool]:
+    """Emite quads GPU por logo/tarjeta de `wheel_list` sin rasterizar capas enteras en CPU."""
+    if not hasattr(layout_widget, "_draw_wheel_conveyor") and not hasattr(layout_widget, "_draw_wheel"):
+        return [], False
+    map_pts = _make_canonical_to_ndc_mapper(
+        sx,
+        sy,
+        sw,
+        sh,
+        viewport_w,
+        viewport_h,
+        elem,
+        anim_dx=anim_dx,
+        anim_dy=anim_dy,
+        anim_rot=anim_rot,
+    )
+    dpr_boost = max(sw / float(CANONICAL_W), sh / float(CANONICAL_H))
+    collector = _WheelGpuCollector(layout_widget, map_pts, layer_op, dpr_boost=dpr_boost)
+    try:
+        render_native_layer(
+            collector,  # type: ignore[arg-type]
+            layout_widget,
+            "wheel_list",
+            QRect(0, 0, CANONICAL_W, CANONICAL_H),
+            elem=elem,
+        )
+        collector._flush_vbatch()
+    except Exception:
+        return [], False
+    return collector.commands, True
+
+
 def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[GpuQuadCommand], dict[str, Any]]:
     """Traduce las capas declarativas y videos de `layout_widget` a comandos GPU OpenGL."""
     if log_w <= 0 or log_h <= 0:
         return [], {}
 
-    sr = layout_widget._get_target_rect() if hasattr(layout_widget, "_get_target_rect") else QRect(0, 0, log_w, log_h)
+    sr = _get_widget_target_rect(layout_widget, log_w, log_h)
     sx, sy = float(sr.x()), float(sr.y())
     sw, sh = max(1.0, float(sr.width())), max(1.0, float(sr.height()))
     scale_x = sw / float(CANONICAL_W)
     scale_y = sh / float(CANONICAL_H)
 
-    if getattr(layout_widget, "_studio_is_paused", False) and getattr(layout_widget, "_studio_paused_elapsed", None) is not None:
-        t = float(layout_widget._studio_paused_elapsed)
-    else:
-        t = max(0.0, time.time() - float(getattr(layout_widget, "_studio_anim_start_time", 0.0) or 0.0))
+    t, ambient_t, layout_t = _get_widget_anim_clocks(layout_widget)
 
     sh_p, sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
     tv_shader = sh_p if (fx_perf != "off" and sh_p != "none" and sh_t == "tv_rect") else "none"
@@ -1771,7 +2387,7 @@ def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[
     for elem in elems:
         if not elem.visible:
             continue
-        adx, ady, aop, arot = compute_element_animation(elem, t)
+        adx, ady, aop, arot = compute_element_animation(elem, t, ambient_t=ambient_t, layout_t=layout_t)
         layer_op = max(0.0, min(1.0, float(elem.opacity) * float(aop)))
         if layer_op <= 0.001:
             continue
@@ -1840,16 +2456,37 @@ def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[
         if eid == "video_snap":
             dst_w = max(1, int(round(max(1.0, float(elem.w)) * scale_x)))
             dst_h = max(1, int(round(max(1.0, float(elem.h)) * scale_y)))
-            commands.append(GpuQuadCommand(kind="solid", dst_ndc_pts=_quad(), opacity=layer_op, color=QColor(0, 0, 0)))
 
             game_surf = getattr(layout_widget, "_gpu_game_video_surface", None)
             vid_state = getattr(layout_widget, "_game_video_image", None)
             if vid_state is None:
                 vid_state = getattr(layout_widget, "_current_video_image", None)
 
-            if game_surf is not None and game_surf.has_video and vid_state is not None:
+            has_gpu_vid = game_surf is not None and game_surf.has_video and vid_state is not None
+            has_cpu_vid = isinstance(vid_state, QImage) and not vid_state.isNull()
+            has_vid_now = has_gpu_vid or has_cpu_vid
+
+            has_dedicated_snap = (
+                hasattr(layout_widget, "TV_RECT")
+                or hasattr(layout_widget, "SNAP_RECT")
+                or hasattr(layout_widget, "SNAP_LOCAL_RECT")
+            )
+            art_fb = getattr(layout_widget, "_current_artwork_pixmap", None)
+            is_fullscreen_art_menu = (not has_dedicated_snap) and bool(art_fb and not art_fb.isNull())
+            if not is_fullscreen_art_menu or has_vid_now:
+                commands.append(GpuQuadCommand(kind="solid", dst_ndc_pts=_quad(), opacity=layer_op, color=QColor(0, 0, 0)))
+
+            def _snap_sub_norm(vw: int, vh: int) -> tuple[float, float, float, float]:
+                if hasattr(layout_widget, "SNAP_LOCAL_RECT"):
+                    return _aspect_fit_sub_norm(vw, vh, dst_w, dst_h)
+                if not has_dedicated_snap and vw > 0 and vh > 0 and dst_h > 0:
+                    if abs((float(vw) / float(vh)) - (float(dst_w) / float(dst_h))) >= 0.15:
+                        return _aspect_fit_sub_norm(vw, vh, dst_w, dst_h)
+                return (0.0, 0.0, 1.0, 1.0)
+
+            if has_gpu_vid:
                 vw, vh = game_surf.video_size
-                sub = _aspect_fit_sub_norm(vw, vh, dst_w, dst_h) if hasattr(layout_widget, "SNAP_LOCAL_RECT") else (0.0, 0.0, 1.0, 1.0)
+                sub = _snap_sub_norm(vw, vh)
                 commands.append(
                     GpuQuadCommand(
                         kind="video",
@@ -1857,16 +2494,12 @@ def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[
                         opacity=layer_op,
                         video_surface=game_surf,
                         shader_preset=tv_shader,
-                        shader_elapsed=t,
+                        shader_elapsed=ambient_t,
                         target_px=(dst_w, dst_h),
                     )
                 )
-            elif isinstance(vid_state, QImage) and not vid_state.isNull():
-                sub = (
-                    _aspect_fit_sub_norm(vid_state.width(), vid_state.height(), dst_w, dst_h)
-                    if hasattr(layout_widget, "SNAP_LOCAL_RECT")
-                    else (0.0, 0.0, 1.0, 1.0)
-                )
+            elif has_cpu_vid:
+                sub = _snap_sub_norm(vid_state.width(), vid_state.height())
                 commands.append(
                     GpuQuadCommand(
                         kind="pixmap",
@@ -1982,19 +2615,22 @@ def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[
             if spix and not spix.isNull():
                 can_off = (0.0, 0.0)
                 final_op = layer_op
+                anim_tokens = (elem.anim_type or "").replace("+", ",")
                 if eid == "avatar":
-                    can_off = (
-                        float(getattr(layout_widget, "_avatar_offset_x", 0.0) or 0.0),
-                        float(getattr(layout_widget, "_avatar_offset_y", 0.0) or 0.0),
-                    )
+                    if "avatar_float" not in anim_tokens:
+                        can_off = (
+                            float(getattr(layout_widget, "_avatar_offset_x", 0.0) or 0.0),
+                            float(getattr(layout_widget, "_avatar_offset_y", 0.0) or 0.0),
+                        )
                 elif eid == "logo":
-                    can_off = (0.0, float(CANONICAL_H) * float(getattr(layout_widget, "_logo_current_y_offset_ratio", 0.0) or 0.0))
+                    if "logo_bounce" not in anim_tokens:
+                        can_off = (0.0, float(CANONICAL_H) * float(getattr(layout_widget, "_logo_current_y_offset_ratio", 0.0) or 0.0))
                 elif eid == "pointer":
                     rest_r = float(getattr(layout_widget, "_pointer_rest_x_ratio", 0.0) or 0.0)
                     cur_r = float(getattr(layout_widget, "_pointer_current_x_ratio", rest_r) or rest_r)
                     tick = float(getattr(layout_widget, "_pointer_anim_tick", 0) or 0)
                     pulse = float(CANONICAL_W) * (rest_r - cur_r)
-                    osc = float(CANONICAL_W) * (math.sin(tick * (8.0 / 60.0)) * 0.009375)
+                    osc = 0.0 if "pointer_pulse" in anim_tokens else (float(CANONICAL_W) * (math.sin(tick * (8.0 / 60.0)) * 0.009375))
                     can_off = (-pulse + osc, 0.0)
                     if hasattr(layout_widget, "_wheel_alpha"):
                         final_op *= float(getattr(layout_widget, "_wheel_alpha", 255.0)) / 255.0
@@ -2027,25 +2663,45 @@ def build_studio_gpu_scene(layout_widget, log_w: int, log_h: int) -> tuple[list[
                 )
             continue
 
-        # Capas compuestas dinámicas (wheel_list, flyer, footer_frame, title_text, counter_text, etc.)
-        dyn_img, rev = _get_cached_dynamic_layer_image(layout_widget, elem, sx, sy, sw, sh, t)
+        if eid == "wheel_list":
+            wheel_cmds, ok = _emit_wheel_gpu_commands(
+                layout_widget,
+                elem,
+                sx,
+                sy,
+                sw,
+                sh,
+                float(log_w),
+                float(log_h),
+                anim_dx=adx,
+                anim_dy=ady,
+                anim_rot=arot,
+                layer_op=layer_op,
+            )
+            if ok:
+                commands.extend(wheel_cmds)
+                continue
+
+        # Capas compuestas dinámicas (flyer, footer_frame, title_text, counter_text, etc.)
+        dyn_img, rev = _get_cached_dynamic_layer_image(layout_widget, elem, sx, sy, sw, sh, ambient_t)
         if dyn_img is not None and not dyn_img.isNull():
             final_op = layer_op
-            if eid == "wheel_list" and hasattr(layout_widget, "_wheel_alpha"):
+            if eid == "wheel_list" and not hasattr(layout_widget, "_draw_wheel") and hasattr(layout_widget, "_wheel_alpha"):
                 final_op *= float(getattr(layout_widget, "_wheel_alpha", 255.0)) / 255.0
             commands.append(
                 GpuQuadCommand(
                     kind="pixmap",
                     dst_ndc_pts=_quad(),
                     opacity=final_op,
-                    tex_key=("dyn_layer", eid, rev, dyn_img.width(), dyn_img.height()),
+                    tex_key=("dyn_layer", eid, dyn_img.width(), dyn_img.height()),
                     pixmap=dyn_img,
+                    dynamic_rev=rev,
                 )
             )
 
     meta = {
         "global_shader": global_shader,
-        "elapsed": t,
+        "elapsed": ambient_t,
         "particles": particles,
         "particle_scale": max(0.45, min(1.5, log_w / float(CANONICAL_W))),
     }
@@ -2205,47 +2861,69 @@ def install_studio_overrides(
     )
 
     # Motor cinemático de animaciones de entrada en tiempo de ejecución (~60 FPS)
-    layout_widget._studio_anim_start_time = time.time()
+    # Tres relojes separados para que cambiar de juego NO corte ni reinicie animaciones continuas ni el logo del sistema:
+    #   - _studio_anim_start_time: entrada de arte por juego (cart_drop, disc_rise, boxart_slide_fade, flyer_slide_right)
+    #   - _studio_ambient_start_time: animaciones continuas/shaders/partículas (avatar_float, pointer_pulse, disc_spin)
+    #   - _studio_layout_start_time: entrada única del sistema/lista (logo_bounce)
+    now_wall = time.time()
+    layout_widget._studio_anim_start_time = now_wall
+    if not getattr(layout_widget, "_studio_ambient_start_time", None):
+        layout_widget._studio_ambient_start_time = now_wall
+    layout_widget._studio_layout_start_time = now_wall
     layout_widget._studio_is_paused = False
     layout_widget._studio_paused_elapsed = None
-    anim_timer = QTimer(layout_widget)
-    anim_timer.setInterval(16)
+    layout_widget._studio_paused_ambient_elapsed = None
+    layout_widget._studio_paused_layout_elapsed = None
 
-    def _studio_needs_running() -> tuple[bool, float]:
-        sh_p, _sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
-        elems = getattr(layout_widget, "_studio_elements", [])
-        has_continuous = any(
-            any(k in getattr(e, "anim_type", "") for k in ("pointer_pulse", "avatar_float", "disc_spin"))
-            for e in elems
-        )
-        has_live_fx = fx_perf != "off" and (pt_p != "none" or sh_p == "vhs_arcade")
-        elapsed = time.time() - float(getattr(layout_widget, "_studio_anim_start_time", 0.0) or 0.0)
-        return (elapsed < 1.5 or has_continuous or has_live_fx), elapsed
+    anim_timer = getattr(layout_widget, "_studio_anim_timer", None)
+    if anim_timer is None:
+        anim_timer = QTimer(layout_widget)
+        anim_timer.setInterval(16)
 
-    def _on_studio_anim_tick():
-        if getattr(layout_widget, "_studio_is_paused", False):
-            anim_timer.stop()
-            return
-        now_m = time.monotonic()
-        dt = max(0.004, min(0.08, now_m - float(getattr(layout_widget, "_studio_last_fx_tick", now_m))))
-        layout_widget._studio_last_fx_tick = now_m
+        def _studio_needs_running() -> tuple[bool, float]:
+            sh_p, _sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
+            elems = getattr(layout_widget, "_studio_elements", [])
+            has_continuous = any(
+                any(k in getattr(e, "anim_type", "") for k in ("pointer_pulse", "avatar_float", "disc_spin"))
+                for e in elems
+            )
+            has_live_fx = fx_perf != "off" and (pt_p != "none" or sh_p == "vhs_arcade")
+            max_dur = max(
+                [1.0] + [float(getattr(e, "anim_duration", 0.8) or 0.8) for e in elems if getattr(e, "has_animation", lambda: False)()]
+            )
+            min_active_win = max(1.5, max_dur + 0.25)
+            now_t = time.time()
+            game_elapsed = now_t - float(getattr(layout_widget, "_studio_anim_start_time", 0.0) or 0.0)
+            layout_elapsed = now_t - float(getattr(layout_widget, "_studio_layout_start_time", 0.0) or 0.0)
+            return (game_elapsed < min_active_win or layout_elapsed < min_active_win or has_continuous or has_live_fx), game_elapsed
 
-        sh_p, _sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
-        ps = getattr(layout_widget, "_studio_particles", None)
-        if ps is not None and fx_perf != "off" and pt_p != "none":
-            ps.set_perf_profile(fx_perf)
-            ps.set_preset(pt_p)
-            ps.step(dt)
+        def _on_studio_anim_tick():
+            if getattr(layout_widget, "_studio_is_paused", False):
+                anim_timer.stop()
+                return
+            now_m = time.monotonic()
+            dt = max(0.004, min(0.08, now_m - float(getattr(layout_widget, "_studio_last_fx_tick", now_m))))
+            layout_widget._studio_last_fx_tick = now_m
 
-        should_run, _elapsed = _studio_needs_running()
-        layout_widget.update()
-        if not should_run:
-            anim_timer.stop()
+            sh_p, _sh_t, pt_p, fx_perf = resolve_widget_effect_settings(layout_widget)
+            ps = getattr(layout_widget, "_studio_particles", None)
+            if ps is not None and fx_perf != "off" and pt_p != "none":
+                ps.set_perf_profile(fx_perf)
+                ps.set_preset(pt_p)
+                ps.step(dt)
 
-    anim_timer.timeout.connect(_on_studio_anim_tick)
-    layout_widget._studio_anim_timer = anim_timer
+            should_run, _elapsed = _studio_needs_running()
+            layout_widget.update()
+            if not should_run:
+                anim_timer.stop()
 
-    def _trigger_studio_animations(*args, **kwargs):
+        anim_timer.timeout.connect(_on_studio_anim_tick)
+        layout_widget._studio_anim_timer = anim_timer
+        layout_widget._studio_needs_running_fn = _studio_needs_running
+
+    needs_running_fn = getattr(layout_widget, "_studio_needs_running_fn")
+
+    def _trigger_game_animations(*_args, **_kwargs):
         layout_widget._studio_is_paused = False
         layout_widget._studio_paused_elapsed = None
         layout_widget._studio_anim_start_time = time.time()
@@ -2253,50 +2931,121 @@ def install_studio_overrides(
         if not anim_timer.isActive():
             anim_timer.start()
 
+    def _trigger_layout_animations(*_args, **_kwargs):
+        now_t = time.time()
+        layout_widget._studio_is_paused = False
+        layout_widget._studio_paused_elapsed = None
+        layout_widget._studio_paused_layout_elapsed = None
+        layout_widget._studio_anim_start_time = now_t
+        layout_widget._studio_layout_start_time = now_t
+        layout_widget._studio_last_fx_tick = time.monotonic()
+        if not anim_timer.isActive():
+            anim_timer.start()
+
     def _pause_studio_animations():
         if not getattr(layout_widget, "_studio_is_paused", False):
+            now_t = time.time()
             layout_widget._studio_is_paused = True
             layout_widget._studio_paused_elapsed = max(
                 0.0,
-                time.time() - float(getattr(layout_widget, "_studio_anim_start_time", time.time()) or time.time()),
+                now_t - float(getattr(layout_widget, "_studio_anim_start_time", now_t) or now_t),
+            )
+            layout_widget._studio_paused_ambient_elapsed = max(
+                0.0,
+                now_t - float(getattr(layout_widget, "_studio_ambient_start_time", now_t) or now_t),
+            )
+            layout_widget._studio_paused_layout_elapsed = max(
+                0.0,
+                now_t - float(getattr(layout_widget, "_studio_layout_start_time", now_t) or now_t),
             )
         if anim_timer.isActive():
             anim_timer.stop()
 
     def _resume_studio_animations():
         was_paused = bool(getattr(layout_widget, "_studio_is_paused", False))
-        paused_elapsed = getattr(layout_widget, "_studio_paused_elapsed", None)
+        paused_game = getattr(layout_widget, "_studio_paused_elapsed", None)
+        paused_amb = getattr(layout_widget, "_studio_paused_ambient_elapsed", None)
+        paused_lay = getattr(layout_widget, "_studio_paused_layout_elapsed", None)
         layout_widget._studio_is_paused = False
         layout_widget._studio_paused_elapsed = None
-        if was_paused and paused_elapsed is not None:
-            layout_widget._studio_anim_start_time = time.time() - float(paused_elapsed)
+        layout_widget._studio_paused_ambient_elapsed = None
+        layout_widget._studio_paused_layout_elapsed = None
+        if was_paused:
+            now_t = time.time()
+            if paused_game is not None:
+                layout_widget._studio_anim_start_time = now_t - float(paused_game)
+            if paused_amb is not None:
+                layout_widget._studio_ambient_start_time = now_t - float(paused_amb)
+            if paused_lay is not None:
+                layout_widget._studio_layout_start_time = now_t - float(paused_lay)
         layout_widget._studio_last_fx_tick = time.monotonic()
-        should_run, _ = _studio_needs_running()
+        should_run, _ = needs_running_fn()
         if should_run and not anim_timer.isActive():
             anim_timer.start()
         layout_widget.update()
 
     layout_widget._resume_studio_animations = _resume_studio_animations
 
-    # Enlazar inicio de animaciones ante navegación o cambio de selección de juego
-    for hook_name in ("_load_pending_art", "_update_current_selection", "_commit_selection"):
+    def _get_active_gid() -> Any:
+        if hasattr(layout_widget, "get_selected_game_id"):
+            try:
+                sgid = layout_widget.get_selected_game_id()
+                if sgid is not None:
+                    return sgid
+            except Exception:
+                pass
+        return getattr(layout_widget, "current_game_id", None)
+
+    # Enlazar inicio de animaciones ante cambio real de juego (sin envolver _load_pending_art,
+    # que se vuelve a llamar a los ~100 ms dentro de _play_debounced_video y cortaba la animación).
+    for hook_name in ("_update_current_selection", "_commit_selection", "select_game_by_id"):
         if hasattr(layout_widget, hook_name):
             orig_hook = getattr(layout_widget, hook_name)
-            def _make_wrapper(orig):
-                def _wrapper(*a, **k):
-                    res = orig(*a, **k)
-                    _trigger_studio_animations()
-                    return res
-                return _wrapper
-            setattr(layout_widget, hook_name, _make_wrapper(orig_hook))
+            if not getattr(orig_hook, "_is_studio_anim_hook", False):
+                def _make_game_hook(orig, hname):
+                    def _wrapper(*a, **k):
+                        depth = int(getattr(layout_widget, "_studio_sel_hook_depth", 0) or 0)
+                        layout_widget._studio_sel_hook_depth = depth + 1
+                        prev_pending = bool(getattr(layout_widget, "_nav_pending_commit", False))
+                        prev_active_gid = _get_active_gid()
+                        try:
+                            res = orig(*a, **k)
+                        finally:
+                            layout_widget._studio_sel_hook_depth = depth
+                        if depth == 0:
+                            now_pending = bool(getattr(layout_widget, "_nav_pending_commit", False))
+                            active_gid = _get_active_gid()
+                            last_anim_gid = getattr(layout_widget, "_studio_last_anim_gid", None)
+                            if active_gid is not None:
+                                # Si _commit_selection salió temprano esperando reposo de la ruleta, no disparar todavía
+                                deferred_commit = (hname == "_commit_selection" and prev_pending and now_pending)
+                                if not deferred_commit and (active_gid != last_anim_gid or active_gid != prev_active_gid):
+                                    layout_widget._studio_last_anim_gid = active_gid
+                                    _trigger_game_animations()
+                        return res
+                    _wrapper._is_studio_anim_hook = True
+                    return _wrapper
+                setattr(layout_widget, hook_name, _make_game_hook(orig_hook, hook_name))
 
-    if hasattr(layout_widget, "select_game_by_id"):
-        orig_sel = layout_widget.select_game_by_id
-        def _sel_wrapper(*a, **k):
-            res = orig_sel(*a, **k)
-            _trigger_studio_animations()
-            return res
-        layout_widget.select_game_by_id = _sel_wrapper
+    if hasattr(layout_widget, "set_games"):
+        orig_set_games = layout_widget.set_games
+        if not getattr(orig_set_games, "_is_studio_anim_hook", False):
+            def _set_games_wrapper(*a, **k):
+                depth = int(getattr(layout_widget, "_studio_sel_hook_depth", 0) or 0)
+                layout_widget._studio_sel_hook_depth = depth + 1
+                layout_widget._studio_last_anim_gid = None
+                try:
+                    res = orig_set_games(*a, **k)
+                finally:
+                    layout_widget._studio_sel_hook_depth = depth
+                if depth == 0:
+                    active_gid = _get_active_gid()
+                    if active_gid is not None:
+                        layout_widget._studio_last_anim_gid = active_gid
+                    _trigger_layout_animations()
+                return res
+            _set_games_wrapper._is_studio_anim_hook = True
+            layout_widget.set_games = _set_games_wrapper
 
     if hasattr(layout_widget, "pause_media"):
         orig_pause = layout_widget.pause_media
@@ -2320,7 +3069,7 @@ def install_studio_overrides(
             _resume_wrapper._is_studio_anim_wrapped = True
             layout_widget.resume_media = _resume_wrapper
 
-    _trigger_studio_animations()
+    _trigger_layout_animations()
 
     def _studio_paint_event(event):
         vp = getattr(layout_widget, "_gpu_viewport", None)
@@ -2353,20 +3102,14 @@ def install_studio_overrides(
 
         painter.fillRect(0, 0, w, h, QColor(0, 0, 0))
 
-        if hasattr(layout_widget, "_get_target_rect"):
-            sr = layout_widget._get_target_rect()
-        else:
-            sr = QRect(0, 0, w, h)
+        sr = _get_widget_target_rect(layout_widget, w, h)
 
-        if getattr(layout_widget, "_studio_is_paused", False) and getattr(layout_widget, "_studio_paused_elapsed", None) is not None:
-            t = float(layout_widget._studio_paused_elapsed)
-        else:
-            t = time.time() - getattr(layout_widget, "_studio_anim_start_time", 0.0)
+        t, ambient_t, layout_t = _get_widget_anim_clocks(layout_widget)
         elems: list[LayoutElement] = getattr(layout_widget, "_studio_elements", [])
         for elem in elems:
             if not elem.visible:
                 continue
-            adx, ady, aop, arot = compute_element_animation(elem, t)
+            adx, ady, aop, arot = compute_element_animation(elem, t, ambient_t=ambient_t, layout_t=layout_t)
             render_element_in_screen_space(painter, layout_widget, elem, sr, anim_dx=adx, anim_dy=ady, anim_op=aop, anim_rot=arot)
 
         if not getattr(layout_widget, "_pn_external_overlay", False):
@@ -2378,7 +3121,7 @@ def install_studio_overrides(
                         scale = max(0.45, min(1.5, w / float(CANONICAL_W)))
                         ps.paint(painter, QRectF(0, 0, w, h), scale=scale)
                 if sh_p != "none" and sh_t == "global":
-                    render_shader_overlay_painter(painter, QRect(0, 0, w, h), sh_p, elapsed=max(0.0, t))
+                    render_shader_overlay_painter(painter, QRect(0, 0, w, h), sh_p, elapsed=ambient_t)
 
         painter.end()
 

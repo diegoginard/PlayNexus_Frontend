@@ -24,6 +24,59 @@ BaseThemeLayout = BaseLayout
 
 # Cache de clases de layouts cargadas por mtime para recarga inmediata al editar
 _THEME_CLASS_CACHE: dict[str, tuple[float, type[Any]]] = {}
+_THEME_SOURCE_CACHE: dict[str, tuple[float, str]] = {}
+
+
+def _get_cached_theme_source(theme_file: Path, cache_key: str, mtime: float) -> str:
+    """Obtiene el código fuente de `theme_layout.py` desde caché indexada por `(ruta, mtime)`."""
+    cached = _THEME_SOURCE_CACHE.get(cache_key)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    try:
+        src = theme_file.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        src = ""
+    _THEME_SOURCE_CACHE[cache_key] = (mtime, src)
+    return src
+
+
+def _ensure_class_gpu_patched(cls: type[Any], theme_file: Path, cache_key: str, mtime: float) -> type[Any]:
+    """Garantiza que todo `ThemeLayout` instancie overrides GPU OpenGL sin editar `Layouts/`."""
+    if getattr(cls, "_is_studio_gpu_patched", False):
+        return cls
+    orig_init = cls.__init__
+    if getattr(orig_init, "_is_studio_gpu_init", False):
+        cls._is_studio_gpu_patched = True
+        return cls
+
+    source_text = _get_cached_theme_source(theme_file, cache_key, mtime)
+
+    def _gpu_patched_init(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        if getattr(self, "_studio_override_installed", False):
+            return
+        try:
+            from playnexus.ui.layout_studio.runtime_hook import (
+                extract_elements_from_theme_instance,
+                install_studio_overrides,
+            )
+
+            elems = extract_elements_from_theme_instance(self, source_text)
+            if elems:
+                install_studio_overrides(
+                    self,
+                    elems,
+                    shader_preset=str(getattr(self, "SHADER_PRESET", "none") or "none"),
+                    shader_target=str(getattr(self, "SHADER_TARGET", "tv_rect") or "tv_rect"),
+                    particle_preset=str(getattr(self, "PARTICLE_PRESET", "none") or "none"),
+                )
+        except Exception:
+            pass
+
+    _gpu_patched_init._is_studio_gpu_init = True  # type: ignore[attr-defined]
+    cls.__init__ = _gpu_patched_init  # type: ignore[method-assign]
+    cls._is_studio_gpu_patched = True
+    return cls
 
 
 def get_theme_layout_class(theme_name: str) -> type[Any]:
@@ -73,6 +126,7 @@ def get_theme_layout_class(theme_name: str) -> type[Any]:
                 if hasattr(mod, attr):
                     cls = getattr(mod, attr)
                     if isinstance(cls, type) and issubclass(cls, BaseLayout):
+                        _ensure_class_gpu_patched(cls, theme_file, cache_key, mtime)
                         _THEME_CLASS_CACHE[cache_key] = (mtime, cls)
                         return cls
 
@@ -80,6 +134,7 @@ def get_theme_layout_class(theme_name: str) -> type[Any]:
             for attr_name in dir(mod):
                 val = getattr(mod, attr_name)
                 if isinstance(val, type) and issubclass(val, BaseLayout) and val is not BaseLayout:
+                    _ensure_class_gpu_patched(val, theme_file, cache_key, mtime)
                     _THEME_CLASS_CACHE[cache_key] = (mtime, val)
                     return val
     except Exception as e:

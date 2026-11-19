@@ -5,37 +5,50 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QPushButton, QFrame
 )
-from playnexus.ui.layouts.base import BaseLayout
-from playnexus.ui.cover_utils import load_cover
+from playnexus.ui.layouts.base import (
+    BaseLayout,
+    CoverPreloadWorker,
+    CoverCacheLRU,
+    make_rounded_cover_pixmap,
+)
+from playnexus.ui.cover_utils import generate_placeholder_cover
 
 
 class CoverLabel(QLabel):
-    """Label que renderiza la portada de juego con esquinas redondeadas."""
+    """Label que renderiza la portada pre-escalada y redondeada sin reescalar en `paintEvent`."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._pixmap = None
+        self._rendered_pixmap = None
         self.setFixedSize(180, 160)
+
+    def _rebuild_rendered(self):
+        if self._pixmap is None or self._pixmap.isNull():
+            self._rendered_pixmap = None
+            return
+        self._rendered_pixmap = make_rounded_cover_pixmap(
+            self._pixmap,
+            max(1, self.width()),
+            max(1, self.height()),
+            radius=10,
+        )
 
     def set_cover(self, pix):
         self._pixmap = pix
+        self._rebuild_rendered()
         self.update()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._rebuild_rendered()
+
     def paintEvent(self, event):
-        if not self._pixmap:
+        if self._rendered_pixmap is None or self._rendered_pixmap.isNull():
             super().paintEvent(event)
             return
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        w, h = self.width(), self.height()
-        path = QPainterPath()
-        path.addRoundedRect(0, 0, w, h, 10, 10)
-        painter.setClipPath(path)
-        scaled = self._pixmap.scaled(QSize(w, h), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-        x = (w - scaled.width()) // 2
-        y = (h - scaled.height()) // 2
-        painter.drawPixmap(x, y, scaled)
+        painter.drawPixmap(0, 0, self._rendered_pixmap)
         painter.end()
 
 
@@ -50,6 +63,16 @@ class ShowcaseLayout(BaseLayout):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._cover_worker = CoverPreloadWorker(
+            self,
+            aspect_mode=Qt.KeepAspectRatioByExpanding,
+            collect_rom_size=True,
+        )
+        self._cover_worker.cover_loaded.connect(self._on_hero_cover_loaded)
+        self._cover_worker.rom_size_loaded.connect(self._on_hero_rom_size_loaded)
+        self._hero_cover_cache = CoverCacheLRU(max_items=64)
+        self._rom_size_cache: dict[int, str] = {}
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(4, 4, 4, 4)
@@ -157,9 +180,28 @@ class ShowcaseLayout(BaseLayout):
         self.strip_widget.customContextMenuRequested.connect(self._on_context_menu)
         main_layout.addWidget(self.strip_widget, 1)
 
+    def _on_hero_cover_loaded(self, gid: int, tw: int, th: int, img):
+        if img is not None and not img.isNull():
+            rounded = make_rounded_cover_pixmap(img, tw, th, radius=10)
+            self._hero_cover_cache.put((gid, tw, th), rounded)
+            if gid == self.current_game_id:
+                self.cover_label.set_cover(rounded)
+        else:
+            self._hero_cover_cache.put((gid, tw, th), False)
+
+    def _on_hero_rom_size_loaded(self, gid: int, size_str: str):
+        label_txt = "Archivo no encontrado" if size_str == "?" else size_str
+        self._rom_size_cache[gid] = label_txt
+        if gid == self.current_game_id:
+            self.size_badge.setText(label_txt)
+
     def render_games(self):
         self.strip_widget.blockSignals(True)
         self.strip_widget.clear()
+        self._hero_cover_cache.clear()
+        self._rom_size_cache.clear()
+        if hasattr(self, "_cover_worker") and self._cover_worker:
+            self._cover_worker.clear()
         for g in self.games:
             p = Path(g["rom_path"])
             badge = p.suffix.upper()
@@ -197,7 +239,7 @@ class ShowcaseLayout(BaseLayout):
             self.path_label.setText("--")
             self.emu_label.setText("Emulador: --")
             self.play_btn.setEnabled(False)
-            blank = load_cover(None, "PlayNexus", QSize(180, 160))
+            blank = generate_placeholder_cover("PlayNexus", QSize(180, 160))
             self.cover_label.set_cover(blank)
             return
 
@@ -211,11 +253,8 @@ class ShowcaseLayout(BaseLayout):
         self.format_badge.setText(p.suffix.upper() or ".ROM")
         self.path_label.setText(str(p))
 
-        if p.exists():
-            mb = p.stat().st_size / (1024 * 1024)
-            self.size_badge.setText(f"{mb:.2f} MB")
-        else:
-            self.size_badge.setText("Archivo no encontrado")
+        cached_sz = self._rom_size_cache.get(game_id)
+        self.size_badge.setText(cached_sz if cached_sz is not None else "--")
 
         emu = game.get("effective_name", "Sin emulador")
         source = game.get("source", "")
@@ -232,8 +271,18 @@ class ShowcaseLayout(BaseLayout):
         extra_meta = f"   |   {' · '.join(xml_bits)}" if xml_bits else ""
         self.emu_label.setText(f"Emulador: {emu}{source_str}{extra_meta}")
 
-        cover = load_cover(game.get("cover_path"), game["title"], QSize(180, 160))
-        self.cover_label.set_cover(cover)
+        tw = max(1, self.cover_label.width())
+        th = max(1, self.cover_label.height())
+        cached_cov = self._hero_cover_cache.get((game_id, tw, th))
+        if isinstance(cached_cov, QPixmap) and not cached_cov.isNull():
+            self.cover_label.set_cover(cached_cov)
+        else:
+            ph = generate_placeholder_cover(game["title"], QSize(tw, th))
+            self.cover_label.set_cover(ph)
+            if cached_cov is None and hasattr(self, "_cover_worker") and self._cover_worker:
+                if not self._cover_worker.isRunning():
+                    self._cover_worker.start()
+                self._cover_worker.queue_game(game, tw, th, priority=True)
 
     def _on_item_selected(self):
         items = self.strip_widget.selectedItems()
@@ -257,3 +306,9 @@ class ShowcaseLayout(BaseLayout):
             game_id = item.data(Qt.UserRole)
             global_pos = self.strip_widget.mapToGlobal(pos)
             self.context_menu_requested.emit(game_id, global_pos)
+
+    def closeEvent(self, event):
+        if hasattr(self, "_cover_worker") and self._cover_worker:
+            self._cover_worker.stop()
+        if event is not None:
+            super().closeEvent(event)

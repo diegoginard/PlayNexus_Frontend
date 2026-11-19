@@ -2,14 +2,19 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QSize, QRect, QPoint, QModelIndex
 from PySide6.QtGui import (
     QFont, QColor, QLinearGradient, QBrush, QPainter,
-    QPen, QPainterPath
+    QPen, QPainterPath, QPixmap
 )
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QSlider, QLabel, QStyleOptionViewItem, QStyledItemDelegate, QStyle
 )
-from playnexus.ui.layouts.base import BaseLayout
-from playnexus.ui.cover_utils import load_cover
+from playnexus.ui.layouts.base import (
+    BaseLayout,
+    CoverPreloadWorker,
+    CoverCacheLRU,
+    make_rounded_cover_pixmap,
+)
+from playnexus.ui.cover_utils import generate_placeholder_cover
 
 
 class GameCardDelegate(QStyledItemDelegate):
@@ -17,19 +22,25 @@ class GameCardDelegate(QStyledItemDelegate):
     Delegado personalizado que pinta cada juego como una tarjeta visual
     con portada, título, badge de plataforma y emulador.
     """
-    def __init__(self, card_size: QSize, parent=None):
+    def __init__(self, card_size: QSize, parent=None, cover_worker=None):
         super().__init__(parent)
         self.card_w = card_size.width()
         self.card_h = card_size.height()
-        self._cover_cache: dict[int, object] = {}  # game_id -> QPixmap
+        self._cover_worker = cover_worker
+        self._cover_cache = CoverCacheLRU(max_items=512)        # (game_id, w, h) -> QPixmap | False
+        self._placeholder_cache = CoverCacheLRU(max_items=256)  # (title, w, h) -> QPixmap
 
     def update_card_size(self, w: int, h: int):
         self.card_w = w
         self.card_h = h
         self._cover_cache.clear()
+        self._placeholder_cache.clear()
 
     def invalidate_cache(self):
         self._cover_cache.clear()
+
+    def set_cached_cover(self, key: tuple[int, int, int], value: QPixmap | bool):
+        self._cover_cache.put(key, value)
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
         painter.save()
@@ -49,7 +60,6 @@ class GameCardDelegate(QStyledItemDelegate):
             title = game_data.get("title", "Desconocido")
             emu = game_data.get("effective_name", "Sin emulador")
             game_id = game_data.get("id", 0)
-            cover_path = game_data.get("cover_path", None)
 
             # ── Fondo de la tarjeta ──────────────────────────────────────
             card_rect = QRect(rect.x() + 6, rect.y() + 6, rect.width() - 12, rect.height() - 12)
@@ -71,27 +81,25 @@ class GameCardDelegate(QStyledItemDelegate):
             painter.setPen(pen)
             painter.drawPath(path)
 
-            # ── Portada ──────────────────────────────────────────────────
+            # ── Portada pre-escalada (sin I/O ni `scaled()` dentro de `paint`) ──
             cover_area_h = int(card_rect.height() * 0.65)
             cover_rect = QRect(card_rect.x(), card_rect.y(), card_rect.width(), cover_area_h)
 
-            cache_key = (game_id, self.card_w, self.card_h)
-            if cache_key not in self._cover_cache:
-                pix = load_cover(cover_path, title, QSize(cover_rect.width(), cover_rect.height()))
-                self._cover_cache[cache_key] = pix
+            cache_key = (game_id, cover_rect.width(), cover_rect.height())
+            cached = self._cover_cache.get(cache_key)
+            if isinstance(cached, QPixmap) and not cached.isNull():
+                painter.drawPixmap(cover_rect.x(), cover_rect.y(), cached)
             else:
-                pix = self._cover_cache[cache_key]
-
-            # Recortar portada en el área superior con esquinas redondeadas
-            cover_path_clip = QPainterPath()
-            cover_path_clip.addRoundedRect(cover_rect.x(), cover_rect.y(),
-                                           cover_rect.width(), cover_area_h, 10, 10)
-            painter.setClipPath(cover_path_clip)
-            scaled_pix = pix.scaled(cover_rect.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-            draw_x = cover_rect.x() + (cover_rect.width() - scaled_pix.width()) // 2
-            draw_y = cover_rect.y() + (cover_rect.height() - scaled_pix.height()) // 2
-            painter.drawPixmap(draw_x, draw_y, scaled_pix)
-            painter.setClipRect(rect)  # reset clip
+                if cached is None and self._cover_worker is not None:
+                    if not self._cover_worker.isRunning():
+                        self._cover_worker.start()
+                    self._cover_worker.queue_game(game_data, cover_rect.width(), cover_rect.height(), priority=True)
+                ph_key = (title, cover_rect.width(), cover_rect.height())
+                ph = self._placeholder_cache.get(ph_key)
+                if ph is None or ph.isNull():
+                    ph = generate_placeholder_cover(title, cover_rect.size())
+                    self._placeholder_cache.put(ph_key, ph)
+                painter.drawPixmap(cover_rect.x(), cover_rect.y(), ph)
 
             # Degradado sobre la portada para legibilidad del título
             overlay_grad = QLinearGradient(0, cover_rect.y(), 0, cover_rect.y() + cover_area_h)
@@ -165,10 +173,14 @@ class GridLayout(BaseLayout):
         ctrl_bar.addWidget(self.zoom_slider)
         layout.addLayout(ctrl_bar)
 
+        # Worker asíncrono para precarga y pre-escalado de portadas
+        self._cover_worker = CoverPreloadWorker(self, aspect_mode=Qt.KeepAspectRatioByExpanding)
+        self._cover_worker.cover_loaded.connect(self._on_cover_loaded)
+
         # Inicializar el delegado
         initial_w = 190
         initial_h = int(initial_w * 0.85)
-        self._delegate = GameCardDelegate(QSize(initial_w, initial_h))
+        self._delegate = GameCardDelegate(QSize(initial_w, initial_h), cover_worker=self._cover_worker)
 
         # Widget de lista en modo cuadrícula
         self.list_widget = QListWidget()
@@ -215,10 +227,29 @@ class GridLayout(BaseLayout):
         """Actualiza la caché de plataformas por lista (para portadas generadas correctamente)."""
         self._platform_cache = platform_cache
 
+    def _on_cover_loaded(self, gid: int, tw: int, th: int, img):
+        if img is not None and not img.isNull():
+            rounded = make_rounded_cover_pixmap(img, tw, th, radius=10)
+            self._delegate.set_cached_cover((gid, tw, th), rounded)
+            if self.isVisible():
+                self.list_widget.viewport().update()
+        else:
+            self._delegate.set_cached_cover((gid, tw, th), False)
+
     def render_games(self):
         self.list_widget.blockSignals(True)
         self.list_widget.clear()
         self._delegate.invalidate_cache()
+        if hasattr(self, "_cover_worker") and self._cover_worker:
+            self._cover_worker.clear()
+            if self.games:
+                cw = max(1, self._delegate.card_w - 12)
+                ch = max(1, int((self._delegate.card_h - 12) * 0.65))
+                if not self._cover_worker.isRunning():
+                    self._cover_worker.start()
+                self._cover_worker.queue_games(self.games[:36], cw, ch, priority=True)
+                if len(self.games) > 36:
+                    self._cover_worker.queue_games(self.games[36:], cw, ch, priority=False)
 
         for g in self.games:
             item = QListWidgetItem()
@@ -268,3 +299,9 @@ class GridLayout(BaseLayout):
             game_id = item.data(Qt.UserRole)
             global_pos = self.list_widget.mapToGlobal(pos)
             self.context_menu_requested.emit(game_id, global_pos)
+
+    def closeEvent(self, event):
+        if hasattr(self, "_cover_worker") and self._cover_worker:
+            self._cover_worker.stop()
+        if event is not None:
+            super().closeEvent(event)

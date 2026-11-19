@@ -1369,7 +1369,7 @@ class ThemeLayout(BaseLayout):
             if abs(dist) > half_slots + 0.6:
                 continue
 
-            game_idx = (self.selected_index + offset) % n
+            game_idx = (self.selected_index - offset) % n
             game = self.games[game_idx]
 
             # Curvatura elíptica
@@ -1627,10 +1627,10 @@ class ThemeLayout(BaseLayout):
 
             # Clics arriba o abajo para navegar (se ejecuta exclusivamente al soltar el botón)
             if pos.y() < self.height() * 0.40:
-                self._navigate_steps(-1)
+                self._navigate_steps(1)
                 self._key_released_waiting_rest = True
             elif pos.y() > self.height() * 0.60:
-                self._navigate_steps(1)
+                self._navigate_steps(-1)
                 self._key_released_waiting_rest = True
             else:
                 gid = self.get_selected_game_id()

@@ -170,6 +170,19 @@ class MediaCanvasWidget(QWidget):
         self._empty_subtitle: str = ""
         self._allowed_drop_exts: tuple[str, ...] = ()
 
+        self._gpu_video_player = None
+        try:
+            from playnexus.ui.gpu_renderer import GpuVideoPlayerWidget
+            self._gpu_video_player = GpuVideoPlayerWidget(
+                self,
+                background_color=QColor("#0d1017"),
+                render_backend="auto",
+            )
+            self._gpu_video_player.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            self._gpu_video_player.hide()
+        except Exception:
+            self._gpu_video_player = None
+
     def set_checkerboard(self, enabled: bool):
         self._checkerboard = bool(enabled)
         self.update()
@@ -178,7 +191,23 @@ class MediaCanvasWidget(QWidget):
         self._can_drop = bool(can_drop)
         self._allowed_drop_exts = tuple(e.lower() for e in (allowed_exts or ()))
 
+    def _hide_gpu_video(self):
+        if self._gpu_video_player is not None:
+            try:
+                self._gpu_video_player.clear_frame()
+                if self._gpu_video_player.isVisible():
+                    self._gpu_video_player.hide()
+            except Exception:
+                pass
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._gpu_video_player is not None:
+            inner = self.rect().adjusted(8, 8, -8, -8)
+            self._gpu_video_player.setGeometry(inner)
+
     def show_empty(self, title: str, subtitle: str = ""):
+        self._hide_gpu_video()
         self._mode = "empty"
         self._pixmap = None
         self._video_image = None
@@ -187,6 +216,7 @@ class MediaCanvasWidget(QWidget):
         self.update()
 
     def show_image(self, pixmap: QPixmap | None, error_text: str = ""):
+        self._hide_gpu_video()
         if pixmap is None or pixmap.isNull():
             self.show_empty("No se pudo cargar la imagen", error_text)
             return
@@ -196,6 +226,7 @@ class MediaCanvasWidget(QWidget):
         self.update()
 
     def show_video_waiting(self, filename: str):
+        self._hide_gpu_video()
         self._mode = "video"
         self._pixmap = None
         self._video_image = None
@@ -204,10 +235,36 @@ class MediaCanvasWidget(QWidget):
         self.update()
 
     def set_video_frame(self, frame_image: QImage | None):
+        self._hide_gpu_video()
         self._mode = "video"
         self._pixmap = None
         self._video_image = frame_image
         self.update()
+
+    def present_video_frame(self, frame) -> bool:
+        """Presenta un `QVideoFrame` directo en GPU VRAM sin `frame.toImage()` cuando OpenGL está activo."""
+        if not frame or not frame.isValid():
+            return False
+        self._mode = "video"
+        self._pixmap = None
+        gp = self._gpu_video_player
+        if gp is not None and gp.is_gpu_active():
+            if gp.present_frame(frame):
+                self._video_image = None
+                inner = self.rect().adjusted(8, 8, -8, -8)
+                if gp.geometry() != inner:
+                    gp.setGeometry(inner)
+                if not gp.isVisible():
+                    gp.show()
+                return True
+        if gp is not None and gp.isVisible():
+            gp.hide()
+        img = frame.toImage()
+        if img.isNull():
+            return False
+        self._video_image = img
+        self.update()
+        return True
 
     def _paint_checkerboard(self, painter: QPainter, rect: QRect):
         tile = 14
@@ -713,13 +770,13 @@ class MediaPreviewWidget(QWidget):
     def _on_video_frame(self, frame):
         if not frame or not frame.isValid():
             return
-        img = frame.toImage()
-        if img.isNull():
+        if not self.canvas.present_video_frame(frame):
             return
         if self._video_dims is None:
-            self._video_dims = (img.width(), img.height())
-            self._refresh_meta_label()
-        self.canvas.set_video_frame(img)
+            sz = frame.size()
+            if sz.isValid() and sz.width() > 0 and sz.height() > 0:
+                self._video_dims = (sz.width(), sz.height())
+                self._refresh_meta_label()
 
     def _refresh_meta_label(self):
         slot = self._current_slot

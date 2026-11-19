@@ -11,7 +11,12 @@ from playnexus.services.controls import (
     ACTION_NAV_STEP5_FWD, ACTION_NAV_STEP5_BACK,
     ACTION_PAGE_UP, ACTION_PAGE_DOWN
 )
-from playnexus.ui.layouts.wheel_worker import WheelPreloadWorker
+from playnexus.ui.layouts.wheel_worker import (
+    WheelPreloadWorker,
+    CoverPreloadWorker,
+    CoverCacheLRU,
+    make_rounded_cover_pixmap,
+)
 
 _GLOBAL_PIXMAP_CACHE: dict[str, QPixmap] = {}
 
