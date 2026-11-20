@@ -16,7 +16,7 @@ from playnexus.db import Database, format_play_time
 from playnexus.i18n import init_i18n, tr
 from playnexus.services.library import (
     scan_rom_folder, import_scanned_games, add_game, parse_extensions_list,
-    parse_rom_xml, apply_xml_to_list, enrich_game_dict,
+    parse_rom_xml, enrich_game_dict,
     parse_rom_folders, format_rom_folders, sync_filtered_list_games,
     sync_filtered_lists_for_source,
 )
@@ -885,7 +885,6 @@ class MainWindow(QMainWindow):
             old_exts = (row["allowed_extensions"] if "allowed_extensions" in row.keys() else "") or ""
             old_scan_sub = str(row.get("scan_subfolders", "true")).strip().lower() in ("true", "1")
             old_excl_zip = str(row.get("exclude_folder_if_zip", "false")).strip().lower() in ("true", "1")
-            old_xml_path = str(row.get("xml_path", "") or "").replace("\\", "/")
             old_filter_rules = str(row.get("filter_rules", "[]"))
             old_match_mode = str(row.get("filter_match_mode", "all"))
             folders_changed = (
@@ -898,7 +897,6 @@ class MainWindow(QMainWindow):
                 filter_rules != old_filter_rules
                 or filter_match_mode != old_match_mode
             )
-            xml_changed = xml_path != old_xml_path
             try:
                 self.db.update_list(
                     list_id,
@@ -982,24 +980,6 @@ class MainWindow(QMainWindow):
                         tr("mw.list.updated_no_folders", "List '{name}' updated (no ROM folders).", name=name),
                         4000,
                     )
-                elif list_type == "games" and xml_path and Path(xml_path).is_file() and xml_changed:
-                    try:
-                        QApplication.setOverrideCursor(Qt.WaitCursor)
-                        xml_res = apply_xml_to_list(self.db, list_id, xml_path=xml_path)
-                        QApplication.restoreOverrideCursor()
-                        self._finish_edit_list_refresh(list_id, from_rom_manager)
-                        self.statusBar().showMessage(
-                            tr("mw.list.updated_xml", "List '{name}' updated. XML applied to {count} game(s).", name=name, count=xml_res["matched"]),
-                            5000,
-                        )
-                    except Exception as xml_err:
-                        QApplication.restoreOverrideCursor()
-                        self._finish_edit_list_refresh(list_id, from_rom_manager)
-                        QMessageBox.warning(
-                            self,
-                            tr("mw.xml.warning_title", "XML Warning"),
-                            tr("mw.list.update_xml_err", "The list was updated, but an error occurred while applying the XML:\n{err}", err=xml_err),
-                        )
                 else:
                     self._finish_edit_list_refresh(list_id, from_rom_manager)
                     self.statusBar().showMessage(tr("mw.list.updated", "List '{name}' updated.", name=name), 4000)
@@ -1011,7 +991,7 @@ class MainWindow(QMainWindow):
                 )
 
     def sync_xml_for_current_list(self):
-        """Permite seleccionar o re-aplicar un archivo XML a los juegos de la lista actual."""
+        """Permite seleccionar y vincular un archivo XML a la lista actual (se usará al escanear ROMs)."""
         if not self.current_list_id:
             return
         row = self.db.get_list(self.current_list_id)
@@ -1032,30 +1012,27 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            QApplication.setOverrideCursor(Qt.WaitCursor)
             self.db.update_list(self.current_list_id, xml_path=path)
-            res = apply_xml_to_list(self.db, self.current_list_id, xml_path=path)
-            QApplication.restoreOverrideCursor()
             self.refresh_lists(select_id=self.current_list_id)
+            xml_name = Path(path).name
             QMessageBox.information(
                 self,
-                tr("mw.xml.applied_title", "XML Applied"),
+                tr("mw.xml.applied_title", "XML Linked"),
                 tr(
                     "mw.xml.applied_msg",
-                    "The XML file was linked to list '{name}'.\n\nGames in list: {total}\nROMs matched with full title and properties: {matched}",
-                    name=row["name"], total=res["total_games"], matched=res["matched"],
+                    "The XML file was linked to list '{name}'.\n\nFile: {xml_name}\n\nIt will be read and applied automatically when scanning ROMs.",
+                    name=row["name"], xml_name=xml_name,
                 ),
             )
             self.statusBar().showMessage(
-                tr("mw.xml.synced_status", "XML synced: {count} game(s) updated.", count=res["matched"]),
+                tr("mw.xml.synced_status", "XML linked: {xml_name} (will apply on ROM scan).", xml_name=xml_name),
                 4000,
             )
         except Exception as e:
-            QApplication.restoreOverrideCursor()
             QMessageBox.critical(
                 self,
-                tr("mw.xml.err_title", "XML Processing Error"),
-                tr("mw.xml.err_msg", "Could not apply the XML file:\n{err}", err=e),
+                tr("mw.xml.err_title", "XML Error"),
+                tr("mw.xml.err_msg", "Could not link the XML file:\n{err}", err=e),
             )
 
     def delete_current_list(self):
@@ -1142,7 +1119,7 @@ class MainWindow(QMainWindow):
         elif not is_menu:
             scan_act = menu.addAction(tr("mw.list_ctx.scan", "▣ Scan folder…"))
             add_act = menu.addAction(tr("mw.list_ctx.add_files", "＋ Add files…"))
-            xml_act = menu.addAction(tr("mw.list_ctx.sync_xml", "📄 Link / Sync XML…"))
+            xml_act = menu.addAction(tr("mw.list_ctx.sync_xml", "📄 Link XML…"))
 
         menu.addSeparator()
         rom_mgr_act = menu.addAction(tr("mw.list_ctx.audit_rom_mgr", "🧰 Audit media in Rom Manager…"))

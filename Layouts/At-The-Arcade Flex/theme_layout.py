@@ -1554,7 +1554,7 @@ class ThemeLayout(BaseLayout):
                 self._play_select_sound()
                 self.game_activated.emit(gid)
             event.accept()
-        elif key == Qt.Key_Escape or matches_action(event, ACTION_NAV_BACK, db):
+        elif matches_action(event, ACTION_NAV_BACK, db):
             self.nav_back_requested.emit()
             event.accept()
         elif key == Qt.Key_M or matches_action(event, ACTION_MUTE, db):

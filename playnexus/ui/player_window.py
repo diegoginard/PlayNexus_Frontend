@@ -221,6 +221,13 @@ class PlayerWindow(QMainWindow):
                     self.open_quick_menu()
                     event.accept()
                     return True
+                if overlay is None and matches_action(event, ACTION_CLOSE_FRONTEND, self.db):
+                    if not event.isAutoRepeat():
+                        if self._roulette_active:
+                            self._stop_random_roulette(commit=False)
+                        self.prompt_exit_confirmation()
+                    event.accept()
+                    return True
 
         if event.type() == QEvent.Paint:
             self._record_fps_tick()
@@ -1382,6 +1389,8 @@ class PlayerWindow(QMainWindow):
         if hasattr(inst, "nav_back_requested"):
             inst.nav_back_requested.connect(self.go_back)
         inst.installEventFilter(self)
+        for child in inst.findChildren(QWidget):
+            child.installEventFilter(self)
         self.active_layouts[layout_name] = inst
         self.layout_stack.addWidget(inst)
         return inst

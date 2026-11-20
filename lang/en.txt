@@ -765,7 +765,7 @@ mw.list_ctx.delete = 🗑 Delete list
 mw.list_ctx.edit = ✎ Edit list…
 mw.list_ctx.scan = ▣ Scan folder…
 mw.list_ctx.sync_filtered = ⚡ Sync with source list…
-mw.list_ctx.sync_xml = 📄 Link / Sync XML…
+mw.list_ctx.sync_xml = 📄 Link XML…
 mw.manual.none_msg = This game does not have an assigned PDF manual.
 mw.manual.none_title = No Manual
 mw.scan.add_folder_dlg = Add and scan games folder for '{name}'
@@ -792,13 +792,13 @@ mw.tabs.library = 🎮  Game Library
 mw.tabs.rom_manager = 🧰  Rom Manager
 mw.tabs.settings = ⚙  System Settings
 mw.window_title = PlayNexus — Configurator {version}
-mw.xml.applied_msg = The XML file was linked to list '{name}'.\n\nGames in list: {total}\nROMs matched with full title and properties: {matched}
-mw.xml.applied_title = XML Applied
-mw.xml.err_msg = Could not apply the XML file:\n{err}
-mw.xml.err_title = XML Processing Error
+mw.xml.applied_msg = The XML file was linked to list '{name}'.\n\nFile: {xml_name}\n\nIt will be read and applied automatically when scanning ROMs.
+mw.xml.applied_title = XML Linked
+mw.xml.err_msg = Could not link the XML file:\n{err}
+mw.xml.err_title = XML Error
 mw.xml.file_filter = XML / DAT Files (*.xml *.dat);;All Files (*.*)
 mw.xml.pick_title = Select XML file for '{name}'
-mw.xml.synced_status = XML synced: {count} game(s) updated.
+mw.xml.synced_status = XML linked: {xml_name} (will apply on ROM scan).
 mw.xml.warning_title = XML Warning
 
 # --- player ---

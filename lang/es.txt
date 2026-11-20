@@ -765,7 +765,7 @@ mw.list_ctx.delete = 🗑 Eliminar lista
 mw.list_ctx.edit = ✎ Editar lista…
 mw.list_ctx.scan = ▣ Escanear carpeta…
 mw.list_ctx.sync_filtered = ⚡ Sincronizar con lista origen…
-mw.list_ctx.sync_xml = 📄 Asociar / Sincronizar XML…
+mw.list_ctx.sync_xml = 📄 Asociar XML…
 mw.manual.none_msg = Este juego no tiene un manual PDF asignado.
 mw.manual.none_title = Sin manual
 mw.scan.add_folder_dlg = Agregar y escanear carpeta de juegos para '{name}'
@@ -792,13 +792,13 @@ mw.tabs.library = 🎮  Biblioteca de Juegos
 mw.tabs.rom_manager = 🧰  Rom Manager
 mw.tabs.settings = ⚙  Configuración del Sistema
 mw.window_title = PlayNexus — Configurador {version}
-mw.xml.applied_msg = Se vinculó el archivo XML a la lista '{name}'.\n\nJuegos en la lista: {total}\nROMs asociadas con nombre completo y propiedades: {matched}
-mw.xml.applied_title = XML aplicado
-mw.xml.err_msg = No se pudo aplicar el archivo XML:\n{err}
-mw.xml.err_title = Error al procesar XML
+mw.xml.applied_msg = Se vinculó el archivo XML a la lista '{name}'.\n\nArchivo: {xml_name}\n\nSe leerá y aplicará automáticamente cuando escanees las ROMs.
+mw.xml.applied_title = XML vinculado
+mw.xml.err_msg = No se pudo vincular el archivo XML:\n{err}
+mw.xml.err_title = Error de XML
 mw.xml.file_filter = Archivos XML / DAT (*.xml *.dat);;Todos los archivos (*.*)
 mw.xml.pick_title = Seleccionar archivo XML para '{name}'
-mw.xml.synced_status = XML sincronizado: {count} juego(s) actualizados.
+mw.xml.synced_status = XML vinculado: {xml_name} (se aplicará al escanear ROMs).
 mw.xml.warning_title = Aviso de XML
 
 # --- player ---

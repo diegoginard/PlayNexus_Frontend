@@ -127,11 +127,17 @@ class ExitConfirmDialog(QDialog):
 
     def _on_gamepad_action(self, action_id: str):
         from playnexus.services.controls import (
-            ACTION_NAV_LEFT, ACTION_NAV_RIGHT, ACTION_SELECT, ACTION_NAV_BACK, ACTION_CLOSE_FRONTEND
+            ACTION_CLOSE_FRONTEND,
+            ACTION_NAV_BACK,
+            ACTION_NAV_DOWN,
+            ACTION_NAV_LEFT,
+            ACTION_NAV_RIGHT,
+            ACTION_NAV_UP,
+            ACTION_SELECT,
         )
-        if action_id in (ACTION_NAV_LEFT, "nav_letter_back"):
+        if action_id in (ACTION_NAV_LEFT, ACTION_NAV_UP, "nav_letter_back"):
             self.btn_cancel.setFocus()
-        elif action_id in (ACTION_NAV_RIGHT, "nav_letter_fwd"):
+        elif action_id in (ACTION_NAV_RIGHT, ACTION_NAV_DOWN, "nav_letter_fwd"):
             self.btn_exit.setFocus()
         elif action_id == ACTION_SELECT:
             if self.btn_exit.hasFocus():
@@ -167,8 +173,9 @@ class ExitConfirmDialog(QDialog):
             return
         super().keyPressEvent(event)
 
-    def closeEvent(self, event):
+    def _disconnect_gamepad(self):
         if self._gamepad_conn:
+            self._gamepad_conn = None
             try:
                 from playnexus.services.gamepad import get_gamepad_manager
                 mgr = get_gamepad_manager(self.db)
@@ -176,5 +183,12 @@ class ExitConfirmDialog(QDialog):
                     mgr.action_triggered.disconnect(self._on_gamepad_action)
             except Exception:
                 pass
+
+    def done(self, result: int):
+        self._disconnect_gamepad()
+        super().done(result)
+
+    def closeEvent(self, event):
+        self._disconnect_gamepad()
         super().closeEvent(event)
 
