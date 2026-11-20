@@ -50,3 +50,7 @@ dist/
 *.spec
 bin/
 *.exe
+
+# Local AI assistant rules
+gemini.md
+GEMINI.md
