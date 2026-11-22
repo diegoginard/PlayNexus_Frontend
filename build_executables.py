@@ -11,6 +11,8 @@ empaquetar la distribución limpia y completa en la carpeta dist/:
 - dist/icons/
 - dist/Layouts/
 - dist/splash/
+- dist/lang/
+- dist/tools/ (ffmpeg, ffprobe, herramientas auxiliares)
 """
 import sys
 import shutil
@@ -64,6 +66,7 @@ screensaver_overlay_art = wheel
 screensaver_sound = true
 screensaver_preserve_ar = false
 screensaver_blank_time = 60
+toolkit_ffmpeg_path = tools/ffmpeg/ffmpeg.exe
 """
 
 def setup_clean_environment(dist_dir: Path):
@@ -147,6 +150,19 @@ def setup_clean_environment(dist_dir: Path):
             shutil.rmtree(lang_dest)
         shutil.copytree(lang_src, lang_dest)
         print(" [OK] Idiomas: carpeta lang/ copiada.")
+
+    # 5d. Copiar tools/ (ffmpeg, ffprobe, etc.)
+    tools_src = ROOT_DIR / "tools"
+    tools_dest = dist_dir / "tools"
+    if tools_src.exists():
+        if tools_dest.exists():
+            shutil.rmtree(tools_dest)
+        shutil.copytree(
+            tools_src,
+            tools_dest,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+        )
+        print(" [OK] Herramientas: carpeta tools/ copiada (incluyendo ffmpeg).")
 
     # 6. Verificar ejecutables en dist/
     config_exe = dist_dir / "PlayNexus_Config.exe"

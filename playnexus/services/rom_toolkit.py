@@ -26,6 +26,7 @@ from playnexus.services.rom_manager import _unlink_with_retry
 from playnexus.services.scraper.systems import clean_rom_search_title, normalize_match_key
 
 FFMPEG_PATH_SETTING_KEY = "toolkit_ffmpeg_path"
+DEFAULT_FFMPEG_REL_PATH = "tools/ffmpeg/ffmpeg.exe"
 
 DEFAULT_1G1R_REGION_ORDER: tuple[str, ...] = (
     "USA",
@@ -124,17 +125,24 @@ def resolve_ffmpeg_paths(db=None) -> tuple[str, str]:
     Resuelve las rutas de `ffmpeg` y `ffprobe` (setting manual -> carpetas portables -> PATH).
     Retorna `(ffmpeg_path, ffprobe_path)` o `("", "")`.
     """
+    base = Path(APP_DIR)
     candidates: list[Path] = []
     if db is not None and hasattr(db, "get_setting"):
-        saved = str(db.get_setting(FFMPEG_PATH_SETTING_KEY, "") or "").strip()
+        saved = str(db.get_setting(FFMPEG_PATH_SETTING_KEY, DEFAULT_FFMPEG_REL_PATH) or "").strip()
         if saved:
             sp = Path(saved)
-            if sp.is_dir():
-                candidates.extend([sp / "ffmpeg.exe", sp / "ffmpeg", sp / "bin" / "ffmpeg.exe", sp / "bin" / "ffmpeg"])
-            else:
-                candidates.append(sp)
+            sp_roots = [sp] if sp.is_absolute() else [base / sp, sp]
+            for sp_cand in sp_roots:
+                if sp_cand.is_dir():
+                    candidates.extend([
+                        sp_cand / "ffmpeg.exe",
+                        sp_cand / "ffmpeg",
+                        sp_cand / "bin" / "ffmpeg.exe",
+                        sp_cand / "bin" / "ffmpeg",
+                    ])
+                else:
+                    candidates.append(sp_cand)
 
-    base = Path(APP_DIR)
     candidates.extend([
         base / "tools" / "ffmpeg" / "bin" / "ffmpeg.exe",
         base / "tools" / "ffmpeg" / "ffmpeg.exe",

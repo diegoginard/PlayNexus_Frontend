@@ -1405,6 +1405,7 @@ class EmulatorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(tr("dlg.emu.title_edit", "Edit emulator") if existing else tr("dlg.emu.title_new", "Register emulator"))
         self.setMinimumWidth(560)
+        self._last_test_rom_dir = ""
 
         self.name = QLineEdit()
         self.name.setPlaceholderText(tr("dlg.emu.name_placeholder", "e.g., RetroArch, Snes9x, PCSX2, DuckStation..."))
@@ -1524,11 +1525,34 @@ class EmulatorDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(hint)
 
+        actions_bar = QHBoxLayout()
+        self.run_emu_btn = QPushButton(tr("dlg.emu.run_btn", "▶ Launch emulator"))
+        self.run_emu_btn.setAutoDefault(False)
+        self.run_emu_btn.setToolTip(
+            tr("dlg.emu.run_tooltip", "Open the emulator without ROM arguments to adjust settings")
+        )
+        self.run_emu_btn.clicked.connect(self._run_emulator_standalone)
+
+        self.test_args_btn = QPushButton(tr("dlg.emu.test_args_btn", "🧪 Test arguments"))
+        self.test_args_btn.setAutoDefault(False)
+        self.test_args_btn.setToolTip(
+            tr(
+                "dlg.emu.test_args_tooltip",
+                "Launch the emulator with the configured arguments (prompts for a test ROM if ROM placeholders are used)",
+            )
+        )
+        self.test_args_btn.clicked.connect(self._test_emulator_args)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         _localize_dialog_buttons(buttons)
         buttons.accepted.connect(self.validate_accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+
+        actions_bar.addWidget(self.run_emu_btn)
+        actions_bar.addWidget(self.test_args_btn)
+        actions_bar.addStretch()
+        actions_bar.addWidget(buttons)
+        layout.addLayout(actions_bar)
 
         if existing:
             self.name.setText(existing["name"])
@@ -1609,6 +1633,67 @@ class EmulatorDialog(QDialog):
         )
         if path:
             self.exe.setText(path)
+
+    def _run_emulator_standalone(self):
+        """Abre el ejecutable del emulador limpio para configurar controles/opciones."""
+        self._launch_preview(with_args=False)
+
+    def _test_emulator_args(self):
+        """Prueba el emulador con los argumentos actuales (pidiendo ROM si hay marcadores)."""
+        self._launch_preview(with_args=True)
+
+    def _launch_preview(self, with_args: bool):
+        from playnexus.services.launcher import (
+            has_rom_placeholder,
+            launch_emulator_process,
+            resolve_executable_path,
+        )
+
+        raw_exe = self.exe.text().strip()
+        if not raw_exe:
+            QMessageBox.warning(
+                self,
+                tr("dlg.common.required_title", "Required field"),
+                tr("dlg.emu.err_exe_msg", "Please select the path to the executable file."),
+            )
+            self.exe.setFocus()
+            return
+
+        try:
+            resolve_executable_path(raw_exe)
+        except Exception as e:
+            QMessageBox.warning(
+                self,
+                tr("dlg.emu.exe_missing_title", "Executable not found"),
+                str(e),
+            )
+            self.exe.setFocus()
+            return
+
+        template = ""
+        rom_path = None
+        if with_args:
+            template = self.args.text().strip()
+            if has_rom_placeholder(template):
+                chosen_rom, _ = QFileDialog.getOpenFileName(
+                    self,
+                    tr("dlg.emu.pick_test_rom_title", "Select a ROM file to test arguments"),
+                    self._last_test_rom_dir or "",
+                    tr("dlg.common.all_files_filter", "All files (*.*)"),
+                )
+                if not chosen_rom:
+                    return
+                rom_path = chosen_rom
+                self._last_test_rom_dir = str(Path(chosen_rom).parent)
+
+        try:
+            launch_emulator_process(raw_exe, template=template, rom_path=rom_path)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                tr("dlg.emu.launch_err_title", "Could Not Launch Emulator"),
+                tr("dlg.emu.launch_err_msg", "An error occurred while launching the emulator:\n{error}", error=e),
+            )
 
     def validate_accept(self):
         if not self.name.text().strip():
