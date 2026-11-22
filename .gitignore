@@ -50,6 +50,7 @@ dist/
 *.spec
 bin/
 *.exe
+playnexus/_build_commit.txt
 
 # Local AI assistant rules
 gemini.md

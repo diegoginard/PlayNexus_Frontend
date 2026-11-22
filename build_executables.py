@@ -14,6 +14,7 @@ empaquetar la distribución limpia y completa en la carpeta dist/:
 - dist/lang/
 - dist/tools/ (ffmpeg, ffprobe, herramientas auxiliares)
 """
+import os
 import sys
 import shutil
 import struct
@@ -238,6 +239,34 @@ def ensure_icon():
         print(f" [!] Advertencia al generar icono: {e}")
 
 
+def _resolve_current_git_commit() -> str:
+    """Obtiene el hash corto del commit actual para incrustarlo en los ejecutables."""
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if res.returncode == 0:
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _write_build_commit_file() -> Path | None:
+    """Crea temporalmente playnexus/_build_commit.txt para empaquetarlo en el .exe."""
+    commit_hash = _resolve_current_git_commit()
+    if not commit_hash:
+        return None
+    commit_file = ROOT_DIR / "playnexus" / "_build_commit.txt"
+    commit_file.write_text(commit_hash + "\n", encoding="utf-8")
+    print(f" [OK] Commit de compilación incrustado: {commit_hash}")
+    return commit_file
+
+
 def build():
     ensure_icon()
     pyinstaller_exe = ROOT_DIR / ".venv" / "Scripts" / "pyinstaller.exe"
@@ -253,6 +282,9 @@ def build():
     if icon_file.exists():
         icon_arg = ["--icon", str(icon_file)]
 
+    commit_file = _write_build_commit_file()
+    commit_data_arg = ["--add-data", f"{commit_file}{os.pathsep}playnexus"] if commit_file else []
+
     common_args = [
         str(pyinstaller_exe),
         "--noconfirm",
@@ -267,34 +299,42 @@ def build():
         "--hidden-import", "shutil",
         "--hidden-import", "ctypes",
         "--hidden-import", "json",
+        *commit_data_arg,
         *icon_arg,
     ]
 
-    print("==================================================")
-    print("1/3: Compilando PlayNexus_Config.exe...")
-    print("==================================================")
-    cmd_config = [
-        *common_args,
-        "--name", "PlayNexus_Config",
-        str(ROOT_DIR / "entry_config.py"),
-    ]
-    res_config = subprocess.run(cmd_config, cwd=str(ROOT_DIR))
-    if res_config.returncode != 0:
-        print("Error al compilar PlayNexus_Config.exe")
-        sys.exit(res_config.returncode)
+    try:
+        print("==================================================")
+        print("1/3: Compilando PlayNexus_Config.exe...")
+        print("==================================================")
+        cmd_config = [
+            *common_args,
+            "--name", "PlayNexus_Config",
+            str(ROOT_DIR / "entry_config.py"),
+        ]
+        res_config = subprocess.run(cmd_config, cwd=str(ROOT_DIR))
+        if res_config.returncode != 0:
+            print("Error al compilar PlayNexus_Config.exe")
+            sys.exit(res_config.returncode)
 
-    print("\n==================================================")
-    print("2/3: Compilando PlayNexus_Launcher.exe...")
-    print("==================================================")
-    cmd_launcher = [
-        *common_args,
-        "--name", "PlayNexus_Launcher",
-        str(ROOT_DIR / "entry_launcher.py"),
-    ]
-    res_launcher = subprocess.run(cmd_launcher, cwd=str(ROOT_DIR))
-    if res_launcher.returncode != 0:
-        print("Error al compilar PlayNexus_Launcher.exe")
-        sys.exit(res_launcher.returncode)
+        print("\n==================================================")
+        print("2/3: Compilando PlayNexus_Launcher.exe...")
+        print("==================================================")
+        cmd_launcher = [
+            *common_args,
+            "--name", "PlayNexus_Launcher",
+            str(ROOT_DIR / "entry_launcher.py"),
+        ]
+        res_launcher = subprocess.run(cmd_launcher, cwd=str(ROOT_DIR))
+        if res_launcher.returncode != 0:
+            print("Error al compilar PlayNexus_Launcher.exe")
+            sys.exit(res_launcher.returncode)
+    finally:
+        if commit_file and commit_file.exists():
+            try:
+                commit_file.unlink()
+            except OSError:
+                pass
 
     # Configurar y poblar la carpeta dist/ limpia
     setup_clean_environment(DIST_DIR)
