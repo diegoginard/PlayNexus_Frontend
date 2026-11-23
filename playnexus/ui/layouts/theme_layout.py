@@ -17,10 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from playnexus.ui.layouts.base import BaseLayout
+from playnexus.ui.layouts.theme_base import CommonThemeLayout, ConsoleThemeLayout
 from playnexus.services.themes import get_theme_info
 
-# Alias de compatibilidad
-BaseThemeLayout = BaseLayout
+# Alias de compatibilidad (CommonThemeLayout hereda de BaseLayout)
+BaseThemeLayout = CommonThemeLayout
 
 # Cache de clases de layouts cargadas por mtime para recarga inmediata al editar
 _THEME_CLASS_CACHE: dict[str, tuple[float, type[Any]]] = {}

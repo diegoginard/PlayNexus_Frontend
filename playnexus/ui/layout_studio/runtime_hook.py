@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 import ast
+import inspect
 import math
+import textwrap
 import time
 from collections import OrderedDict
 from pathlib import Path
@@ -517,6 +519,61 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
                     painter.drawPixmap(rect, pix)
 
 
+def _first_not_none_attr(inst, *names: str, default=None):
+    """Retorna el primer atributo no nulo encontrado en `inst` o `default`."""
+    for name in names:
+        val = getattr(inst, name, None)
+        if val is not None:
+            return val
+    return default
+
+
+def _resolve_cart_or_disc_rect(inst) -> tuple[float, float, float, float]:
+    """Resuelve la geometría activa del cartucho o disco respetando `IS_CD` y `None` explícitos."""
+    if getattr(inst, "IS_CD", False):
+        rect = _first_not_none_attr(inst, "DISC_RECT", "CART_RECT")
+    else:
+        rect = _first_not_none_attr(inst, "CART_RECT", "DISC_RECT")
+    return tuple(rect) if rect is not None else (0.55, 0.60, 0.19, 0.30)
+
+
+def _set_instance_rest_animations(inst) -> None:
+    """Coloca las variables animadas de `inst` en reposo para medir cajas e inicializar Studio."""
+    if hasattr(inst, "_flyer_ready"):
+        inst._flyer_ready = True
+    if hasattr(inst, "_flyer_slide"):
+        inst._flyer_slide = 0.0
+    if hasattr(inst, "_wheel_alpha"):
+        inst._wheel_alpha = 255.0
+    if hasattr(inst, "_wheel_spin_offset"):
+        inst._wheel_spin_offset = 0.0
+    if hasattr(inst, "_logo_current_y_offset_ratio"):
+        inst._logo_current_y_offset_ratio = 0.0
+    if hasattr(inst, "_boxart_current_x_offset_ratio"):
+        inst._boxart_current_x_offset_ratio = 0.0
+    if hasattr(inst, "_boxart_current_x_ratio"):
+        inst._boxart_current_x_ratio = _first_not_none_attr(inst, "_boxart_end_x_ratio", "BOXART_END_X", "BOXART_X", default=0.015)
+    if hasattr(inst, "_boxart_current_y_ratio"):
+        inst._boxart_current_y_ratio = _first_not_none_attr(inst, "_boxart_end_y_ratio", "BOXART_END_Y", "BOXART_BOTTOM_Y", "BOXART_Y", default=0.928)
+    if hasattr(inst, "_boxart_alpha"):
+        inst._boxart_alpha = 1.0
+    if hasattr(inst, "_avatar_offset_x"):
+        inst._avatar_offset_x = 0.0
+    if hasattr(inst, "_avatar_offset_y"):
+        inst._avatar_offset_y = 0.0
+    rect_attr = _resolve_cart_or_disc_rect(inst)
+    if hasattr(inst, "CART_RECT") or hasattr(inst, "_cart_current_y_ratio"):
+        inst._cart_current_x_ratio = _first_not_none_attr(inst, "_cart_end_x_ratio", "CART_END_X", default=rect_attr[0])
+        inst._cart_current_y_ratio = _first_not_none_attr(inst, "_cart_end_y_ratio", "CART_END_Y", default=rect_attr[1])
+    if hasattr(inst, "DISC_RECT") or hasattr(inst, "_disc_current_y_ratio"):
+        if hasattr(inst, "_disc_current_x_ratio"):
+            inst._disc_current_x_ratio = _first_not_none_attr(inst, "_disc_end_x_ratio", "DISC_END_X", "_cart_end_x_ratio", "CART_END_X", default=rect_attr[0])
+        inst._disc_current_y_ratio = _first_not_none_attr(inst, "_disc_end_y_ratio", "DISC_END_Y", "_cart_end_y_ratio", "CART_END_Y", default=rect_attr[1])
+    if hasattr(inst, "_pointer_rest_x_ratio"):
+        inst._pointer_current_x_ratio = inst._pointer_rest_x_ratio
+        inst._pointer_anim_tick = 0
+
+
 def measure_native_layer_bbox(inst, elem_id: str) -> tuple[float, float, float, float]:
     """
     Mide la caja delimitadora exacta (ox, oy, ow, oh) en 1920x1080 ejecutando el renderizado
@@ -544,10 +601,10 @@ def measure_native_layer_bbox(inst, elem_id: str) -> tuple[float, float, float, 
         y = round(CANONICAL_H * 0.26, 1)
         return (x, y, w, h)
 
-    if eid == "cartart" and (hasattr(inst, "CART_RECT") or hasattr(inst, "DISC_RECT")):
-        rect_attr = getattr(inst, "DISC_RECT", getattr(inst, "CART_RECT", (0.55, 0.60, 0.19, 0.30)))
-        cx = float(getattr(inst, "_disc_end_x_ratio", getattr(inst, "DISC_END_X", getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", rect_attr[0])))))
-        cy = float(getattr(inst, "_disc_end_y_ratio", getattr(inst, "DISC_END_Y", getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", rect_attr[1])))))
+    if eid == "cartart" and (_first_not_none_attr(inst, "CART_RECT", "DISC_RECT") is not None):
+        rect_attr = _resolve_cart_or_disc_rect(inst)
+        cx = float(_first_not_none_attr(inst, "_disc_end_x_ratio", "DISC_END_X", "_cart_end_x_ratio", "CART_END_X", default=rect_attr[0]))
+        cy = float(_first_not_none_attr(inst, "_disc_end_y_ratio", "DISC_END_Y", "_cart_end_y_ratio", "CART_END_Y", default=rect_attr[1]))
         cw = float(rect_attr[2])
         ch = float(rect_attr[3])
         return (
@@ -751,39 +808,7 @@ def sync_quiet_studio_instance(inst, games: list[dict[str, Any]], selected_game:
             pass
 
     # Fijar estado de reposo para que todos los elementos animados se dibujen en su posición final
-    if hasattr(inst, "_flyer_ready"):
-        inst._flyer_ready = True
-    if hasattr(inst, "_flyer_slide"):
-        inst._flyer_slide = 0.0
-    if hasattr(inst, "_wheel_alpha"):
-        inst._wheel_alpha = 255.0
-    if hasattr(inst, "_wheel_spin_offset"):
-        inst._wheel_spin_offset = 0.0
-    if hasattr(inst, "_logo_current_y_offset_ratio"):
-        inst._logo_current_y_offset_ratio = 0.0
-    if hasattr(inst, "_boxart_current_x_offset_ratio"):
-        inst._boxart_current_x_offset_ratio = 0.0
-    if hasattr(inst, "_boxart_current_x_ratio"):
-        inst._boxart_current_x_ratio = getattr(inst, "_boxart_end_x_ratio", getattr(inst, "BOXART_END_X", getattr(inst, "BOXART_X", 0.015)))
-    if hasattr(inst, "_boxart_current_y_ratio"):
-        inst._boxart_current_y_ratio = getattr(inst, "_boxart_end_y_ratio", getattr(inst, "BOXART_END_Y", getattr(inst, "BOXART_BOTTOM_Y", 0.928)))
-    if hasattr(inst, "_boxart_alpha"):
-        inst._boxart_alpha = 1.0
-    if hasattr(inst, "_avatar_offset_x"):
-        inst._avatar_offset_x = 0.0
-    if hasattr(inst, "_avatar_offset_y"):
-        inst._avatar_offset_y = 0.0
-    if hasattr(inst, "CART_RECT"):
-        inst._cart_current_x_ratio = getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", inst.CART_RECT[0]))
-        inst._cart_current_y_ratio = getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", inst.CART_RECT[1]))
-    if hasattr(inst, "DISC_RECT") or hasattr(inst, "_disc_current_y_ratio"):
-        disc_rect = getattr(inst, "DISC_RECT", getattr(inst, "CART_RECT", (0.55, 0.60, 0.19, 0.30)))
-        if hasattr(inst, "_disc_current_x_ratio"):
-            inst._disc_current_x_ratio = getattr(inst, "_disc_end_x_ratio", getattr(inst, "DISC_END_X", disc_rect[0]))
-        inst._disc_current_y_ratio = getattr(inst, "_disc_end_y_ratio", getattr(inst, "DISC_END_Y", disc_rect[1]))
-    if hasattr(inst, "_pointer_rest_x_ratio"):
-        inst._pointer_current_x_ratio = inst._pointer_rest_x_ratio
-        inst._pointer_anim_tick = 0
+    _set_instance_rest_animations(inst)
 
 
 def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]:
@@ -821,53 +846,71 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
     }
 
     ordered_tokens: list[str] = []
-    try:
-        tree = ast.parse(code)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "paintEvent":
-                subnodes = [
-                    sub for sub in ast.walk(node)
-                    if isinstance(sub, ast.Attribute)
-                    and isinstance(sub.value, ast.Name)
-                    and sub.value.id == "self"
-                ]
-                subnodes.sort(key=lambda s: (getattr(s, "lineno", 0), getattr(s, "col_offset", 0)))
-                for sub in subnodes:
-                    ordered_tokens.append(sub.attr)
+    layer_order = getattr(inst, "LAYER_ORDER", None)
+    if layer_order:
+        LAYER_TO_TOKEN = {
+            "bg_image": "_pix_bkg",
+            "video_snap": "_current_video_image",
+            "scanlines_crt": "_pix_scanlines",
+            "scratches": "_pix_scratches",
+            "bezel": "_current_bezel_pix",
+            "tv_bezel": "_pix_tv",
+            "marquee": "_current_marquee_pix",
+            "cabinet": "_pix_cabinet",
+            "avatar": "_draw_avatar",
+            "logo": "_draw_logo",
+            "console": "_pix_console",
+            "cartart": "_draw_cart_or_disc",
+            "console_cover": "_pix_console_cover",
+            "joystick": "_pix_joystick",
+            "boxart": "_draw_boxart",
+            "flyer": "_draw_flyer",
+            "wheel_shadow": "_pix_wheel_shadow",
+            "wheel_list": "_draw_wheel_conveyor",
+            "pointer": "_draw_pointer",
+            "footer_frame": "_draw_bottom_bar",
+        }
+        for lid in layer_order:
+            tok = LAYER_TO_TOKEN.get(str(lid))
+            if tok:
+                ordered_tokens.append(tok)
+
+    def _collect_paint_tokens(src_text: str) -> list[str]:
+        tokens: list[str] = []
+        try:
+            tree = ast.parse(textwrap.dedent(src_text))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and node.name == "paintEvent":
+                    subnodes = [
+                        sub for sub in ast.walk(node)
+                        if isinstance(sub, ast.Attribute)
+                        and isinstance(sub.value, ast.Name)
+                        and sub.value.id == "self"
+                    ]
+                    subnodes.sort(key=lambda s: (getattr(s, "lineno", 0), getattr(s, "col_offset", 0)))
+                    tokens.extend(sub.attr for sub in subnodes)
+                    break
+        except Exception:
+            pass
+        return tokens
+
+    if not ordered_tokens and code:
+        ordered_tokens = _collect_paint_tokens(code)
+
+    if not ordered_tokens and inst is not None:
+        for cls in type(inst).__mro__:
+            if cls.__name__ in ("BaseLayout", "QWidget", "QObject", "object"):
                 break
-    except Exception:
-        pass
+            if "paintEvent" in cls.__dict__:
+                try:
+                    ordered_tokens = _collect_paint_tokens(inspect.getsource(cls.__dict__["paintEvent"]))
+                    if ordered_tokens:
+                        break
+                except Exception:
+                    continue
 
     # Asegurar que las animaciones de `inst` estén en su estado de reposo para medir su caja exacta
-    if hasattr(inst, "_flyer_ready"):
-        inst._flyer_ready = True
-    if hasattr(inst, "_flyer_slide"):
-        inst._flyer_slide = 0.0
-    if hasattr(inst, "_logo_current_y_offset_ratio"):
-        inst._logo_current_y_offset_ratio = 0.0
-    if hasattr(inst, "_boxart_current_x_offset_ratio"):
-        inst._boxart_current_x_offset_ratio = 0.0
-    if hasattr(inst, "_boxart_current_x_ratio"):
-        inst._boxart_current_x_ratio = getattr(inst, "_boxart_end_x_ratio", getattr(inst, "BOXART_END_X", getattr(inst, "BOXART_X", 0.015)))
-    if hasattr(inst, "_boxart_current_y_ratio"):
-        inst._boxart_current_y_ratio = getattr(inst, "_boxart_end_y_ratio", getattr(inst, "BOXART_END_Y", getattr(inst, "BOXART_BOTTOM_Y", 0.928)))
-    if hasattr(inst, "_boxart_alpha"):
-        inst._boxart_alpha = 1.0
-    if hasattr(inst, "_avatar_offset_x"):
-        inst._avatar_offset_x = 0.0
-    if hasattr(inst, "_avatar_offset_y"):
-        inst._avatar_offset_y = 0.0
-    if hasattr(inst, "CART_RECT"):
-        inst._cart_current_x_ratio = getattr(inst, "_cart_end_x_ratio", getattr(inst, "CART_END_X", inst.CART_RECT[0]))
-        inst._cart_current_y_ratio = getattr(inst, "_cart_end_y_ratio", getattr(inst, "CART_END_Y", inst.CART_RECT[1]))
-    if hasattr(inst, "DISC_RECT") or hasattr(inst, "_disc_current_y_ratio"):
-        disc_rect = getattr(inst, "DISC_RECT", getattr(inst, "CART_RECT", (0.55, 0.60, 0.19, 0.30)))
-        if hasattr(inst, "_disc_current_x_ratio"):
-            inst._disc_current_x_ratio = getattr(inst, "_disc_end_x_ratio", getattr(inst, "DISC_END_X", disc_rect[0]))
-        inst._disc_current_y_ratio = getattr(inst, "_disc_end_y_ratio", getattr(inst, "DISC_END_Y", disc_rect[1]))
-    if hasattr(inst, "_pointer_rest_x_ratio"):
-        inst._pointer_current_x_ratio = inst._pointer_rest_x_ratio
-        inst._pointer_anim_tick = 0
+    _set_instance_rest_animations(inst)
 
     elements: list[LayoutElement] = []
     seen_ids: set[str] = set()
