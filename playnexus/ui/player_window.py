@@ -21,7 +21,7 @@ from playnexus.services.controls import (
     ACTION_NAV_LETTER_BACK, ACTION_NAV_LETTER_FWD,
     ACTION_NAV_STEP5_BACK, ACTION_NAV_STEP5_FWD,
     ACTION_NAV_BACK, ACTION_SELECT, ACTION_PAGE_UP, ACTION_PAGE_DOWN,
-    ACTION_CLOSE_FRONTEND, ACTION_CLOSE_EMULATOR,
+    ACTION_CLOSE_FRONTEND,
     ACTION_MUTE, ACTION_TOGGLE_FPS, ACTION_TOGGLE_FAVORITE, ACTION_FRONTEND_MENU,
     matches_action, get_binding
 )
@@ -865,30 +865,27 @@ class PlayerWindow(QMainWindow):
                             pass
 
     def go_back(self):
-        """Retrocede en el historial de navegación (listas de listas o menús). Si está en la raíz, solicita confirmación para salir."""
-        if self.navigation_history:
-            # Detener inmediatamente el audio y video de TODOS los layouts antes de retroceder
-            self.stop_all_active_media()
-
-            prev_entry = self.navigation_history.pop()
-            prev_lid = None
-            prev_gid = None
-            if isinstance(prev_entry, (tuple, list)):
-                prev_lid = prev_entry[0]
-                if len(prev_entry) > 1:
-                    prev_gid = prev_entry[1]
-            elif isinstance(prev_entry, dict):
-                prev_lid = prev_entry.get("list_id") or prev_entry.get("id")
-                prev_gid = prev_entry.get("selected_game_id")
-            elif isinstance(prev_entry, int):
-                prev_lid = prev_entry
-
-            if prev_lid:
-                self.select_list(int(prev_lid), push_history=False, restore_game_id=prev_gid)
+        """Retrocede en el historial de navegación (listas de listas o menús)."""
+        if not self.navigation_history:
             return
+        # Detener inmediatamente el audio y video de TODOS los layouts antes de retroceder
+        self.stop_all_active_media()
 
-        # Si ya estamos en la raíz (menú principal o lista raíz), abrir confirmación de salida
-        self.prompt_exit_confirmation()
+        prev_entry = self.navigation_history.pop()
+        prev_lid = None
+        prev_gid = None
+        if isinstance(prev_entry, (tuple, list)):
+            prev_lid = prev_entry[0]
+            if len(prev_entry) > 1:
+                prev_gid = prev_entry[1]
+        elif isinstance(prev_entry, dict):
+            prev_lid = prev_entry.get("list_id") or prev_entry.get("id")
+            prev_gid = prev_entry.get("selected_game_id")
+        elif isinstance(prev_entry, int):
+            prev_lid = prev_entry
+
+        if prev_lid:
+            self.select_list(int(prev_lid), push_history=False, restore_game_id=prev_gid)
 
     def keyPressEvent(self, event):
         from playnexus.services.emulator_manager import EMULATOR_MANAGER
@@ -939,10 +936,6 @@ class PlayerWindow(QMainWindow):
             return
         elif matches_action(event, ACTION_NAV_BACK, self.db):
             self.go_back()
-            event.accept()
-            return
-        elif matches_action(event, ACTION_CLOSE_EMULATOR, self.db):
-            self.prompt_exit_confirmation()
             event.accept()
             return
         elif matches_action(event, ACTION_NAV_LETTER_BACK, self.db):
@@ -1097,9 +1090,6 @@ class PlayerWindow(QMainWindow):
             return
         elif action_id == ACTION_NAV_BACK:
             self.go_back()
-            return
-        elif action_id == ACTION_CLOSE_EMULATOR:
-            self.prompt_exit_confirmation()
             return
 
         current_layout = self.layout_stack.currentWidget()

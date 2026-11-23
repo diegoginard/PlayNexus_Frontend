@@ -47,7 +47,7 @@ class ThemeLayout(CommonThemeLayout):
     ]
 
     # 2. Fuentes tipográficas
-    FONT_FILE = LAYOUT_DIR / "Handel Gothic BT.ttf"
+    FONT_FILE = COMMON_DIR / "fonts" / "Handel Gothic BT.ttf"
     FONT_TITLE_FILE = FONT_FILE
     FONT_MAIN_FILE = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
     FONT_BEBAS = FONT_MAIN_FILE
@@ -57,6 +57,7 @@ class ThemeLayout(CommonThemeLayout):
     WHEEL_ART_IMAGE = LAYOUT_DIR / "wheel_art.png"
     POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png"
 
+    WHEEL_IMAGE = COMMON_DIR / "wheel" / "wheel.png"
     WHEEL_SHADOW_IMAGE = COMMON_DIR / "wheel" / "wheel_shadow.png"
     COMMON_WHEEL_ART = COMMON_DIR / "art" / "wheel_art.png"
     COMMON_FRAME = COMMON_DIR / "art" / "frame.png"

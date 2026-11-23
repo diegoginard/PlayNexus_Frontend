@@ -152,6 +152,14 @@ def generate_canonical_theme_layout_code(
     font_main = font_main or "Handel Gothic BT.ttf"
     tv_rect = tv_rect or (0.054, 0.196, 0.313, 0.430)
 
+    def _font_expr(fname: str) -> str:
+        if layout_folder.is_dir() and (layout_folder / fname).is_file():
+            return f"LAYOUT_DIR / {fname!r}"
+        return f'COMMON_DIR / "fonts" / {Path(fname).name!r}'
+
+    font_title_expr = _font_expr(font_title)
+    font_main_expr = _font_expr(font_main)
+
     _raw_sp = str(shader_preset or "").strip().lower()
     norm_shader = None if not _raw_sp or _raw_sp in ("none", "off", "nil") else _raw_sp
     norm_target = "global" if str(shader_target or "").strip().lower() == "global" else "tv_rect"
@@ -252,8 +260,8 @@ class ThemeLayout(ConsoleThemeLayout):
     ]
 
     # 2. Fuentes tipográficas
-    FONT_TITLE_FILE = {font_title!r}
-    FONT_MAIN_FILE = {font_main!r}
+    FONT_TITLE_FILE = {font_title_expr}
+    FONT_MAIN_FILE = {font_main_expr}
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # 3. Recursos compartidos (gtc-common) y locales
@@ -275,7 +283,7 @@ class ThemeLayout(ConsoleThemeLayout):
     LOGO_IMAGE = LAYOUT_DIR / "logo.png" if (LAYOUT_DIR / "logo.png").is_file() else None
 {discart_line}
     BOXART_IMAGE = LAYOUT_DIR / {boxart_file!r} if (LAYOUT_DIR / {boxart_file!r}).is_file() else None
-    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png" if (LAYOUT_DIR / "wheel.png").is_file() else None
+    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png" if (LAYOUT_DIR / "wheel.png").is_file() else COMMON_DIR / "wheel" / "wheel.png"
     POINTER_IMAGE = LAYOUT_DIR / {pointer_file!r} if (LAYOUT_DIR / {pointer_file!r}).is_file() else None
 
     # 4. Configuración geométrica y efectos
@@ -371,13 +379,3 @@ def setup_new_layout_files(layout_dir: Path, layout_type: str, name: str) -> Non
                         break
                     except Exception:
                         pass
-
-    # 3. Wheel de muestra si no existe
-    wheel_file = layout_dir / "wheel.png"
-    if not wheel_file.is_file():
-        common_wheel = gtc_common / "art" / "wheel_art.png"
-        if common_wheel.is_file():
-            try:
-                shutil.copy2(common_wheel, wheel_file)
-            except Exception:
-                pass

@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-__version__ = "1.5.0"
+__version__ = "1.5.2"
 __app_name__ = "PlayNexus"
 __release_date__ = "Noviembre 2026"
 _FALLBACK_COMMIT = ""

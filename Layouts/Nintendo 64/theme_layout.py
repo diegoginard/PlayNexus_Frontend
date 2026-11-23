@@ -46,8 +46,8 @@ class ThemeLayout(ConsoleThemeLayout):
     ]
 
     # 2. Fuentes tipográficas
-    FONT_TITLE_FILE = "BebasNeue Bold.otf"
-    FONT_MAIN_FILE = "Handel Gothic BT.ttf"
+    FONT_TITLE_FILE = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
+    FONT_MAIN_FILE = COMMON_DIR / "fonts" / "Handel Gothic BT.ttf"
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # 3. Recursos compartidos (gtc-common) y locales
@@ -69,7 +69,7 @@ class ThemeLayout(ConsoleThemeLayout):
     LOGO_IMAGE = LAYOUT_DIR / "logo.png"
     CARTART_IMAGE = LAYOUT_DIR / "cartart.png"
     BOXART_IMAGE = None
-    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
+    WHEEL_IMAGE = COMMON_DIR / "wheel" / "wheel.png"
     POINTER_IMAGE = LAYOUT_DIR / "pointers/default.png"
 
     # 4. Geometría y estilo de Nintendo 64

@@ -185,7 +185,9 @@ class CommonThemeLayout(BaseLayout):
         static_vid = self._resolve_existing_path(self.STATIC_VIDEO)
         self._static_video_path = static_vid
         self._pix_wheel_shadow = self._load_pixmap(self._resolve_existing_path(self.WHEEL_SHADOW_IMAGE))
-        self._pix_wheel = self._load_pixmap(self._resolve_existing_path(self.WHEEL_IMAGE))
+        self._pix_wheel = self._load_pixmap(
+            self._resolve_existing_path(self.WHEEL_IMAGE, self.common_dir / "wheel" / "wheel.png")
+        )
 
         ptr_path = self._resolve_existing_path(self.POINTER_IMAGE)
         if not ptr_path:

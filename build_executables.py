@@ -6,7 +6,7 @@ empaquetar la distribución limpia y completa en la carpeta dist/:
 - dist/_internal/ (runtime compartido de Python/PySide6/OpenGL/FFmpeg en modo --onedir)
 - dist/PlayNexus_Logo.png
 - dist/app_icon.ico
-- dist/config/ (settings.txt limpio, emulator_templates.txt)
+- dist/config/ (emulator_templates.txt; sin settings.txt para preservar configuración de usuario)
 - dist/emulators/
 - dist/lists/
 - dist/icons/
@@ -25,51 +25,6 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent
 DIST_DIR = ROOT_DIR / "dist"
 
-CLEAN_SETTINGS = """# Configuración del Sistema PlayNexus (Limpio)
-app_language = en
-video_mode = fullscreen
-video_resolution = system
-video_driver = d3d11
-video_ui_scale = 100% (Normal)
-video_show_fps = false
-emulator_mute_video = true
-emulator_global_exit = true
-emulator_gamepad_exit = true
-control_nav_up = Up
-control_nav_down = Down
-control_nav_letter = Left
-control_nav_step5 = Right
-control_select_game = Return
-control_nav_back = Backspace
-control_close_emulator = Escape
-control_mute_video = M
-control_close_frontend = F4
-control_toggle_fps = F10
-control_toggle_bezel = F11
-gamepad_nav_up = D-Pad Up
-gamepad_nav_down = D-Pad Down
-gamepad_nav_letter = D-Pad Left
-gamepad_nav_step5 = D-Pad Right
-gamepad_select_game = A
-gamepad_nav_back = B
-gamepad_close_emulator = Back+Start
-gamepad_mute_video = Y
-gamepad_page_up = LB
-gamepad_page_down = RB
-gamepad_toggle_fps = R-Thumb
-gamepad_toggle_bezel = L-Thumb
-screensaver_enabled = true
-screensaver_timeout = 3
-screensaver_mode_basic_movie = true
-screensaver_mode_movie_collage = true
-screensaver_mode_image_collage = true
-screensaver_mode_rgb_movie = true
-screensaver_overlay_art = wheel
-screensaver_sound = true
-screensaver_preserve_ar = false
-screensaver_blank_time = 60
-toolkit_ffmpeg_path = tools/ffmpeg/ffmpeg.exe
-"""
 
 def setup_clean_environment(dist_dir: Path):
     """Crea la estructura limpia y copia todos los recursos necesarios dentro de dist/."""
@@ -94,7 +49,7 @@ def setup_clean_environment(dist_dir: Path):
         shutil.copy2(icon_png, dist_dir / "PlayNexus_icon.png")
         print(" [OK] Icono PNG: PlayNexus_icon.png copiado.")
 
-    # 2. Carpeta config/ con archivos limpios
+    # 2. Carpeta config/ sin settings.txt (para no sobrescribir configuración al actualizar)
     config_dir = dist_dir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,9 +59,12 @@ def setup_clean_environment(dist_dir: Path):
         print(" [OK] Plantillas: config/emulator_templates.txt copiado.")
 
     dest_settings = config_dir / "settings.txt"
-    if not dest_settings.exists():
-        dest_settings.write_text(CLEAN_SETTINGS, encoding="utf-8")
-        print(" [OK] Configuración: config/settings.txt inicial creado.")
+    if dest_settings.exists():
+        try:
+            dest_settings.unlink()
+            print(" [OK] Removido config/settings.txt de dist/ para proteger configuraciones existentes.")
+        except OSError:
+            pass
 
     # 3. Carpetas vacías emulators/ y lists/
     (dist_dir / "emulators").mkdir(parents=True, exist_ok=True)

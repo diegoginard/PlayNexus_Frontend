@@ -26,8 +26,8 @@ class ThemeLayout(ConsoleThemeLayout):
     ]
 
     # 2. Fuentes tipográficas
-    FONT_TITLE_FILE = "BebasNeue Bold.otf"
-    FONT_MAIN_FILE = "Handel Gothic BT.ttf"
+    FONT_TITLE_FILE = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
+    FONT_MAIN_FILE = COMMON_DIR / "fonts" / "Handel Gothic BT.ttf"
     FONT_FILES = [FONT_TITLE_FILE, FONT_MAIN_FILE]
 
     # 3. Recursos compartidos (gtc-common) y locales
@@ -50,7 +50,7 @@ class ThemeLayout(ConsoleThemeLayout):
     DISCART_IMAGE = LAYOUT_DIR / "discart.png" if (LAYOUT_DIR / "discart.png").is_file() else None
     CARTART_IMAGE = DISCART_IMAGE
     BOXART_IMAGE = LAYOUT_DIR / "boxart.png" if (LAYOUT_DIR / "boxart.png").is_file() else None
-    WHEEL_IMAGE = LAYOUT_DIR / "wheel.png" if (LAYOUT_DIR / "wheel.png").is_file() else None
+    WHEEL_IMAGE = COMMON_DIR / "wheel" / "wheel.png"
     POINTER_IMAGE = (LAYOUT_DIR / "pointers" / "default.png") if (LAYOUT_DIR / "pointers" / "default.png").is_file() else ((LAYOUT_DIR / "default.png") if (LAYOUT_DIR / "default.png").is_file() else None)
 
     # 4. Geometría y estilo del tema

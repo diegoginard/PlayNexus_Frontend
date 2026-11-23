@@ -37,8 +37,8 @@ class ThemeLayout(CommonThemeLayout):
     ]
 
     # 2. Fuentes tipográficas
-    FONT_TITLE_FILE = LAYOUT_DIR / "BebasNeue Bold.otf"
-    FONT_COUNTER_FILE = LAYOUT_DIR / "Handel Gothic BT.ttf"
+    FONT_TITLE_FILE = COMMON_DIR / "fonts" / "BebasNeue Bold.otf"
+    FONT_COUNTER_FILE = COMMON_DIR / "fonts" / "Handel Gothic BT.ttf"
     FONT_MAIN_FILE = FONT_COUNTER_FILE
     FONT_FILES = [FONT_TITLE_FILE, FONT_COUNTER_FILE]
 
@@ -47,7 +47,7 @@ class ThemeLayout(CommonThemeLayout):
     MARQUEE_IMAGE = LAYOUT_DIR / "marquee1.jpg"
     BEZEL_IMAGE = LAYOUT_DIR / "bezels.png"
     POINTER_IMAGE = LAYOUT_DIR / "pointers" / "default.png"
-    DEFAULT_WHEEL_IMAGE = LAYOUT_DIR / "wheel.png"
+    DEFAULT_WHEEL_IMAGE = COMMON_DIR / "wheel" / "wheel.png"
     WHEEL_IMAGE = DEFAULT_WHEEL_IMAGE
 
     SCANLINES_IMAGE = COMMON_DIR / "art" / "scanlines_1920.png"
