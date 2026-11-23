@@ -1803,14 +1803,22 @@ def run_player():
         try:
             import subprocess
             from pathlib import Path
+            from playnexus.services.launcher import build_clean_child_env
+            child_env = build_clean_child_env()
+            popen_kw: dict = {"env": child_env, "close_fds": True}
+            if os.name == "nt":
+                popen_kw["creationflags"] = (
+                    getattr(subprocess, "DETACHED_PROCESS", 0)
+                    | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                )
             if getattr(sys, "frozen", False):
                 cfg_exe = Path(sys.executable).resolve().parent / "PlayNexus_Config.exe"
                 if cfg_exe.exists():
-                    subprocess.Popen([str(cfg_exe)], cwd=str(cfg_exe.parent))
+                    subprocess.Popen([str(cfg_exe)], cwd=str(cfg_exe.parent), **popen_kw)
             else:
                 entry_cfg = Path(__file__).resolve().parents[2] / "entry_config.py"
                 if entry_cfg.exists():
-                    subprocess.Popen([sys.executable, str(entry_cfg)], cwd=str(entry_cfg.parent))
+                    subprocess.Popen([sys.executable, str(entry_cfg)], cwd=str(entry_cfg.parent), **popen_kw)
         except Exception:
             pass
     os._exit(code)

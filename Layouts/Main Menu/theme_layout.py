@@ -92,8 +92,14 @@ class ThemeLayout(BaseLayout):
     SOUND_SELECT       = COMMON_DIR / "sounds" / "hs_click.mp3"
 
     # -------------------------------------------------------------------------
-    # CONFIGURACIÓN GEOMÉTRICA DE LA RULETA CURVA (14 NODOS INTERPOLADOS A 60 FPS)
+    # CONFIGURACIÓN GEOMÉTRICA DE LA BARRA INFERIOR Y LA RULETA CURVA
     # -------------------------------------------------------------------------
+    BOTTOM_BAR_H_RATIO     = 0.052
+    BOTTOM_TITLE_X_RATIO   = 0.03
+    BOTTOM_TITLE_W_RATIO   = 0.58
+    BOTTOM_COUNTER_X_RATIO = 0.62
+    BOTTOM_COUNTER_W_RATIO = 0.35
+
     CONVEYOR_X = [0.89, 0.85, 0.83, 0.80, 0.77, 0.74, 0.71, 0.625, 0.71, 0.74, 0.77, 0.80, 0.83, 0.89]
     CONVEYOR_Y = [-0.34, -0.22, -0.105, 0.00, 0.105, 0.215, 0.325, 0.421, 0.59, 0.70, 0.81, 0.915, 0.99, 1.12]
     CONVEYOR_W = [0.18, 0.18, 0.18, 0.18, 0.18, 0.18, 0.18, 0.30, 0.18, 0.18, 0.18, 0.18, 0.18, 0.18]
@@ -852,29 +858,35 @@ class ThemeLayout(BaseLayout):
 
     def _draw_bottom_bar(self, painter: QPainter, sr: QRect):
         """Renderiza una barra inferior discreta con el título del sistema y el contador."""
-        if not self.games or not (0 <= self.selected_index < len(self.games)):
-            return
-
         sw = sr.width()
         sh = sr.height()
         sx = sr.x()
         sy = sr.y()
 
-        bar_h = max(28, int(sh * 0.045))
+        bar_h = max(32, int(round(sh * self.BOTTOM_BAR_H_RATIO)))
         bar_y = sy + sh - bar_h
 
-        # Fondo translúcido sutil
-        painter.fillRect(QRect(sx, bar_y, sw, bar_h), QColor(0, 0, 0, 160))
+        # Fondo translúcido sutil (omitido cuando Studio/GPU renderiza solo capas de texto)
+        if not getattr(self, "_skip_footer_bg", False):
+            painter.fillRect(QRect(sx, bar_y, sw, bar_h), QColor(0, 0, 0, 160))
+
+        if not self.games or not (0 <= self.selected_index < len(self.games)):
+            return
 
         game = self.games[self.selected_index]
         title = (game.get("title") or "").upper()
         eff_name = game.get("effective_name") or ""
 
+        # Margen horizontal interno dentro de las cajas canónicas para no recortar itálicas/extremos
+        pad_x = max(4, int(round(sw * 0.004)))
+
         # Título a la izquierda
         f_title = QFont(self._font_slapstick, max(11, int(sh * 0.022)), QFont.Bold)
         painter.setFont(f_title)
         painter.setPen(QColor(255, 255, 255))
-        title_rect = QRect(sx + int(sw * 0.03), bar_y, int(sw * 0.60), bar_h)
+        title_x = sx + int(round(sw * self.BOTTOM_TITLE_X_RATIO))
+        title_w = int(round(sw * self.BOTTOM_TITLE_W_RATIO))
+        title_rect = QRect(title_x + pad_x, bar_y, max(1, title_w - 2 * pad_x), bar_h)
         painter.drawText(title_rect, Qt.AlignVCenter | Qt.AlignLeft, title)
 
         # Contador a la derecha
@@ -882,7 +894,9 @@ class ThemeLayout(BaseLayout):
         f_counter = QFont(self._font_bebas, max(11, int(sh * 0.022)), QFont.Bold)
         painter.setFont(f_counter)
         painter.setPen(QColor(245, 185, 35))
-        counter_rect = QRect(sx + int(sw * 0.60), bar_y, int(sw * 0.37), bar_h)
+        counter_x = sx + int(round(sw * self.BOTTOM_COUNTER_X_RATIO))
+        counter_w = int(round(sw * self.BOTTOM_COUNTER_W_RATIO))
+        counter_rect = QRect(counter_x + pad_x, bar_y, max(1, counter_w - 2 * pad_x), bar_h)
         painter.drawText(counter_rect, Qt.AlignVCenter | Qt.AlignRight, counter_text)
 
     # -------------------------------------------------------------------------

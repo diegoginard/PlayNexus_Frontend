@@ -3,6 +3,7 @@ Script automatizado para compilar los ejecutables de PlayNexus y
 empaquetar la distribución limpia y completa en la carpeta dist/:
 - dist/PlayNexus_Config.exe (Configurador)
 - dist/PlayNexus_Launcher.exe (Frontend / Jugador)
+- dist/_internal/ (runtime compartido de Python/PySide6/OpenGL/FFmpeg en modo --onedir)
 - dist/PlayNexus_Logo.png
 - dist/app_icon.ico
 - dist/config/ (settings.txt limpio, emulator_templates.txt)
@@ -285,11 +286,19 @@ def build():
     commit_file = _write_build_commit_file()
     commit_data_arg = ["--add-data", f"{commit_file}{os.pathsep}playnexus"] if commit_file else []
 
+    stage_dist_dir = ROOT_DIR / "build" / "_pyi_dist"
+    if stage_dist_dir.exists():
+        shutil.rmtree(stage_dist_dir, ignore_errors=True)
+    stage_dist_dir.mkdir(parents=True, exist_ok=True)
+
     common_args = [
         str(pyinstaller_exe),
         "--noconfirm",
         "--clean",
-        "--onefile",
+        "--onedir",
+        "--contents-directory", "_internal",
+        "--distpath", str(stage_dist_dir),
+        "--noupx",
         "--windowed",
         "--collect-all", "playnexus",
         "--collect-submodules", "PySide6.QtMultimedia",
@@ -329,12 +338,31 @@ def build():
         if res_launcher.returncode != 0:
             print("Error al compilar PlayNexus_Launcher.exe")
             sys.exit(res_launcher.returncode)
+
+        print("\n==================================================")
+        print("2.5/3: Ensamblando ejecutables con runtime compartido en dist/_internal/...")
+        print("==================================================")
+        DIST_DIR.mkdir(parents=True, exist_ok=True)
+        shared_internal = DIST_DIR / "_internal"
+        if shared_internal.exists():
+            shutil.rmtree(shared_internal)
+
+        for app_name in ("PlayNexus_Config", "PlayNexus_Launcher"):
+            app_stage = stage_dist_dir / app_name
+            exe_src = app_stage / f"{app_name}.exe"
+            internal_src = app_stage / "_internal"
+            if exe_src.exists():
+                shutil.copy2(exe_src, DIST_DIR / f"{app_name}.exe")
+            if internal_src.exists():
+                shutil.copytree(internal_src, shared_internal, dirs_exist_ok=True)
     finally:
         if commit_file and commit_file.exists():
             try:
                 commit_file.unlink()
             except OSError:
                 pass
+        if stage_dist_dir.exists():
+            shutil.rmtree(stage_dist_dir, ignore_errors=True)
 
     # Configurar y poblar la carpeta dist/ limpia
     setup_clean_environment(DIST_DIR)

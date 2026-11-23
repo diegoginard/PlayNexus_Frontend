@@ -439,15 +439,19 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
 
     # 21. Título del Juego en Barra Inferior (ejecuta inst._draw_bottom_bar o inst._draw_footer en el área izquierda)
     if eid == "title_text":
+        split_ratio = float(getattr(inst, "BOTTOM_COUNTER_X_RATIO", 0.70))
         painter.save()
-        painter.setClipRect(QRect(sx, sy, int(sw * 0.70), sh))
+        painter.setClipRect(QRect(sx, sy, max(1, int(round(sw * split_ratio))), sh))
         if hasattr(inst, "_draw_bottom_bar"):
             saved_frame = getattr(inst, "_pix_frame", None)
+            saved_skip_bg = getattr(inst, "_skip_footer_bg", False)
             try:
                 inst._pix_frame = None
+                inst._skip_footer_bg = True
                 inst._draw_bottom_bar(painter, sr)
             finally:
                 inst._pix_frame = saved_frame
+                inst._skip_footer_bg = saved_skip_bg
         elif hasattr(inst, "_draw_footer"):
             inst._draw_footer(painter, sw, sh)
         painter.restore()
@@ -455,15 +459,21 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
 
     # 22. Contador de Juegos en Barra Inferior (ejecuta inst._draw_bottom_bar o inst._draw_footer en el área derecha)
     if eid == "counter_text":
+        split_ratio = float(getattr(inst, "BOTTOM_COUNTER_X_RATIO", 0.70))
+        clip_x = sx + int(round(sw * split_ratio))
+        clip_w = max(1, (sx + sw) - clip_x)
         painter.save()
-        painter.setClipRect(QRect(sx + int(sw * 0.70), sy, int(sw * 0.30), sh))
+        painter.setClipRect(QRect(clip_x, sy, clip_w, sh))
         if hasattr(inst, "_draw_bottom_bar"):
             saved_frame = getattr(inst, "_pix_frame", None)
+            saved_skip_bg = getattr(inst, "_skip_footer_bg", False)
             try:
                 inst._pix_frame = None
+                inst._skip_footer_bg = True
                 inst._draw_bottom_bar(painter, sr)
             finally:
                 inst._pix_frame = saved_frame
+                inst._skip_footer_bg = saved_skip_bg
         elif hasattr(inst, "_draw_footer"):
             inst._draw_footer(painter, sw, sh)
         painter.restore()
@@ -559,15 +569,23 @@ def measure_native_layer_bbox(inst, elem_id: str) -> tuple[float, float, float, 
         return (bx, by, bw, bh)
 
     if eid in ("footer_frame", "title_text", "counter_text"):
-        bar_h = float(int(CANONICAL_H * 0.075)) if hasattr(inst, "_draw_bottom_bar") else float(max(26, int(CANONICAL_H * 0.042)))
+        has_bottom_bar = hasattr(inst, "_draw_bottom_bar")
+        default_h = float(int(CANONICAL_H * 0.075)) if has_bottom_bar else float(max(26, int(CANONICAL_H * 0.042)))
+        if hasattr(inst, "BOTTOM_BAR_H_RATIO"):
+            bar_h = float(max(32, int(round(CANONICAL_H * float(inst.BOTTOM_BAR_H_RATIO)))))
+        else:
+            bar_h = default_h
         bar_y = float(CANONICAL_H) - bar_h
         if eid == "footer_frame":
             return (0.0, bar_y, float(CANONICAL_W), bar_h)
         if eid == "title_text":
-            x_off = round(CANONICAL_W * (0.08 if hasattr(inst, "_draw_bottom_bar") else 0.04), 1)
-            return (x_off, bar_y, round(CANONICAL_W * 0.62, 1), bar_h)
+            x_r = float(getattr(inst, "BOTTOM_TITLE_X_RATIO", 0.08 if has_bottom_bar else 0.04))
+            w_r = float(getattr(inst, "BOTTOM_TITLE_W_RATIO", 0.62))
+            return (round(CANONICAL_W * x_r, 1), bar_y, round(CANONICAL_W * w_r, 1), bar_h)
         if eid == "counter_text":
-            return (round(CANONICAL_W * 0.70, 1), bar_y, round(CANONICAL_W * 0.26, 1), bar_h)
+            x_r = float(getattr(inst, "BOTTOM_COUNTER_X_RATIO", 0.70))
+            w_r = float(getattr(inst, "BOTTOM_COUNTER_W_RATIO", 0.26))
+            return (round(CANONICAL_W * x_r, 1), bar_y, round(CANONICAL_W * w_r, 1), bar_h)
 
     # Para cualquier otra capa (tv_bezel, console, console_cover, joystick, avatar, logo,
     # wheel_shadow, wheel_list, pointer), ejecutamos su renderizado real en un QImage 480x270
@@ -906,7 +924,7 @@ def extract_elements_from_theme_instance(inst, code: str) -> list[LayoutElement]
             _add_step("wheel_list", tr("studio.layer.wheel_list", "Wheel List"), "wheel", "wheel", "")
             _add_step("pointer", tr("studio.layer.pointer", "Wheel Pointer"), "image", "", "pointer_pulse")
         elif tok in ("_draw_bottom_bar", "_draw_footer"):
-            if getattr(inst, "_pix_frame", None) or tok == "_draw_footer":
+            if getattr(inst, "_pix_frame", None) or tok == "_draw_footer" or hasattr(inst, "BOTTOM_BAR_H_RATIO"):
                 _add_step("footer_frame", tr("studio.layer.footer_frame", "Bottom Bar (Footer)"), "image", "", "")
             _add_step("title_text", tr("studio.layer.title_text", "Game Title (Footer)"), "text", "", "")
             _add_step("counter_text", tr("studio.layer.counter_text", "Game Counter (Footer)"), "text", "", "")

@@ -4,11 +4,21 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 
 from playnexus.i18n import tr
 
 _SHELL_EXECUTABLES = ("cmd", "powershell", "pwsh", "explorer", "start")
 _SCRIPT_EXTENSIONS = (".bat", ".cmd", ".lnk", ".url", ".ps1")
+_QT_OVERRIDE_ENV_KEYS = (
+    "_PLAYNEXUS_MM_INIT",
+    "QT_MEDIA_BACKEND",
+    "QT_LOGGING_RULES",
+    "QSG_RHI_BACKEND",
+    "QT_RHI_BACKEND",
+    "QT_PLUGIN_PATH",
+    "QML2_IMPORT_PATH",
+)
 _ROM_PLACEHOLDER_RE = re.compile(
     r"(\[(?:romfilename|rom_filename|rompath|rom_path|romdir|rom_dir|"
     r"romname|rom_name|name|cleanromname|clean_rom_name|rom)\]"
@@ -155,6 +165,54 @@ def build_emulator_command(
     return [str(exe), *args], str(exe.parent)
 
 
+def build_clean_child_env(
+    extra: dict[str, str] | None = None,
+    strip_qt_overrides: bool = True,
+) -> dict[str, str]:
+    """
+    Construye un entorno limpio para subprocesos externos o relanzamientos,
+    removiendo variables y rutas internas de PyInstaller/PySide6 para evitar
+    conflictos de DLLs Qt6 o herencia de rutas temporales _MEI*.
+    """
+    env = os.environ.copy()
+    for key in list(env.keys()):
+        if key == "_MEIPASS2" or key.startswith("_PYI_"):
+            env.pop(key, None)
+    if strip_qt_overrides:
+        for key in _QT_OVERRIDE_ENV_KEYS:
+            env.pop(key, None)
+
+    blocked_dirs: set[str] = set()
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        blocked_dirs.add(os.path.normcase(os.path.abspath(str(meipass))))
+    try:
+        import PySide6
+        pyside_dir = os.path.normcase(os.path.abspath(str(Path(PySide6.__file__).resolve().parent)))
+        blocked_dirs.add(pyside_dir)
+    except Exception:
+        pass
+
+    if blocked_dirs and "PATH" in env:
+        kept = []
+        for entry in env["PATH"].split(os.pathsep):
+            if not entry:
+                continue
+            try:
+                norm_entry = os.path.normcase(os.path.abspath(entry))
+            except OSError:
+                kept.append(entry)
+                continue
+            if any(norm_entry == b or norm_entry.startswith(b + os.sep) for b in blocked_dirs):
+                continue
+            kept.append(entry)
+        env["PATH"] = os.pathsep.join(kept)
+
+    if extra:
+        env.update(extra)
+    return env
+
+
 def launch_emulator_process(
     exe_raw: str,
     template: str = "",
@@ -162,9 +220,11 @@ def launch_emulator_process(
 ) -> tuple[subprocess.Popen, list[str], str]:
     """Lanza un proceso de emulador aislado (útil para configuración o prueba de argumentos)."""
     cmd, working_dir = build_emulator_command(exe_raw, template=template, rom_path=rom_path)
-    env = os.environ.copy()
-    env["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
-    proc = subprocess.Popen(cmd, cwd=working_dir, env=env)
+    env = build_clean_child_env({"SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS": "1"})
+    popen_kw: dict = {"cwd": working_dir, "env": env, "close_fds": True}
+    if os.name == "nt":
+        popen_kw["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    proc = subprocess.Popen(cmd, **popen_kw)
     return proc, cmd, working_dir
 
 def resolve_emulator(db, game):
