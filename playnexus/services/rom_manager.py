@@ -766,6 +766,23 @@ _ALL_LIST_MEDIA_FOLDERS: tuple[tuple[str, str, bool], ...] = tuple(
     (fk, tr(lbl_key, lbl_def), is_load) for fk, lbl_key, lbl_def, is_load in _LIST_MEDIA_FOLDER_DEFS
 )
 
+_MEDIA_LABEL_BY_KEY: dict[str, tuple[str, str]] = {
+    fk[:-5]: (lbl_key, lbl_def)
+    for fk, lbl_key, lbl_def, _ in _LIST_MEDIA_FOLDER_DEFS
+    if fk.endswith("_path")
+}
+
+
+def get_media_slot_label(key: str) -> str:
+    """Devuelve la etiqueta localizada de un tipo de media sin tablas duplicadas."""
+    k = (key or "").strip().lower()
+    if k == "snap":
+        k = "video"
+    entry = _MEDIA_LABEL_BY_KEY.get(k)
+    if entry:
+        return tr(entry[0], entry[1])
+    return k.capitalize() if k else ""
+
 _KNOWN_MEDIA_SUBFOLDER_DEFS: tuple[tuple[str, str, str], ...] = (
     ("boxart", "svc.rom_mgr.media.boxart", "Box Art"),
     ("boxarts", "svc.rom_mgr.media.boxart", "Box Art"),

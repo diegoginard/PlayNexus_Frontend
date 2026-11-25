@@ -1414,6 +1414,7 @@ class RomManagerWidget(QWidget):
         self._selected_key: str | None = None
         self._applied_table_headers: tuple[str, ...] | None = None
         self._syncing_controls = False
+        self._sources_initialized = False
 
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -1422,6 +1423,7 @@ class RomManagerWidget(QWidget):
 
         self._build_ui()
         self.refresh_sources()
+        self._sources_initialized = True
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -1785,7 +1787,26 @@ class RomManagerWidget(QWidget):
             self._syncing_controls = False
 
         self._refresh_requirements_bar()
-        if auto_scan and self.list_combo.currentData():
+        cur_id = self.list_combo.currentData()
+        if cur_id is None:
+            self._reset_audit_view(tr("rom_mgr.no_lists_msg", "No lists available in the database."))
+            return
+
+        cur_rd = self._lists_by_id.get(int(cur_id))
+        expected_count = (
+            len(self.db.get_menu_items(int(cur_id)))
+            if (cur_rd and cur_rd.get("list_type") == "menu")
+            else int(cur_rd.get("game_count", 0) if cur_rd else 0)
+        )
+        summary_stale = (
+            self._sources_initialized
+            and (
+                self._summary is None
+                or int(self._summary.list_id) != int(cur_id)
+                or int(self._summary.total_roms) != expected_count
+            )
+        )
+        if auto_scan or summary_stale:
             self.start_scan()
 
     def focus_list(self, list_id: int, auto_scan: bool = True):
@@ -3155,7 +3176,7 @@ class RomManagerWidget(QWidget):
         )
         dlg.exec()
 
-        if dlg.downloaded_any:
+        if dlg.downloaded_any or getattr(dlg, "has_folder_changes", False):
             clear_media_cache()
             self.list_updated.emit(int(row["id"]))
             self.start_scan()
@@ -3193,8 +3214,8 @@ class RomManagerWidget(QWidget):
         dlg = RomToolkitDialog(self.db, row, games, parent=self)
         dlg.media_mutated.connect(lambda: self.start_scan())
         def _on_lib_mutated():
+            self.refresh_sources(auto_scan=True)
             self.list_updated.emit(int(row["id"]))
-            self.start_scan()
         dlg.library_mutated.connect(_on_lib_mutated)
         dlg.exec()
 

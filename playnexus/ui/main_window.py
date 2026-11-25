@@ -193,6 +193,8 @@ class MainWindow(QMainWindow):
         self.current_list_id = None
         self.current_game_id = None
         self.games_cache = []
+        self._pending_rom_manager_refresh = False
+        self._pending_rom_manager_list_id = None
 
         self.setWindowTitle(
             tr("mw.window_title", "PlayNexus — Configurator {version}", version=__version_full__)
@@ -641,6 +643,10 @@ class MainWindow(QMainWindow):
             self.list_title.setText(tr("mw.list.empty_title", "No lists created"))
             self.list_meta_label.setText(tr("mw.list.empty_meta", "Create a list to get started."))
             self.refresh_games()
+
+        if getattr(self, "rom_manager_tab", None) is not None and self.main_tabs.currentIndex() == 0:
+            self._pending_rom_manager_refresh = True
+            self._pending_rom_manager_list_id = self.current_list_id
 
     def on_list_changed(self, current, previous=None):
         if not current:
@@ -2210,11 +2216,22 @@ class MainWindow(QMainWindow):
             if current_widget == getattr(self, "_rom_manager_container", None):
                 first_init = (self.rom_manager_tab is None)
                 rm = self._ensure_rom_manager_tab()
+                pending_rm = getattr(self, "_pending_rom_manager_refresh", False)
+                pending_lid = getattr(self, "_pending_rom_manager_list_id", None)
+                self._pending_rom_manager_refresh = False
+                self._pending_rom_manager_list_id = None
                 if first_init:
                     if self.current_list_id:
                         rm.focus_list(self.current_list_id, auto_scan=True)
                     elif rm.list_combo.currentData():
                         rm.start_scan()
+                elif pending_rm:
+                    target_lid = (
+                        self.current_list_id
+                        if (self.current_list_id and self.db.get_list(self.current_list_id))
+                        else pending_lid
+                    )
+                    rm.refresh_sources(select_list_id=target_lid, auto_scan=True)
                 else:
                     rm.refresh_sources(auto_scan=False)
             elif current_widget == self.emulator_tab:

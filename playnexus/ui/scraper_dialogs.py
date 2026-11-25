@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import replace
+from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt, QThread, Signal
@@ -39,12 +40,16 @@ from PySide6.QtWidgets import (
 
 from playnexus.db import Database
 from playnexus.i18n import tr
+from playnexus.services.media import IMAGE_EXTS, PDF_EXTS, VIDEO_EXTS, find_media_file
 from playnexus.services.rom_manager import (
     AuditSummary,
     MediaRequirementSpec,
     RomAuditResult,
     ensure_media_folders_for_list,
     format_file_size,
+    get_db_field_for_media_key,
+    get_list_folder_for_media_key,
+    get_media_slot_label,
     suggest_media_root_for_list,
 )
 from playnexus.services.scraper import (
@@ -1189,11 +1194,15 @@ class SingleRomScrapeDialog(QDialog):
         self._dl_worker: SingleRomDownloadWorker | None = None
         self._thumb_worker: ThumbnailFetchWorker | None = None
         self._slot_checks: dict[str, QCheckBox] = {}
+        self._extra_rows: dict[str, dict[str, Any]] = {}
+        self._custom_extra_inputs: dict[str, str] = {}
+        self._media_root = suggest_media_root_for_list(self.list_row)
         self.downloaded_any = False
         self.metadata_updated = False
+        self.has_folder_changes = False
 
         self.setWindowTitle(tr("scraper_dlg.single_title", "Search online media — {title}", title=rom.title))
-        self.setMinimumSize(860, 580)
+        self.setMinimumSize(900, 620)
         self._build_ui()
 
     def _build_ui(self):
@@ -1304,10 +1313,22 @@ class SingleRomScrapeDialog(QDialog):
         )
         r_vbox.addWidget(self.thumb_lbl, 1)
 
-        # Checkboxes de slots disponibles en el layout
+        # Checkboxes de slots del layout + medios adicionales del candidato
         slots_grp = QGroupBox(tr("scraper_dlg.slots_to_dl_group", "Slots to download into folders:"))
-        sg_lay = QVBoxLayout(slots_grp)
+        sg_outer = QVBoxLayout(slots_grp)
+        sg_outer.setContentsMargins(6, 6, 6, 6)
+        sg_outer.setSpacing(4)
+
+        slots_scroll = QScrollArea()
+        slots_scroll.setWidgetResizable(True)
+        slots_scroll.setFrameShape(QFrame.NoFrame)
+        slots_scroll.setMinimumHeight(130)
+        slots_scroll.setMaximumHeight(220)
+        slots_inner = QWidget()
+        sg_lay = QVBoxLayout(slots_inner)
+        sg_lay.setContentsMargins(2, 2, 4, 2)
         sg_lay.setSpacing(4)
+
         for sp in self.specs:
             slot_obj = self.rom.slots.get(sp.key)
             has_ok = bool(slot_obj and slot_obj.status == "ok")
@@ -1322,14 +1343,36 @@ class SingleRomScrapeDialog(QDialog):
             )
             chk = QCheckBox(f"{sp.label} {state_tag}")
             chk.setEnabled(False)
+            chk.toggled.connect(self._refresh_download_button)
             self._slot_checks[sp.key] = chk
             sg_lay.addWidget(chk)
+
+        self._extra_slots_container = QWidget()
+        self._extra_slots_layout = QVBoxLayout(self._extra_slots_container)
+        self._extra_slots_layout.setContentsMargins(0, 6, 0, 0)
+        self._extra_slots_layout.setSpacing(4)
+        extra_hdr = QLabel(
+            tr(
+                "scraper_dlg.extra_media_header",
+                "Other media found in candidate (folder inside Media):",
+            )
+        )
+        extra_hdr.setStyleSheet("color: #93c5fd; font-size: 8pt; font-weight: 600;")
+        extra_hdr.setWordWrap(True)
+        self._extra_slots_layout.addWidget(extra_hdr)
+        self._extra_slots_container.setVisible(False)
+        sg_lay.addWidget(self._extra_slots_container)
+        sg_lay.addStretch()
+
+        slots_scroll.setWidget(slots_inner)
+        sg_outer.addWidget(slots_scroll)
         r_vbox.addWidget(slots_grp)
 
         self.chk_apply_meta = QCheckBox(
             tr("scraper_dlg.chk_apply_meta", "Also save metadata (Year, Manufacturer, Genre, Synopsis)")
         )
         self.chk_apply_meta.setChecked(True)
+        self.chk_apply_meta.toggled.connect(self._refresh_download_button)
         r_vbox.addWidget(self.chk_apply_meta)
 
         splitter.addWidget(right)
@@ -1437,9 +1480,168 @@ class SingleRomScrapeDialog(QDialog):
             return self._candidates[idx]
         return None
 
+    @staticmethod
+    def _extensions_for_media_kind(kind: str) -> tuple[str, ...]:
+        if kind == "video":
+            return VIDEO_EXTS
+        if kind == "pdf":
+            return PDF_EXTS
+        return IMAGE_EXTS
+
+    def _clear_extra_slots(self):
+        self._extra_rows.clear()
+        while self._extra_slots_layout.count() > 1:
+            item = self._extra_slots_layout.takeAt(1)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+        self._extra_slots_container.setVisible(False)
+
+    def _resolve_extra_default_input(self, key: str) -> str:
+        if key in self._custom_extra_inputs:
+            return self._custom_extra_inputs[key]
+        explicit = get_list_folder_for_media_key(self.list_row, key)
+        if key == "bezel" and not explicit:
+            explicit = str(self.list_row.get("bezel_hud_path") or "").strip().replace("\\", "/")
+        if explicit:
+            if self._media_root:
+                try:
+                    exp_parent = os.path.normcase(os.path.abspath(str(Path(explicit).parent)))
+                    root_norm = os.path.normcase(os.path.abspath(self._media_root))
+                    if exp_parent == root_norm:
+                        return Path(explicit).name
+                except OSError:
+                    pass
+            return explicit
+        return key
+
+    def _resolve_extra_target_dir(self, raw_text: str) -> str:
+        raw = str(raw_text or "").strip().replace("\\", "/")
+        if not raw:
+            return ""
+        p = Path(raw)
+        if p.is_absolute():
+            return str(p).replace("\\", "/")
+        if self._media_root:
+            return str(Path(self._media_root) / raw).replace("\\", "/")
+        return ""
+
+    def _sync_extra_row_state(self, key: str):
+        info = self._extra_rows.get(key)
+        if not info:
+            return
+        chk: QCheckBox = info["chk"]
+        dir_edit: QLineEdit = info["dir_edit"]
+        status_lbl: QLabel = info["status"]
+        media_kind: str = info["media_kind"]
+
+        raw = dir_edit.text()
+        self._custom_extra_inputs[key] = raw
+        target_dir = self._resolve_extra_target_dir(raw)
+        exts = self._extensions_for_media_kind(media_kind)
+
+        if target_dir and self.rom.stem:
+            if os.path.isdir(target_dir):
+                exists_file = find_media_file(target_dir, self.rom.stem, exts)
+                tag = (
+                    tr("scraper_dlg.slot_tag_ok", "(Already OK)")
+                    if exists_file
+                    else tr("scraper_dlg.slot_tag_missing", "(Missing)")
+                )
+            else:
+                tag = tr("scraper_dlg.slot_tag_create", "(Create)")
+            dir_edit.setToolTip(target_dir)
+            chk.setEnabled(True)
+        else:
+            tag = tr("scraper_dlg.slot_tag_no_folder", "(No folder)")
+            dir_edit.setToolTip(
+                tr("scraper_dlg.extra_folder_tip", "Subfolder name inside Media, or browse for a full folder path")
+            )
+            chk.setChecked(False)
+            chk.setEnabled(False)
+
+        status_lbl.setText(tag)
+        self._refresh_download_button()
+
+    def _pick_extra_folder(self, key: str):
+        info = self._extra_rows.get(key)
+        if not info:
+            return
+        dir_edit: QLineEdit = info["dir_edit"]
+        chk: QCheckBox = info["chk"]
+        cur = self._resolve_extra_target_dir(dir_edit.text()) or self._media_root
+        chosen = QFileDialog.getExistingDirectory(
+            self,
+            tr("scraper_dlg.pick_extra_folder_title", "Select folder for {label}", label=get_media_slot_label(key)),
+            cur,
+        )
+        if not chosen:
+            return
+        norm = chosen.strip().replace("\\", "/")
+        display_val = norm
+        if self._media_root:
+            try:
+                p_norm = os.path.normcase(os.path.abspath(str(Path(norm).parent)))
+                root_norm = os.path.normcase(os.path.abspath(self._media_root))
+                if p_norm == root_norm:
+                    display_val = Path(norm).name
+            except OSError:
+                pass
+        dir_edit.setText(display_val)
+        self._sync_extra_row_state(key)
+        if chk.isEnabled():
+            chk.setChecked(True)
+
+    def _add_extra_slot_row(self, key: str, asset):
+        row_w = QWidget()
+        row_lay = QHBoxLayout(row_w)
+        row_lay.setContentsMargins(0, 0, 0, 0)
+        row_lay.setSpacing(6)
+
+        chk = QCheckBox(get_media_slot_label(key))
+        chk.setChecked(False)
+        dir_edit = QLineEdit(self._resolve_extra_default_input(key))
+        dir_edit.setPlaceholderText(tr("scraper_dlg.extra_folder_placeholder", "Folder name…"))
+        dir_edit.setMinimumWidth(90)
+        dir_edit.setMaximumWidth(155)
+
+        btn_pick = QPushButton("📁")
+        btn_pick.setFixedWidth(28)
+        btn_pick.setToolTip(tr("scraper_dlg.btn_browse_folder_short", "Browse destination folder…"))
+
+        status_lbl = QLabel()
+        status_lbl.setStyleSheet("color: #94a3b8; font-size: 8pt;")
+
+        row_lay.addWidget(chk)
+        row_lay.addWidget(dir_edit)
+        row_lay.addWidget(btn_pick)
+        row_lay.addWidget(status_lbl, 1)
+
+        self._extra_rows[key] = {
+            "widget": row_w,
+            "chk": chk,
+            "dir_edit": dir_edit,
+            "status": status_lbl,
+            "media_kind": asset.media_kind,
+        }
+        self._extra_slots_layout.addWidget(row_w)
+
+        chk.toggled.connect(self._refresh_download_button)
+        dir_edit.textChanged.connect(lambda _txt, k=key: self._sync_extra_row_state(k))
+        btn_pick.clicked.connect(lambda _checked=False, k=key: self._pick_extra_folder(k))
+        self._sync_extra_row_state(key)
+
+    def _refresh_download_button(self):
+        any_enabled = any(c.isEnabled() for c in self._slot_checks.values()) or any(
+            info["chk"].isEnabled() for info in self._extra_rows.values()
+        )
+        self.btn_download.setEnabled(any_enabled or bool(self.chk_apply_meta.isChecked()))
+
     def _on_candidate_selected(self, row: int, _col: int, _pr: int, _pc: int):
         cand = self._current_candidate()
         if not cand:
+            self._clear_extra_slots()
             self.btn_download.setEnabled(False)
             return
 
@@ -1449,7 +1651,6 @@ class SingleRomScrapeDialog(QDialog):
         notes_snip = f"\n{cand.notes[:220]}…" if cand.notes and len(cand.notes) > 220 else (f"\n{cand.notes}" if cand.notes else "")
         self.cand_meta_lbl.setText(meta_head + notes_snip)
 
-        any_downloadable = False
         for sp in self.specs:
             chk = self._slot_checks.get(sp.key)
             if not chk:
@@ -1460,16 +1661,19 @@ class SingleRomScrapeDialog(QDialog):
             slot_obj = self.rom.slots.get(sp.key)
             needs_it = not (slot_obj and slot_obj.status == "ok")
             chk.setChecked(can_dl and needs_it)
-            if can_dl:
-                any_downloadable = True
 
-        self.btn_download.setEnabled(any_downloadable or bool(self.chk_apply_meta.isChecked()))
+        self._clear_extra_slots()
+        for k, asset in cand.assets.items():
+            if k not in self.specs_by_key:
+                self._add_extra_slot_row(k, asset)
+        self._extra_slots_container.setVisible(bool(self._extra_rows))
+        self._refresh_download_button()
 
         self.preview_slot_combo.blockSignals(True)
         self.preview_slot_combo.clear()
         for k, asset in cand.assets.items():
             if asset.media_kind == "image":
-                lbl = self.specs_by_key[k].label if k in self.specs_by_key else k.capitalize()
+                lbl = self.specs_by_key[k].label if k in self.specs_by_key else get_media_slot_label(k)
                 self.preview_slot_combo.addItem(f"{lbl} ({asset.region.upper()})", k)
         self.preview_slot_combo.blockSignals(False)
         self._load_selected_asset_thumb()
@@ -1509,7 +1713,9 @@ class SingleRomScrapeDialog(QDialog):
         cand = self._current_candidate()
         if not cand:
             return
-        chosen_slots = [k for k, c in self._slot_checks.items() if c.isEnabled() and c.isChecked()]
+        chosen_layout = [k for k, c in self._slot_checks.items() if c.isEnabled() and c.isChecked()]
+        chosen_extra = [k for k, info in self._extra_rows.items() if info["chk"].isEnabled() and info["chk"].isChecked()]
+        chosen_slots = chosen_layout + chosen_extra
         if not chosen_slots and not self.chk_apply_meta.isChecked():
             QMessageBox.information(
                 self,
@@ -1517,6 +1723,57 @@ class SingleRomScrapeDialog(QDialog):
                 tr("scraper_dlg.nothing_selected_msg", "Check at least one media or metadata item to apply."),
             )
             return
+
+        eff_specs_by_key = dict(self.specs_by_key)
+        folder_db_updates: dict[str, str] = {}
+        for k in chosen_extra:
+            info = self._extra_rows[k]
+            target_dir = self._resolve_extra_target_dir(info["dir_edit"].text())
+            if not target_dir:
+                QMessageBox.warning(
+                    self,
+                    tr("scraper_dlg.extra_folder_required_title", "Destination Folder Required"),
+                    tr(
+                        "scraper_dlg.extra_folder_required_msg",
+                        "Specify or browse a destination folder for '{label}'.",
+                        label=get_media_slot_label(k),
+                    ),
+                )
+                return
+            try:
+                Path(target_dir).mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                QMessageBox.critical(self, tr("scraper_dlg.mkdir_error_title", "Error Creating Folders"), str(exc))
+                return
+
+            kind = str(info.get("media_kind") or "image")
+            exts = self._extensions_for_media_kind(kind)
+            db_field = (
+                "bezel_hud_path"
+                if (k == "bezel" and not str(self.list_row.get("bezel_path") or "").strip())
+                else get_db_field_for_media_key(k)
+            )
+            eff_specs_by_key[k] = MediaRequirementSpec(
+                key=k,
+                label=get_media_slot_label(k),
+                extensions=exts,
+                required=False,
+                media_kind=kind,
+                folder_path=target_dir,
+                folder_exists=True,
+                db_field=db_field,
+                default_folder_name=Path(target_dir).name,
+            )
+            if not str(self.list_row.get(db_field) or "").strip():
+                folder_db_updates[db_field] = target_dir
+
+        if folder_db_updates and self.db and self.list_row.get("id"):
+            try:
+                self.db.update_list(int(self.list_row["id"]), **folder_db_updates)
+                self.list_row.update(folder_db_updates)
+                self.has_folder_changes = True
+            except Exception:
+                pass
 
         if self.release_media_cb:
             self.release_media_cb()
@@ -1550,7 +1807,7 @@ class SingleRomScrapeDialog(QDialog):
         self._dl_worker = SingleRomDownloadWorker(
             candidate=cand,
             stem=self.rom.stem,
-            specs_by_key=self.specs_by_key,
+            specs_by_key=eff_specs_by_key,
             slot_keys=chosen_slots,
             overwrite=True,
             config=self.config,
@@ -1606,7 +1863,7 @@ class SingleRomScrapeDialog(QDialog):
 
     def _on_close(self):
         self._stop_workers()
-        self.accept() if (self.downloaded_any or self.metadata_updated) else self.reject()
+        self.accept() if (self.downloaded_any or self.metadata_updated or self.has_folder_changes) else self.reject()
 
     def closeEvent(self, event):
         self._stop_workers()
