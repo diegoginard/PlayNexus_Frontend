@@ -651,6 +651,12 @@ def parse_rom_xml(xml_path: str | Path | None) -> dict[str, dict]:
     if cache_key in _XML_CACHE:
         return _XML_CACHE[cache_key]
 
+    from playnexus.services.xml_converter import is_fast_catalog_file, parse_fast_catalog
+    if is_fast_catalog_file(xml_file):
+        xml_map = parse_fast_catalog(xml_file)
+        _XML_CACHE[cache_key] = xml_map
+        return xml_map
+
     root = _parse_xml_root(xml_file)
     xml_map: dict[str, dict] = {}
 
@@ -1116,7 +1122,8 @@ FILTERABLE_FIELDS = [
     ("play_time_seconds", tr("svc.lib.field.play_time_seconds", "Play time in sec (play_time_seconds)")),
     ("last_played", tr("svc.lib.field.last_played", "Last played (last_played)")),
     ("tags", tr("svc.lib.field.tags", "Tags (tags)")),
-    ("sourcefile", tr("svc.lib.field.sourcefile", "Source file / Driver (sourcefile)")),
+    ("sourcefile", tr("svc.lib.field.sourcefile", "Board / Driver (sourcefile — e.g. cps1, cps2, neogeo.cpp)")),
+    ("bios", tr("svc.lib.field.bios", "System BIOS (bios / romof — e.g. neogeo, pgm, naomi)")),
     ("genre", tr("svc.lib.field.genre", "Genre (genre)")),
     ("manufacturer", tr("svc.lib.field.manufacturer", "Manufacturer (manufacturer)")),
     ("year", tr("svc.lib.field.year", "Year (year)")),
@@ -1204,6 +1211,16 @@ def get_game_field_value(game: dict, field: str) -> str:
         try:
             meta_dict = json.loads(xml_meta) if isinstance(xml_meta, str) else xml_meta
             if isinstance(meta_dict, dict):
+                if field.lower() == "bios":
+                    b_val = meta_dict.get("bios")
+                    if b_val:
+                        return str(b_val).strip()
+                    if str(meta_dict.get("isbios", "")).lower() in ("yes", "true", "1"):
+                        return str(game.get("rom_name") or meta_dict.get("rom_name") or "").strip()
+                    romof_v = str(meta_dict.get("romof") or "").strip()
+                    clone_v = str(meta_dict.get("cloneof") or "").strip()
+                    if romof_v and romof_v.lower() != clone_v.lower():
+                        return romof_v
                 cand = meta_dict.get(field)
                 if cand is None and "_" in field:
                     cand = meta_dict.get(field.replace("_", ""))

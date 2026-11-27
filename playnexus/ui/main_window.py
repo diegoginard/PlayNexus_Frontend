@@ -521,6 +521,17 @@ class MainWindow(QMainWindow):
         rm_container_layout.setSpacing(0)
         self._rom_manager_tab_index = self.main_tabs.addTab(self._rom_manager_container, tr("mw.tabs.rom_manager", "🧰  Rom Manager"))
 
+        # Carga perezosa de Conversor XML: se instancia al abrir la pestaña
+        self.xml_converter_tab = None
+        self._xml_converter_container = QWidget()
+        xc_container_layout = QVBoxLayout(self._xml_converter_container)
+        xc_container_layout.setContentsMargins(0, 0, 0, 0)
+        xc_container_layout.setSpacing(0)
+        self._xml_converter_tab_index = self.main_tabs.addTab(
+            self._xml_converter_container,
+            tr("mw.tabs.xml_converter", "⚡  XML Converter"),
+        )
+
         self.emulator_tab = EmulatorManagerWidget(self.db, self)
         self.emulator_tab.emulators_changed.connect(self._on_emulators_changed)
         self.main_tabs.addTab(self.emulator_tab, tr("mw.tabs.emulators", "🕹  Manage Emulators"))
@@ -1010,9 +1021,12 @@ class MainWindow(QMainWindow):
         initial_dir = str(Path(current_xml).parent) if (current_xml and Path(current_xml).parent.is_dir()) else first_folder
         path, _ = QFileDialog.getOpenFileName(
             self,
-            tr("mw.xml.pick_title", "Select XML file for '{name}'", name=row["name"]),
+            tr("mw.xml.pick_title", "Select .pncat or XML file for '{name}'", name=row["name"]),
             initial_dir or "",
-            tr("mw.xml.file_filter", "XML / DAT Files (*.xml *.dat);;All Files (*.*)"),
+            tr(
+                "mw.xml.file_filter",
+                "Catalogs & XML (*.pncat *.xml *.dat);;PlayNexus Fast Catalog (*.pncat);;XML / DAT Files (*.xml *.dat);;All Files (*.*)",
+            ),
         )
         if not path:
             return
@@ -2234,6 +2248,13 @@ class MainWindow(QMainWindow):
                     rm.refresh_sources(select_list_id=target_lid, auto_scan=True)
                 else:
                     rm.refresh_sources(auto_scan=False)
+            elif current_widget == getattr(self, "_xml_converter_container", None):
+                if self.xml_converter_tab is None:
+                    from playnexus.ui.xml_converter_tab import XmlConverterWidget
+                    self.xml_converter_tab = XmlConverterWidget(self.db, self._xml_converter_container)
+                    self.xml_converter_tab.catalog_linked.connect(self._on_xml_catalog_linked)
+                    self._xml_converter_container.layout().addWidget(self.xml_converter_tab)
+                self.xml_converter_tab.refresh_lists(preferred_list_id=self.current_list_id)
             elif current_widget == self.emulator_tab:
                 self.emulator_tab.refresh()
             elif current_widget == self.frontend_tab:
@@ -2381,6 +2402,11 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    def _on_xml_catalog_linked(self, list_id: int):
+        """Refresca la biblioteca cuando se vincula un catálogo rápido .pncat desde la pestaña Conversor XML."""
+        target_id = list_id if (list_id and self.db.get_list(list_id)) else self.current_list_id
+        self.refresh_lists(select_id=target_id)
+
     def _on_emulators_changed(self):
         """Callback cuando se modifica algún emulador en la pestaña de emuladores."""
         self.refresh_emulators()
@@ -2461,6 +2487,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, "rom_manager_tab") and self.rom_manager_tab:
             try:
                 self.rom_manager_tab.cleanup()
+            except Exception:
+                pass
+        if hasattr(self, "xml_converter_tab") and self.xml_converter_tab:
+            try:
+                self.xml_converter_tab.cleanup()
             except Exception:
                 pass
         if hasattr(self, "layout_studio_tab") and self.layout_studio_tab:

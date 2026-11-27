@@ -60,7 +60,8 @@ _FILTER_FIELD_I18N: dict[str, tuple[str, str]] = {
     "play_time_seconds": ("dlg.filter_field.play_time_seconds", "Time played in sec (play_time_seconds)"),
     "last_played": ("dlg.filter_field.last_played", "Last played (last_played)"),
     "tags": ("dlg.filter_field.tags", "Tags (tags)"),
-    "sourcefile": ("dlg.filter_field.sourcefile", "Source file / Driver (sourcefile)"),
+    "sourcefile": ("dlg.filter_field.sourcefile", "Board / Driver (sourcefile — e.g. cps1, cps2, neogeo.cpp)"),
+    "bios": ("dlg.filter_field.bios", "System BIOS (bios / romof — e.g. neogeo, pgm, naomi)"),
     "genre": ("dlg.filter_field.genre", "Genre (genre)"),
     "manufacturer": ("dlg.filter_field.manufacturer", "Manufacturer (manufacturer)"),
     "year": ("dlg.filter_field.year", "Year (year)"),
@@ -330,7 +331,7 @@ class ListDialog(QDialog):
         game_form.addRow("", self.exclude_folder_if_zip_checkbox)
 
         self.xml_edit = QLineEdit()
-        self.xml_edit.setPlaceholderText(tr("dlg.list.xml_placeholder", "Optional: .xml/.dat file with full names and ROM metadata..."))
+        self.xml_edit.setPlaceholderText(tr("dlg.list.xml_placeholder", "Optional: .pncat / .xml / .dat file with full names and ROM metadata..."))
         browse_xml_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_xml_btn.clicked.connect(self.pick_xml)
         clear_xml_btn = QPushButton("✕")
@@ -344,14 +345,13 @@ class ListDialog(QDialog):
         xml_row.addWidget(clear_xml_btn)
         xml_holder = QWidget()
         xml_holder.setLayout(xml_row)
-        game_form.addRow(tr("dlg.list.xml_label", "XML File (Optional)"), xml_holder)
+        game_form.addRow(tr("dlg.list.xml_label", "Catalog .pncat / XML (Optional)"), xml_holder)
 
         xml_hint = QLabel(
             tr(
                 "dlg.list.xml_hint",
-                "<i>Associate an XML file (MAME, HyperSpin, Arcade, Gamelist, or DAT) when ROMs "
-                "only have short filenames (e.g., sf2.zip). The XML assigns the full title "
-                "and all metadata (year, manufacturer, genre, players, etc.).</i>",
+                "<i>Associate a fast catalog (<b>.pncat</b>) or XML/DAT file (MAME, HyperSpin, Gamelist) when ROMs "
+                "only have short filenames (e.g., sf2.zip). Tip: use the <b>⚡ XML Converter</b> tab for instant loading on large sets.</i>",
             )
         )
         xml_hint.setStyleSheet("color: #aab1c0; font-size: 8.5pt;")
@@ -1186,9 +1186,12 @@ class ListDialog(QDialog):
         initial_dir = str(Path(current_xml).parent) if (current_xml and Path(current_xml).parent.is_dir()) else self._get_primary_rom_folder()
         path, _ = QFileDialog.getOpenFileName(
             self,
-            tr("dlg.list.pick_xml_title", "Select XML file with ROM names and metadata"),
+            tr("dlg.list.pick_xml_title", "Select .pncat or XML file with ROM names and metadata"),
             initial_dir or "",
-            tr("dlg.list.pick_xml_filter", "XML / DAT Files (*.xml *.dat);;All files (*.*)")
+            tr(
+                "dlg.list.pick_xml_filter",
+                "Catalogs & XML (*.pncat *.xml *.dat);;PlayNexus Fast Catalog (*.pncat);;XML / DAT Files (*.xml *.dat);;All files (*.*)",
+            )
         )
         if path:
             self.xml_edit.setText(self._normalize_path(path))
