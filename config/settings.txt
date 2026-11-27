@@ -45,18 +45,18 @@ list_11_layout = At-The-Arcade Flex
 list_9_layout = At-The-Arcade Flex
 scraper_cache_enabled = true
 scraper_language = es
-scraper_max_workers = 4
+scraper_max_workers = 7
 scraper_overwrite_meta = true
 scraper_prefer_hd_video = true
 scraper_provider = arcadedb
 scraper_region_priority = us,wor,ss,eu,es,jp
 scraper_ss_debug_mode = false
-scraper_ss_devdebugpassword = enc1:SDRRyQGuvdWzu-Bo7NzLsShmEnaaxtfBRIlgl_WEh_6-j-UWf8GVMeWOg-yV6rJlr45nHo_WAovmWj8=
-scraper_ss_devid = enc1:oh-YXTD_dF61qRFUSvPrmk5o_0rJTOjhsJq74DcGZpNSonGs3US8OaT4Sn6zAEffUWun53THKKfziKJDqA==
-scraper_ss_devpassword = enc1:t0MYzs2BtPMCDCMqqMM3Z4Fa_x2FYnIDYEPRJzfgilRRqBXMk6DJTM1_niIdWzfWkeLKeRsGIHrBxRs=
+scraper_ss_devdebugpassword = enc1:bX5i5ash3cWyvMgTxtqdctKIGq8o2a6SHcGgx_j5rgCSe0NvEzIwqPLaE7ly3RiJ1afveo3a-juei6s=
+scraper_ss_devid = enc1:G5iG2ij0zuxvWGwd2bASnU8fKHx2Pji-Og03ui69EAKq2TxLr7fbFuX8wzMX0mTIoN2ntgkEIOvJlPiJPQ==
+scraper_ss_devpassword = enc1:g0TjaACh6w_rQomN3bWnFFp_ACtm7FZiA1YMNBEgGj0mFUdOlItBhEBpFg1BISA2OFPx6bq5snolYbY=
 scraper_ss_remember = true
-scraper_ss_ssid = enc1:VPbj0R7RAYJdoKCu0eT2Zdt_TjKxyliRccqETTd8xXUf8qNY-gDIdlMC_6eyT4OCJDxIsWm8b5RnV_coGQ==
-scraper_ss_sspassword = enc1:tob_7sCpNnq3CGHlQM_9oSqaxsLmZck_X0vts6FlFvhLot3eOTZcAjgN2YmmYJcj6iVWukf75KM=
+scraper_ss_ssid = enc1:e68KtHCJvpPJkKUOQ3tr4uW6ryVtSIghL7QX5SsLb86V_PD4e8shZ0ZzpmdY6Fnt_HQ0nSlfD2J9qd2lgg==
+scraper_ss_sspassword = enc1:8lmofV5MsSwB7XrDzUfWXiueRNmsmuHf0QL0pfi_DVswORpo1-XOkuXVkCrvlqj9fYEJkpy19VA=
 scraper_timeout_sec = 18.0
 scraper_update_empty_meta = true
 screensaver_blank_time = 20

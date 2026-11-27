@@ -10,6 +10,7 @@ from playnexus.services.scraper.engine import CompositeScraperEngine
 from playnexus.services.scraper.models import (
     BatchScrapeSummary,
     DEFAULT_REGION_PRIORITY,
+    MAX_SCRAPER_WORKERS,
     RomScrapeOutcome,
     ScrapeJobOptions,
     ScraperCandidate,
@@ -21,6 +22,7 @@ from playnexus.services.scraper.models import (
 from playnexus.services.scraper.systems import (
     SYSTEM_CATALOG,
     ScraperSystem,
+    build_search_query_variants,
     clean_rom_search_title,
     detect_system_for_list,
     get_system_by_key,
@@ -31,6 +33,7 @@ __all__ = [
     "BatchScrapeSummary",
     "CompositeScraperEngine",
     "DEFAULT_REGION_PRIORITY",
+    "MAX_SCRAPER_WORKERS",
     "RomScrapeOutcome",
     "SYSTEM_CATALOG",
     "ScrapeJobOptions",
@@ -39,6 +42,7 @@ __all__ = [
     "ScraperConfig",
     "ScraperMediaAsset",
     "ScraperSystem",
+    "build_search_query_variants",
     "clean_rom_search_title",
     "clear_scraper_cache",
     "detect_system_for_list",

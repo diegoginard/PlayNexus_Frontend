@@ -55,10 +55,12 @@ from playnexus.services.rom_manager import (
 from playnexus.services.scraper import (
     CompositeScraperEngine,
     DEFAULT_REGION_PRIORITY,
+    MAX_SCRAPER_WORKERS,
     SYSTEM_CATALOG,
     BatchScrapeSummary,
     RomScrapeOutcome,
     ScrapeJobOptions,
+    ScraperCache,
     ScraperCandidate,
     ScraperConfig,
     clean_rom_search_title,
@@ -69,6 +71,7 @@ from playnexus.services.scraper import (
     save_scraper_config,
 )
 from playnexus.services.scraper.http_utils import http_get_bytes
+from playnexus.services.scraper.providers import ScreenScraperProvider
 from playnexus.ui.table_utils import (
     SortableTableWidgetItem,
     configure_details_table,
@@ -237,15 +240,35 @@ class ScraperSettingsDialog(QDialog):
         self.lang_combo.addItem(tr("scraper_dlg.lang_fr", "French (fr)"), "fr")
         form.addRow(tr("scraper_dlg.meta_lang_label", "Synopsis/genre language:"), self.lang_combo)
 
+        workers_row = QHBoxLayout()
+        workers_row.setContentsMargins(0, 0, 0, 0)
+        workers_row.setSpacing(8)
         self.workers_spin = QSpinBox()
-        self.workers_spin.setRange(1, 4)
+        self.workers_spin.setRange(1, MAX_SCRAPER_WORKERS)
         self.workers_spin.setToolTip(
-            tr("scraper_dlg.workers_tip", "Number of simultaneous downloads in batch mode (1 to 4)")
+            tr(
+                "scraper_dlg.workers_tip",
+                "Number of simultaneous downloads in batch mode (1 to {max})",
+                max=MAX_SCRAPER_WORKERS,
+            )
         )
-        form.addRow(tr("scraper_dlg.workers_label", "Parallel threads:"), self.workers_spin)
+        self.btn_detect_threads = QPushButton(
+            tr("scraper_dlg.btn_detect_ss_threads", "🔄 Detect account threads")
+        )
+        self.btn_detect_threads.setToolTip(
+            tr(
+                "scraper_dlg.tip_detect_ss_threads",
+                "Query ScreenScraper to set the exact maxthreads allowed for your account",
+            )
+        )
+        self.btn_detect_threads.clicked.connect(self._on_detect_ss_threads)
+        workers_row.addWidget(self.workers_spin)
+        workers_row.addWidget(self.btn_detect_threads)
+        workers_row.addStretch()
+        form.addRow(tr("scraper_dlg.workers_label", "Parallel threads:"), workers_row)
 
         self.chk_hd_video = QCheckBox(
-            tr("scraper_dlg.chk_hd_video", "Prefer HD videos when available (ArcadeDB)")
+            tr("scraper_dlg.chk_hd_video", "Prefer HD / original videos when available (ScreenScraper & ArcadeDB)")
         )
         self.chk_empty_meta = QCheckBox(
             tr("scraper_dlg.chk_empty_meta", "Fill empty database fields (year, genre, notes…)")
@@ -379,6 +402,43 @@ class ScraperSettingsDialog(QDialog):
             tr("scraper_dlg.cache_cleared_title", "Cache Cleared"),
             tr("scraper_dlg.cache_cleared_msg", "Deleted {count} cache file(s) ({size}).", count=cnt, size=format_file_size(b)),
         )
+
+    def _on_detect_ss_threads(self):
+        probe_cfg = ScraperConfig(
+            ss_devid=self.ss_devid_edit.text().strip(),
+            ss_devpassword=self.ss_devpass_edit.text().strip(),
+            ss_devdebugpassword=self.ss_devdebug_edit.text().strip(),
+            ss_debug_mode=self.chk_debug_mode.isChecked(),
+            ss_ssid=self.ss_ssid_edit.text().strip(),
+            ss_sspassword=self.ss_sspass_edit.text().strip(),
+            timeout_sec=self.config.timeout_sec,
+        )
+        try:
+            prov = ScreenScraperProvider(ScraperCache(enabled=False))
+            quota = prov.fetch_user_quota(probe_cfg)
+            mt = int(quota["maxthreads"])
+            self.workers_spin.setValue(mt)
+            QMessageBox.information(
+                self,
+                tr("scraper_dlg.ss_threads_detected_title", "ScreenScraper Account"),
+                tr(
+                    "scraper_dlg.ss_threads_detected_msg",
+                    "Account: <b>{user}</b> (Level {level})<br>"
+                    "Allowed parallel threads: <b>{threads}</b><br>"
+                    "Requests today: <b>{used} / {limit}</b>",
+                    user=quota["user"],
+                    level=quota["level"] or "—",
+                    threads=mt,
+                    used=quota["requests_today"],
+                    limit=quota["max_requests_per_day"] or "—",
+                ),
+            )
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                tr("scraper_dlg.ss_threads_err_title", "Could Not Detect Threads"),
+                str(exc),
+            )
 
     def _load_values(self):
         c = self.config
@@ -792,7 +852,7 @@ class BatchScrapeDialog(QDialog):
         self.chk_meta = QCheckBox(tr("scraper_dlg.chk_meta", "Fill empty metadata"))
         self.chk_meta.setChecked(self.config.update_empty_metadata)
         self.workers_spin = QSpinBox()
-        self.workers_spin.setRange(1, 4)
+        self.workers_spin.setRange(1, MAX_SCRAPER_WORKERS)
         self.workers_spin.setValue(self.config.normalized_workers())
         self.workers_spin.setPrefix(tr("scraper_dlg.workers_prefix", "Threads: "))
         opts_row.addWidget(self.chk_overwrite)
@@ -1194,6 +1254,7 @@ class SingleRomScrapeDialog(QDialog):
         self._dl_worker: SingleRomDownloadWorker | None = None
         self._thumb_worker: ThumbnailFetchWorker | None = None
         self._slot_checks: dict[str, QCheckBox] = {}
+        self._slot_variant_combos: dict[str, QComboBox] = {}
         self._extra_rows: dict[str, dict[str, Any]] = {}
         self._custom_extra_inputs: dict[str, str] = {}
         self._media_root = suggest_media_root_for_list(self.list_row)
@@ -1297,11 +1358,11 @@ class SingleRomScrapeDialog(QDialog):
         self.cand_meta_lbl.setWordWrap(True)
         r_vbox.addWidget(self.cand_meta_lbl)
 
-        # Selector rápido para previsualizar miniatura de imagen del candidato
+        # Selector rápido para previsualizar todas las regiones/variantes del candidato
         prev_ctrl = QHBoxLayout()
         prev_ctrl.addWidget(QLabel(tr("scraper_dlg.preview_label", "Preview:")))
         self.preview_slot_combo = QComboBox()
-        self.preview_slot_combo.currentIndexChanged.connect(self._load_selected_asset_thumb)
+        self.preview_slot_combo.currentIndexChanged.connect(self._on_preview_combo_changed)
         prev_ctrl.addWidget(self.preview_slot_combo, 1)
         r_vbox.addLayout(prev_ctrl)
 
@@ -1341,11 +1402,32 @@ class SingleRomScrapeDialog(QDialog):
                     else tr("scraper_dlg.slot_tag_missing", "(Missing)")
                 )
             )
+            row_w = QWidget()
+            row_lay = QHBoxLayout(row_w)
+            row_lay.setContentsMargins(0, 0, 0, 0)
+            row_lay.setSpacing(6)
+
             chk = QCheckBox(f"{sp.label} {state_tag}")
             chk.setEnabled(False)
             chk.toggled.connect(self._refresh_download_button)
+
+            var_combo = QComboBox()
+            var_combo.setMinimumWidth(105)
+            var_combo.setMaximumWidth(165)
+            var_combo.setEnabled(False)
+            var_combo.setToolTip(
+                tr(
+                    "scraper_dlg.slot_region_tip",
+                    "Choose the region/variant for this media (only 1 allowed per media type)",
+                )
+            )
+            var_combo.currentIndexChanged.connect(lambda _idx, k=sp.key: self._on_slot_variant_changed(k))
+
+            row_lay.addWidget(chk, 1)
+            row_lay.addWidget(var_combo)
             self._slot_checks[sp.key] = chk
-            sg_lay.addWidget(chk)
+            self._slot_variant_combos[sp.key] = var_combo
+            sg_lay.addWidget(row_w)
 
         self._extra_slots_container = QWidget()
         self._extra_slots_layout = QVBoxLayout(self._extra_slots_container)
@@ -1446,7 +1528,11 @@ class SingleRomScrapeDialog(QDialog):
                 it2 = SortableTableWidgetItem(yr_raw or "—", sort_key=yr_key)
                 score_pct = int(round(cand.match_score * 100))
                 it3 = SortableTableWidgetItem(f"{score_pct}%", sort_key=float(cand.match_score))
-                it4 = SortableTableWidgetItem(", ".join(cand.assets.keys()) or tr("scraper_dlg.assets_meta_only", "Meta only"))
+                asset_parts = []
+                for ak in cand.assets.keys():
+                    vcnt = len(cand.variants_for_slot(ak))
+                    asset_parts.append(f"{ak} ({vcnt})" if vcnt > 1 else ak)
+                it4 = SortableTableWidgetItem(", ".join(asset_parts) or tr("scraper_dlg.assets_meta_only", "Meta only"))
                 self.cand_table.setItem(r_idx, 0, it0)
                 self.cand_table.setItem(r_idx, 1, it1)
                 self.cand_table.setItem(r_idx, 2, it2)
@@ -1593,7 +1679,8 @@ class SingleRomScrapeDialog(QDialog):
         if chk.isEnabled():
             chk.setChecked(True)
 
-    def _add_extra_slot_row(self, key: str, asset):
+    def _add_extra_slot_row(self, key: str, variants: list):
+        asset = variants[0]
         row_w = QWidget()
         row_lay = QHBoxLayout(row_w)
         row_lay.setContentsMargins(0, 0, 0, 0)
@@ -1601,10 +1688,24 @@ class SingleRomScrapeDialog(QDialog):
 
         chk = QCheckBox(get_media_slot_label(key))
         chk.setChecked(False)
+
+        var_combo = QComboBox()
+        var_combo.setMinimumWidth(92)
+        var_combo.setMaximumWidth(135)
+        var_combo.setToolTip(
+            tr(
+                "scraper_dlg.slot_region_tip",
+                "Choose the region/variant for this media (only 1 allowed per media type)",
+            )
+        )
+        for v_idx, v_asset in enumerate(variants):
+            var_combo.addItem(v_asset.variant_label(), v_idx)
+        var_combo.setEnabled(len(variants) > 0)
+
         dir_edit = QLineEdit(self._resolve_extra_default_input(key))
         dir_edit.setPlaceholderText(tr("scraper_dlg.extra_folder_placeholder", "Folder name…"))
-        dir_edit.setMinimumWidth(90)
-        dir_edit.setMaximumWidth(155)
+        dir_edit.setMinimumWidth(80)
+        dir_edit.setMaximumWidth(135)
 
         btn_pick = QPushButton("📁")
         btn_pick.setFixedWidth(28)
@@ -1614,6 +1715,7 @@ class SingleRomScrapeDialog(QDialog):
         status_lbl.setStyleSheet("color: #94a3b8; font-size: 8pt;")
 
         row_lay.addWidget(chk)
+        row_lay.addWidget(var_combo)
         row_lay.addWidget(dir_edit)
         row_lay.addWidget(btn_pick)
         row_lay.addWidget(status_lbl, 1)
@@ -1621,6 +1723,7 @@ class SingleRomScrapeDialog(QDialog):
         self._extra_rows[key] = {
             "widget": row_w,
             "chk": chk,
+            "var_combo": var_combo,
             "dir_edit": dir_edit,
             "status": status_lbl,
             "media_kind": asset.media_kind,
@@ -1628,9 +1731,58 @@ class SingleRomScrapeDialog(QDialog):
         self._extra_slots_layout.addWidget(row_w)
 
         chk.toggled.connect(self._refresh_download_button)
+        var_combo.currentIndexChanged.connect(lambda _idx, k=key: self._on_slot_variant_changed(k))
         dir_edit.textChanged.connect(lambda _txt, k=key: self._sync_extra_row_state(k))
         btn_pick.clicked.connect(lambda _checked=False, k=key: self._pick_extra_folder(k))
         self._sync_extra_row_state(key)
+
+    def _selected_variant_index(self, slot_key: str) -> int:
+        combo = self._slot_variant_combos.get(slot_key)
+        if combo is None and slot_key in self._extra_rows:
+            combo = self._extra_rows[slot_key].get("var_combo")
+        if combo is not None and combo.count() > 0:
+            data = combo.currentData()
+            if isinstance(data, int) and data >= 0:
+                return data
+        return 0
+
+    def _selected_asset_for_slot(self, cand: ScraperCandidate, slot_key: str):
+        variants = cand.variants_for_slot(slot_key)
+        if not variants:
+            return cand.assets.get(slot_key)
+        idx = self._selected_variant_index(slot_key)
+        if 0 <= idx < len(variants):
+            return variants[idx]
+        return variants[0]
+
+    def _on_slot_variant_changed(self, slot_key: str):
+        cand = self._current_candidate()
+        if not cand:
+            return
+        v_idx = self._selected_variant_index(slot_key)
+        target_data = (slot_key, v_idx)
+        for i in range(self.preview_slot_combo.count()):
+            if self.preview_slot_combo.itemData(i) == target_data:
+                self.preview_slot_combo.blockSignals(True)
+                self.preview_slot_combo.setCurrentIndex(i)
+                self.preview_slot_combo.blockSignals(False)
+                self._load_selected_asset_thumb()
+                break
+
+    def _on_preview_combo_changed(self):
+        raw_data = self.preview_slot_combo.currentData()
+        if isinstance(raw_data, tuple) and len(raw_data) == 2:
+            slot_k, v_idx = raw_data
+            combo = self._slot_variant_combos.get(slot_k)
+            if combo is None and slot_k in self._extra_rows:
+                combo = self._extra_rows[slot_k].get("var_combo")
+            if combo is not None:
+                pos = combo.findData(v_idx)
+                if pos >= 0 and combo.currentIndex() != pos:
+                    combo.blockSignals(True)
+                    combo.setCurrentIndex(pos)
+                    combo.blockSignals(False)
+        self._load_selected_asset_thumb()
 
     def _refresh_download_button(self):
         any_enabled = any(c.isEnabled() for c in self._slot_checks.values()) or any(
@@ -1653,9 +1805,22 @@ class SingleRomScrapeDialog(QDialog):
 
         for sp in self.specs:
             chk = self._slot_checks.get(sp.key)
+            var_combo = self._slot_variant_combos.get(sp.key)
             if not chk:
                 continue
-            has_asset = sp.key in cand.assets
+            variants = cand.variants_for_slot(sp.key)
+            has_asset = bool(variants)
+            if var_combo is not None:
+                var_combo.blockSignals(True)
+                var_combo.clear()
+                if variants:
+                    for v_idx, v_asset in enumerate(variants):
+                        var_combo.addItem(v_asset.variant_label(), v_idx)
+                    var_combo.setEnabled(True)
+                else:
+                    var_combo.addItem("—", -1)
+                    var_combo.setEnabled(False)
+                var_combo.blockSignals(False)
             can_dl = has_asset and sp.folder_exists and bool(self.rom.stem)
             chk.setEnabled(can_dl)
             slot_obj = self.rom.slots.get(sp.key)
@@ -1663,18 +1828,31 @@ class SingleRomScrapeDialog(QDialog):
             chk.setChecked(can_dl and needs_it)
 
         self._clear_extra_slots()
-        for k, asset in cand.assets.items():
+        for k in cand.assets.keys():
             if k not in self.specs_by_key:
-                self._add_extra_slot_row(k, asset)
+                v_list = cand.variants_for_slot(k)
+                if v_list:
+                    self._add_extra_slot_row(k, v_list)
         self._extra_slots_container.setVisible(bool(self._extra_rows))
         self._refresh_download_button()
 
         self.preview_slot_combo.blockSignals(True)
         self.preview_slot_combo.clear()
-        for k, asset in cand.assets.items():
-            if asset.media_kind == "image":
-                lbl = self.specs_by_key[k].label if k in self.specs_by_key else get_media_slot_label(k)
-                self.preview_slot_combo.addItem(f"{lbl} ({asset.region.upper()})", k)
+        first_img_idx = -1
+        for k in cand.assets.keys():
+            lbl = self.specs_by_key[k].label if k in self.specs_by_key else get_media_slot_label(k)
+            for v_idx, asset in enumerate(cand.variants_for_slot(k)):
+                v_lbl = asset.variant_label()
+                if asset.media_kind == "image":
+                    if first_img_idx < 0:
+                        first_img_idx = self.preview_slot_combo.count()
+                    self.preview_slot_combo.addItem(f"{lbl} — {v_lbl}", (k, v_idx))
+                elif asset.media_kind == "video":
+                    self.preview_slot_combo.addItem(f"🎬 {lbl} — {v_lbl} ({asset.ext_hint.lstrip('.').upper()})", (k, v_idx))
+                else:
+                    self.preview_slot_combo.addItem(f"📄 {lbl} — {v_lbl} ({asset.ext_hint.lstrip('.').upper()})", (k, v_idx))
+        if first_img_idx >= 0:
+            self.preview_slot_combo.setCurrentIndex(first_img_idx)
         self.preview_slot_combo.blockSignals(False)
         self._load_selected_asset_thumb()
 
@@ -1684,13 +1862,44 @@ class SingleRomScrapeDialog(QDialog):
             self._thumb_worker.wait(500)
 
         cand = self._current_candidate()
-        slot_k = self.preview_slot_combo.currentData()
-        if not cand or not slot_k or slot_k not in cand.assets:
+        raw_data = self.preview_slot_combo.currentData()
+        slot_k = ""
+        v_idx = 0
+        if isinstance(raw_data, tuple) and len(raw_data) == 2:
+            slot_k, v_idx = str(raw_data[0]), int(raw_data[1])
+        elif isinstance(raw_data, str):
+            slot_k = raw_data
+
+        variants = cand.variants_for_slot(slot_k) if (cand and slot_k) else []
+        if not cand or not variants:
             self.thumb_lbl.setPixmap(QPixmap())
             self.thumb_lbl.setText(tr("scraper_dlg.no_image_preview", "No image preview"))
             return
 
-        url = cand.assets[slot_k].url
+        asset = variants[v_idx] if 0 <= v_idx < len(variants) else variants[0]
+        if asset.media_kind == "video":
+            self.thumb_lbl.setPixmap(QPixmap())
+            self.thumb_lbl.setText(
+                tr(
+                    "scraper_dlg.video_available_preview",
+                    "🎬 Video ({fmt}) available in {provider}\nCheck the Video slot below to download it.",
+                    fmt=asset.ext_hint.lstrip(".").upper() or "MP4",
+                    provider=cand.provider_label,
+                )
+            )
+            return
+        if asset.media_kind == "pdf":
+            self.thumb_lbl.setPixmap(QPixmap())
+            self.thumb_lbl.setText(
+                tr(
+                    "scraper_dlg.pdf_available_preview",
+                    "📄 PDF Manual available in {provider}\nCheck the Manual slot below to download it.",
+                    provider=cand.provider_label,
+                )
+            )
+            return
+
+        url = asset.url
         self.thumb_lbl.setPixmap(QPixmap())
         self.thumb_lbl.setText(tr("scraper_dlg.loading_thumb", "Loading thumbnail…"))
         self._thumb_worker = ThumbnailFetchWorker(url, timeout=10.0, parent=self)
@@ -1798,6 +2007,13 @@ class SingleRomScrapeDialog(QDialog):
             self.accept()
             return
 
+        selected_assets = {}
+        for k in chosen_slots:
+            sel_asset = self._selected_asset_for_slot(cand, k)
+            if sel_asset is not None:
+                selected_assets[k] = sel_asset
+        effective_cand = replace(cand, assets={**cand.assets, **selected_assets})
+
         self.btn_download.setEnabled(False)
         self.btn_search.setEnabled(False)
         self.status_lbl.setText(
@@ -1805,7 +2021,7 @@ class SingleRomScrapeDialog(QDialog):
         )
 
         self._dl_worker = SingleRomDownloadWorker(
-            candidate=cand,
+            candidate=effective_cand,
             stem=self.rom.stem,
             specs_by_key=eff_specs_by_key,
             slot_keys=chosen_slots,

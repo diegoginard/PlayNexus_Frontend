@@ -1305,7 +1305,17 @@ scraper_dlg.unconfigured_folders_msg = The following slots have no folder config
 scraper_dlg.unconfigured_folders_title = Unconfigured Folders
 scraper_dlg.workers_label = Parallel threads:
 scraper_dlg.workers_prefix = Threads: 
-scraper_dlg.workers_tip = Number of simultaneous downloads in batch mode (1 to 4)
+scraper_dlg.workers_tip = Number of simultaneous downloads in batch mode (1 to {max})
+scraper_dlg.btn_detect_ss_threads = 🔄 Detect account threads
+scraper_dlg.tip_detect_ss_threads = Query ScreenScraper to set the exact maxthreads allowed for your account
+scraper_dlg.ss_threads_detected_title = ScreenScraper Account
+scraper_dlg.ss_threads_detected_msg = Account: <b>{user}</b> (Level {level})<br>Allowed parallel threads: <b>{threads}</b><br>Requests today: <b>{used} / {limit}</b>
+scraper_dlg.ss_threads_err_title = Could Not Detect Threads
+scraper_dlg.video_available_preview = 🎬 Video ({fmt}) available in {provider}\nCheck the Video slot below to download it.
+scraper_dlg.pdf_available_preview = 📄 PDF Manual available in {provider}\nCheck the Manual slot below to download it.
+scraper_dlg.slot_region_tip = Choose the region/variant for this media (only 1 allowed per media type)
+svc.scraper.ss_err_no_creds = Enter your ScreenScraper credentials first.
+svc.scraper.ss_err_quota_unavailable = Could not retrieve account information from ScreenScraper.
 
 # --- settings ---
 settings.controls.col_action = Action

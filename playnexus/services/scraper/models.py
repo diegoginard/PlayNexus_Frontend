@@ -139,6 +139,7 @@ def _decode_secret(stored: str, key_dir: Path | str | None = None) -> str:
 
 
 DEFAULT_REGION_PRIORITY: tuple[str, ...] = ("us", "wor", "ss", "eu", "es", "jp")
+MAX_SCRAPER_WORKERS: int = 20
 
 
 @dataclass
@@ -198,7 +199,7 @@ class ScraperConfig:
             val = int(self.max_workers)
         except (TypeError, ValueError):
             val = 2
-        return max(1, min(4, val))
+        return max(1, min(MAX_SCRAPER_WORKERS, val))
 
 
 def load_scraper_config(db: Any | None) -> ScraperConfig:
@@ -218,7 +219,7 @@ def load_scraper_config(db: Any | None) -> ScraperConfig:
     ) or DEFAULT_REGION_PRIORITY
 
     try:
-        workers = max(1, min(4, int(_get("scraper_max_workers", "2") or "2")))
+        workers = max(1, min(MAX_SCRAPER_WORKERS, int(_get("scraper_max_workers", "2") or "2")))
     except ValueError:
         workers = 2
 
@@ -295,6 +296,29 @@ def save_scraper_config(db: Any, config: ScraperConfig) -> None:
         db.set_setting("scraper_prefer_hd_video", "true" if config.prefer_hd_video else "false")
 
 
+_SUBTYPE_SHORT_LABELS: dict[str, str] = {
+    "box-3d": "3D",
+    "box-2d": "2D",
+    "box-2d-front": "2D Front",
+    "box-texture": "Full Cover",
+    "wheel-hd": "HD",
+    "wheel": "Std",
+    "wheel-carbon": "Carbon",
+    "wheel-steel": "Steel",
+    "support-2d": "2D",
+    "support-texture": "Label",
+    "video": "HD/Orig",
+    "video-normalized": "Norm",
+    "url_video_shortplay_hd": "HD",
+    "url_video_shortplay": "SD",
+    "bezel-16-9": "16:9",
+    "overlay": "Overlay",
+    "screenmarquee": "Screen",
+    "marquee": "Cabinet",
+    "cab-2d": "2D",
+}
+
+
 @dataclass
 class ScraperMediaAsset:
     """Recurso multimedia descargable devuelto por un proveedor."""
@@ -303,9 +327,20 @@ class ScraperMediaAsset:
     url: str
     ext_hint: str = ".png"
     region: str = "wor"
-    media_kind: str = "image"  # "image" | "video"
+    media_kind: str = "image"  # "image" | "video" | "pdf"
     source_type: str = ""
     provider_id: str = ""
+
+    def variant_label(self) -> str:
+        """Etiqueta legible de región y subtipo para selectores exclusivos por slot (ej. 'US · 3D', 'JP · 2D')."""
+        reg = (self.region or "wor").strip().upper()
+        st_raw = (self.source_type or "").strip()
+        st_short = _SUBTYPE_SHORT_LABELS.get(st_raw.lower(), "")
+        if st_short:
+            return f"{reg} · {st_short}"
+        if st_raw and st_raw.lower() not in (self.slot_key.lower(), "named_boxarts", "named_logos"):
+            return f"{reg} · {st_raw}"
+        return reg
 
 
 @dataclass
@@ -328,6 +363,15 @@ class ScraperCandidate:
     match_score: float = 1.0
     matched_name: str = ""
     assets: dict[str, ScraperMediaAsset] = field(default_factory=dict)
+    asset_variants: dict[str, list[ScraperMediaAsset]] = field(default_factory=dict)
+
+    def variants_for_slot(self, slot_key: str) -> list[ScraperMediaAsset]:
+        """Retorna todas las variantes regionales/tipo disponibles para un slot (sin duplicar URLs)."""
+        vars_list = self.asset_variants.get(slot_key)
+        if vars_list:
+            return list(vars_list)
+        single = self.assets.get(slot_key)
+        return [single] if single else []
 
 
 @dataclass

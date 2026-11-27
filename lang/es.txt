@@ -1305,7 +1305,17 @@ scraper_dlg.unconfigured_folders_msg = Los siguientes slots no tienen carpeta co
 scraper_dlg.unconfigured_folders_title = Carpetas sin configurar
 scraper_dlg.workers_label = Hilos paralelos:
 scraper_dlg.workers_prefix = Hilos: 
-scraper_dlg.workers_tip = Cantidad de descargas simultáneas en modo lote (1 a 4)
+scraper_dlg.workers_tip = Cantidad de descargas simultáneas en modo lote (1 a {max})
+scraper_dlg.btn_detect_ss_threads = 🔄 Detectar hilos de cuenta
+scraper_dlg.tip_detect_ss_threads = Consulta ScreenScraper para ajustar automáticamente los hilos permitidos por tu cuenta
+scraper_dlg.ss_threads_detected_title = Cuenta de ScreenScraper
+scraper_dlg.ss_threads_detected_msg = Cuenta: <b>{user}</b> (Nivel {level})<br>Hilos paralelos habilitados: <b>{threads}</b><br>Consultas hoy: <b>{used} / {limit}</b>
+scraper_dlg.ss_threads_err_title = No se pudieron detectar los hilos
+scraper_dlg.video_available_preview = 🎬 Video ({fmt}) disponible en {provider}\nMarcá la casilla de Video abajo para descargarlo.
+scraper_dlg.pdf_available_preview = 📄 Manual PDF disponible en {provider}\nMarcá la casilla de Manual abajo para descargarlo.
+scraper_dlg.slot_region_tip = Elegí la región/variante para este medio (solo se permite 1 por tipo de medio)
+svc.scraper.ss_err_no_creds = Ingresá tus credenciales de ScreenScraper primero.
+svc.scraper.ss_err_quota_unavailable = No se pudo obtener la información de tu cuenta desde ScreenScraper.
 
 # --- settings ---
 settings.controls.col_action = Acción

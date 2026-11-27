@@ -14,6 +14,7 @@ from playnexus.services.scraper.cache import ScraperCache
 from playnexus.services.scraper.http_utils import download_media_to_slot
 from playnexus.services.scraper.models import (
     BatchScrapeSummary,
+    MAX_SCRAPER_WORKERS,
     RomScrapeOutcome,
     ScraperCandidate,
     ScraperConfig,
@@ -353,10 +354,16 @@ class CompositeScraperEngine:
         if not roms:
             return summary
 
-        workers = max(1, min(4, int(options.max_workers or self.config.normalized_workers())))
-        # Respetar límites de API si ScreenScraper es la fuente principal
-        if options.provider_mode == "screenscraper":
-            workers = 1
+        workers = max(1, min(MAX_SCRAPER_WORKERS, int(options.max_workers or self.config.normalized_workers())))
+        ss_prov = self.providers.get("screenscraper")
+        if (
+            isinstance(ss_prov, ScreenScraperProvider)
+            and options.provider_mode in ("screenscraper", "auto")
+            and self.config.has_screenscraper_credentials
+        ):
+            ss_prov.ensure_account_limits(self.config)
+            if options.provider_mode == "screenscraper" and ss_prov.detected_max_threads:
+                workers = max(1, min(workers, ss_prov.detected_max_threads))
 
         total = len(roms)
         if workers == 1:

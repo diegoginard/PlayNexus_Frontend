@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 import zlib
 from pathlib import Path
 from typing import Any, Callable
@@ -74,8 +75,8 @@ def http_get_bytes(
                 return data, resp_headers
         except urllib.error.HTTPError as exc:
             last_err = exc
-            if exc.code in (429, 502, 503, 504) and attempt < retries:
-                time.sleep(0.8 * (attempt + 1))
+            if exc.code in (429, 430, 431, 502, 503, 504) and attempt < retries:
+                time.sleep(0.9 * (attempt + 1))
                 continue
             raise
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
@@ -208,43 +209,58 @@ def download_media_to_slot(
     tmp_path = dest_dir / tmp_name
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT}, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            content_type = resp.headers.get("Content-Type", "")
-            first_chunk = resp.read(64 * 1024)
-            if not first_chunk:
-                return None, tr("svc.scraper.err_empty_remote_file", "Empty remote file")
+        dl_retries = 2
+        chosen_ext = ""
+        for attempt in range(dl_retries + 1):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT}, method="GET")
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    content_type = resp.headers.get("Content-Type", "")
+                    first_chunk = resp.read(64 * 1024)
+                    if not first_chunk:
+                        return None, tr("svc.scraper.err_empty_remote_file", "Empty remote file")
 
-            real_ext = detect_media_extension_from_bytes(
-                first_chunk[:256],
-                content_type=content_type,
-                fallback_ext=fallback_ext,
-            )
-            if not real_ext:
-                ct_disp = content_type or tr("svc.scraper.unknown_type", "unknown")
-                return None, tr("svc.scraper.err_invalid_remote_fmt", "Invalid remote file format ({content_type})", content_type=ct_disp)
+                    real_ext = detect_media_extension_from_bytes(
+                        first_chunk[:256],
+                        content_type=content_type,
+                        fallback_ext=fallback_ext,
+                    )
+                    if not real_ext:
+                        ct_disp = content_type or tr("svc.scraper.unknown_type", "unknown")
+                        return None, tr("svc.scraper.err_invalid_remote_fmt", "Invalid remote file format ({content_type})", content_type=ct_disp)
 
-            kind_valid = (
-                set(VIDEO_EXTS) if media_kind == "video"
-                else (set(PDF_EXTS) if media_kind == "pdf" else set(IMAGE_EXTS))
-            )
-            if real_ext not in kind_valid:
-                return None, tr("svc.scraper.err_incompatible_type", "Incompatible type ({ext} for {kind} slot)", ext=real_ext, kind=media_kind)
+                    kind_valid = (
+                        set(VIDEO_EXTS) if media_kind == "video"
+                        else (set(PDF_EXTS) if media_kind == "pdf" else set(IMAGE_EXTS))
+                    )
+                    if real_ext not in kind_valid:
+                        return None, tr("svc.scraper.err_incompatible_type", "Incompatible type ({ext} for {kind} slot)", ext=real_ext, kind=media_kind)
 
-            chosen_ext = _pick_compatible_ext(real_ext, allowed_exts)
-            if not chosen_ext:
-                exp = ", ".join(allowed_exts)
-                return None, tr("svc.scraper.err_ext_not_allowed", "Remote extension '{ext}' not accepted by layout ({allowed})", ext=real_ext, allowed=exp)
+                    chosen_ext = _pick_compatible_ext(real_ext, allowed_exts) or ""
+                    if not chosen_ext:
+                        exp = ", ".join(allowed_exts)
+                        return None, tr("svc.scraper.err_ext_not_allowed", "Remote extension '{ext}' not accepted by layout ({allowed})", ext=real_ext, allowed=exp)
 
-            with open(tmp_path, "wb") as fh:
-                fh.write(first_chunk)
-                while True:
-                    if cancel_check and cancel_check():
-                        return None, tr("svc.scraper.err_download_cancelled", "Download cancelled")
-                    chunk = resp.read(64 * 1024)
-                    if not chunk:
-                        break
-                    fh.write(chunk)
+                    with open(tmp_path, "wb") as fh:
+                        fh.write(first_chunk)
+                        while True:
+                            if cancel_check and cancel_check():
+                                return None, tr("svc.scraper.err_download_cancelled", "Download cancelled")
+                            chunk = resp.read(64 * 1024)
+                            if not chunk:
+                                break
+                            fh.write(chunk)
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code in (429, 430, 431, 502, 503, 504) and attempt < dl_retries:
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                raise
+            except (urllib.error.URLError, TimeoutError, OSError):
+                if attempt < dl_retries:
+                    time.sleep(0.8 * (attempt + 1))
+                    continue
+                raise
 
         if not tmp_path.is_file() or tmp_path.stat().st_size < 64:
             return None, tr("svc.scraper.err_download_corrupt", "Downloaded file incomplete or corrupt")
@@ -327,3 +343,40 @@ def compute_rom_hashes(rom_path: str | None, max_bytes: int = _MAX_HASH_FILE_BYT
     result["md5"] = md5_h.hexdigest().lower()
     result["sha1"] = sha1_h.hexdigest().lower()
     return result
+
+
+_AUX_ZIP_EXTS = frozenset({".txt", ".nfo", ".diz", ".html", ".htm", ".url", ".ips", ".bps", ".ups", ".jpg", ".png"})
+
+
+def compute_inner_zip_rom_info(rom_path: str | None) -> dict[str, str]:
+    """
+    Extrae instantáneamente desde la cabecera central de un archivo .zip de consola
+    el CRC32 descomprimido, tamaño real y nombre interno de la ROM (sin descomprimir).
+    Solo aplica cuando el .zip contiene una única ROM principal (no sets multi-chip MAME).
+    """
+    if not rom_path or not rom_path.lower().endswith(".zip") or not os.path.isfile(rom_path):
+        return {}
+    try:
+        with zipfile.ZipFile(rom_path, "r") as zf:
+            rom_entries = []
+            for info in zf.infolist():
+                if info.is_dir() or info.file_size <= 0:
+                    continue
+                base_name = os.path.basename(info.filename)
+                if not base_name:
+                    continue
+                low_name = base_name.lower()
+                _, ext = os.path.splitext(low_name)
+                if ext in _AUX_ZIP_EXTS or low_name.startswith("readme"):
+                    continue
+                rom_entries.append(info)
+            if len(rom_entries) != 1:
+                return {}
+            entry = rom_entries[0]
+            return {
+                "crc": f"{entry.CRC & 0xFFFFFFFF:08X}",
+                "size": str(entry.file_size),
+                "romnom": os.path.basename(entry.filename),
+            }
+    except Exception:
+        return {}

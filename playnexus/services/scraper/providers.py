@@ -6,6 +6,7 @@ Proveedores online del Scraper de PlayNexus:
 """
 from __future__ import annotations
 
+import contextlib
 import html as html_lib
 import json
 import os
@@ -20,17 +21,20 @@ from playnexus.i18n import tr
 from playnexus.services.scraper.cache import ScraperCache
 from playnexus.services.scraper.http_utils import (
     ProviderRateLimiter,
+    compute_inner_zip_rom_info,
     compute_rom_hashes,
     http_get_json,
     http_get_text,
 )
 from playnexus.services.scraper.models import (
+    MAX_SCRAPER_WORKERS,
     ScraperCandidate,
     ScraperConfig,
     ScraperMediaAsset,
 )
 from playnexus.services.scraper.systems import (
     ScraperSystem,
+    build_search_query_variants,
     clean_rom_search_title,
     normalize_match_key,
 )
@@ -69,7 +73,7 @@ _REGION_ALIAS_RANK = {
 
 # Prioridad de tipos ScreenScraper por slot de MEDIA_REQUIREMENTS
 _SS_SLOT_TYPE_PRIORITY: dict[str, tuple[str, ...]] = {
-    "boxart": ("box-3D", "box-2D", "box-2D-front"),
+    "boxart": ("box-3D", "box-2D", "box-2D-front", "box-texture"),
     "wheel": ("wheel-hd", "wheel", "wheel-carbon", "wheel-steel"),
     "cartart": ("support-2D", "support-texture"),
     "discart": ("support-2D", "support-texture"),
@@ -80,6 +84,29 @@ _SS_SLOT_TYPE_PRIORITY: dict[str, tuple[str, ...]] = {
     "cabinet": ("cab-2D", "cabinet"),
     "manual": ("manuel",),
 }
+
+
+def _infer_rom_regions(stem: str, rom_path: str = "") -> list[str]:
+    """Infiere códigos de región prioritarios a partir de etiquetas como (J), (U), (E), (S) o [Tesp] en la ROM."""
+    src = f"{stem or ''} {os.path.basename(rom_path) if rom_path else ''}"
+    found: list[str] = []
+
+    def _push(code: str) -> None:
+        if code and code not in found:
+            found.append(code)
+
+    low_src = src.lower()
+    if "[tesp" in low_src or "t-spa" in low_src or "spanish" in low_src:
+        _push("sp")
+        _push("es")
+    for tag in _extract_region_tags(src):
+        mapped = _REGION_ALIAS_RANK.get(tag, tag)
+        if mapped == "es":
+            _push("sp")
+            _push("es")
+        elif mapped in ("us", "eu", "jp", "sp", "wor", "fr", "de", "it", "br", "kr", "au"):
+            _push(mapped)
+    return found
 
 
 def _extract_region_tags(filename_stem: str) -> list[str]:
@@ -223,6 +250,7 @@ class ArcadeItaliaProvider(BaseScraperProvider):
                 continue
 
             assets: dict[str, ScraperMediaAsset] = {}
+            asset_variants: dict[str, list[ScraperMediaAsset]] = {}
             img_map = (
                 ("boxart", "url_image_box", ".png"),
                 ("wheel", "url_image_logo", ".png"),
@@ -234,7 +262,7 @@ class ArcadeItaliaProvider(BaseScraperProvider):
             for slot_k, field_name, ext_h in img_map:
                 u = str(merged.get(field_name) or "").strip()
                 if u:
-                    assets[slot_k] = ScraperMediaAsset(
+                    a_obj = ScraperMediaAsset(
                         slot_key=slot_k,
                         url=u,
                         ext_hint=ext_h,
@@ -243,25 +271,32 @@ class ArcadeItaliaProvider(BaseScraperProvider):
                         source_type=field_name,
                         provider_id=self.provider_id,
                     )
+                    assets[slot_k] = a_obj
+                    asset_variants[slot_k] = [a_obj]
 
-            vid_url = ""
-            vid_type = ""
-            if config.prefer_hd_video and merged.get("url_video_shortplay_hd"):
-                vid_url = str(merged.get("url_video_shortplay_hd") or "").strip()
-                vid_type = "url_video_shortplay_hd"
-            elif merged.get("url_video_shortplay"):
-                vid_url = str(merged.get("url_video_shortplay") or "").strip()
-                vid_type = "url_video_shortplay"
-            if vid_url:
-                assets["video"] = ScraperMediaAsset(
-                    slot_key="video",
-                    url=vid_url,
-                    ext_hint=".mp4",
-                    region="wor",
-                    media_kind="video",
-                    source_type=vid_type,
-                    provider_id=self.provider_id,
-                )
+            vid_fields = (
+                (("url_video_shortplay_hd", "url_video_shortplay") if config.prefer_hd_video else ("url_video_shortplay", "url_video_shortplay_hd"))
+            )
+            vid_variants: list[ScraperMediaAsset] = []
+            seen_vurls: set[str] = set()
+            for vf in vid_fields:
+                vu = str(merged.get(vf) or "").strip()
+                if vu and vu not in seen_vurls:
+                    seen_vurls.add(vu)
+                    vid_variants.append(
+                        ScraperMediaAsset(
+                            slot_key="video",
+                            url=vu,
+                            ext_hint=".mp4",
+                            region="wor",
+                            media_kind="video",
+                            source_type=vf,
+                            provider_id=self.provider_id,
+                        )
+                    )
+            if vid_variants:
+                assets["video"] = vid_variants[0]
+                asset_variants["video"] = vid_variants
 
             year_raw = re.sub(r"[^0-9]", "", str(merged.get("year") or ""))[:4]
             rate_raw = merged.get("rate")
@@ -296,6 +331,7 @@ class ArcadeItaliaProvider(BaseScraperProvider):
                 match_score=1.0,
                 matched_name=str(merged.get("game_name") or name_token),
                 assets=assets,
+                asset_variants=asset_variants,
             )
             return [cand]
 
@@ -506,19 +542,28 @@ class LibretroThumbnailsProvider(BaseScraperProvider):
                     cand.match_score = max(cand.match_score, score)
                     cand.assets.setdefault(slot_key, asset)
 
-        # Propagar logos coincidentes hacia boxarts con el mismo título normalizado (para candidatos completos)
-        logo_by_norm: dict[str, ScraperMediaAsset] = {}
+        # Propagar logos y agrupar variantes regionales por título normalizado en Libretro
+        variants_by_norm: dict[tuple[str, str], list[ScraperMediaAsset]] = {}
         for cand in by_clean_game.values():
-            if "wheel" in cand.assets:
-                nk = normalize_match_key(cand.matched_name)
-                if nk and nk not in logo_by_norm:
-                    logo_by_norm[nk] = cand.assets["wheel"]
+            nk = normalize_match_key(cand.matched_name)
+            if not nk:
+                continue
+            for sk, a_obj in cand.assets.items():
+                lst = variants_by_norm.setdefault((nk, sk), [])
+                if all(x.url != a_obj.url for x in lst):
+                    lst.append(a_obj)
 
         for cand in by_clean_game.values():
-            if "wheel" not in cand.assets:
-                nk = normalize_match_key(cand.matched_name)
-                if nk in logo_by_norm:
-                    cand.assets["wheel"] = logo_by_norm[nk]
+            nk = normalize_match_key(cand.matched_name)
+            for sk in ("boxart", "wheel"):
+                sibs = list(variants_by_norm.get((nk, sk)) or [])
+                own = cand.assets.get(sk)
+                if own:
+                    sibs = [own] + [x for x in sibs if x.url != own.url]
+                elif sibs:
+                    cand.assets[sk] = sibs[0]
+                if sibs:
+                    cand.asset_variants[sk] = sibs
 
         ranked = sorted(
             by_clean_game.values(),
@@ -550,7 +595,100 @@ class ScreenScraperProvider(BaseScraperProvider):
 
     def __init__(self, cache: ScraperCache):
         self.cache = cache
-        self._limiter = ProviderRateLimiter(0.95)
+        self._quota_lock = threading.Lock()
+        self._detected_max_threads: int | None = None
+        self._account_checked: bool = False
+        self._sem_size: int = 4
+        self._sem = threading.BoundedSemaphore(self._sem_size)
+
+    @property
+    def detected_max_threads(self) -> int | None:
+        with self._quota_lock:
+            return self._detected_max_threads
+
+    def _set_max_threads(self, count: int) -> None:
+        clamped = max(1, min(MAX_SCRAPER_WORKERS, int(count)))
+        with self._quota_lock:
+            self._detected_max_threads = clamped
+            self._account_checked = True
+            if clamped != self._sem_size:
+                self._sem_size = clamped
+                self._sem = threading.BoundedSemaphore(clamped)
+
+    @contextlib.contextmanager
+    def _acquire_slot(self, config: ScraperConfig, cancel_check: Callable[[], bool] | None = None):
+        with self._quota_lock:
+            if self._detected_max_threads is None:
+                want = config.normalized_workers()
+                if want != self._sem_size:
+                    self._sem_size = want
+                    self._sem = threading.BoundedSemaphore(want)
+            sem = self._sem
+
+        acquired = False
+        while not acquired:
+            if cancel_check and cancel_check():
+                yield False
+                return
+            acquired = sem.acquire(timeout=0.1)
+        try:
+            yield not (cancel_check and cancel_check())
+        finally:
+            try:
+                sem.release()
+            except ValueError:
+                pass
+
+    def _update_quota_from_response(self, data: dict[str, Any] | None) -> None:
+        if not isinstance(data, dict):
+            return
+        resp = data.get("response")
+        if not isinstance(resp, dict):
+            return
+        ssuser = resp.get("ssuser")
+        if not isinstance(ssuser, dict):
+            return
+        raw_mt = str(ssuser.get("maxthreads") or "").strip()
+        if raw_mt.isdigit() and int(raw_mt) >= 1:
+            self._set_max_threads(int(raw_mt))
+
+    def fetch_user_quota(self, config: ScraperConfig) -> dict[str, Any]:
+        """Consulta ssuserInfos.php y retorna los límites reales de la cuenta (maxthreads, nivel, cuota diaria)."""
+        if not config.has_screenscraper_credentials:
+            raise ScreenScraperAuthError(
+                tr("svc.scraper.ss_err_no_creds", "Enter your ScreenScraper credentials first.")
+            )
+        params = self._base_params(config)
+        data = self._fetch_api_json("ssuserInfos.php", params, config)
+        resp = (data or {}).get("response") if isinstance(data, dict) else None
+        ssuser = resp.get("ssuser") if isinstance(resp, dict) else None
+        if not isinstance(ssuser, dict):
+            raise RuntimeError(
+                tr("svc.scraper.ss_err_quota_unavailable", "Could not retrieve account information from ScreenScraper.")
+            )
+        raw_mt = str(ssuser.get("maxthreads") or "1").strip()
+        mt = max(1, min(MAX_SCRAPER_WORKERS, int(raw_mt) if raw_mt.isdigit() else 1))
+        self._set_max_threads(mt)
+        return {
+            "user": str(ssuser.get("id") or config.ss_ssid or ""),
+            "level": str(ssuser.get("niveau") or ""),
+            "maxthreads": mt,
+            "requests_today": str(ssuser.get("requeststoday") or "0"),
+            "max_requests_per_day": str(ssuser.get("maxrequestsperday") or ""),
+        }
+
+    def ensure_account_limits(self, config: ScraperConfig) -> int | None:
+        """Detecta una sola vez por instancia el maxthreads real de la cuenta antes de un lote."""
+        with self._quota_lock:
+            if self._account_checked:
+                return self._detected_max_threads
+        try:
+            info = self.fetch_user_quota(config)
+            return int(info["maxthreads"])
+        except Exception:
+            with self._quota_lock:
+                self._account_checked = True
+            return None
 
     def is_available(self, system: ScraperSystem, config: ScraperConfig) -> bool:
         return config.has_screenscraper_credentials
@@ -630,6 +768,7 @@ class ScreenScraperProvider(BaseScraperProvider):
                     low_err = err_msg.lower()
                     if any(tok in low_err for tok in ("login", "identifiant", "utilisateur", "password", "devid")):
                         raise ScreenScraperAuthError(tr("svc.scraper.ss_err_prefix", "ScreenScraper: {msg}", msg=err_msg))
+                self._update_quota_from_response(data)
                 return data
             return None
         except json.JSONDecodeError as exc:
@@ -697,16 +836,18 @@ class ScreenScraperProvider(BaseScraperProvider):
         system: ScraperSystem,
         config: ScraperConfig,
         match_score: float,
+        rom_regions: list[str] | tuple[str, ...] = (),
     ) -> ScraperCandidate:
+        eff_regions = tuple(dict.fromkeys([*rom_regions, *config.region_priority]))
         title = self._pick_localized_text(
             jeu.get("noms"),
-            ("ss",) + tuple(config.region_priority) + ("wor", "us", "eu", "jp"),
+            ("ss",) + eff_regions + ("wor", "us", "eu", "jp"),
             key_field="region",
         ) or str(jeu.get("id") or tr("svc.scraper.untitled", "Untitled"))
 
         year_raw = self._pick_localized_text(
             jeu.get("dates"),
-            tuple(config.region_priority) + ("wor", "us", "eu", "jp"),
+            eff_regions + ("wor", "us", "eu", "jp"),
             key_field="region",
         )
         year_m = re.search(r"\b(19\d{2}|20\d{2})\b", year_raw)
@@ -726,7 +867,15 @@ class ScreenScraperProvider(BaseScraperProvider):
         rating = f"{raw_note}/20" if raw_note else ""
 
         medias = jeu.get("medias") if isinstance(jeu.get("medias"), list) else []
-        region_order = list(config.region_priority) + ["ss", "wor", "us", "eu", "es", "jp", ""]
+        exp_regions: list[str] = []
+        for rc in eff_regions:
+            if rc not in exp_regions:
+                exp_regions.append(rc)
+            if rc == "es" and "sp" not in exp_regions:
+                exp_regions.append("sp")
+            elif rc == "sp" and "es" not in exp_regions:
+                exp_regions.append("es")
+        region_order = exp_regions + ["ss", "wor", "us", "eu", "sp", "es", "jp", "fr", "de", "it", "br", "kr", "au", ""]
 
         def _region_rank(reg: str) -> int:
             r = (reg or "").lower()
@@ -735,34 +884,55 @@ class ScreenScraperProvider(BaseScraperProvider):
             return len(region_order)
 
         assets: dict[str, ScraperMediaAsset] = {}
+        asset_variants: dict[str, list[ScraperMediaAsset]] = {}
         for slot_key, type_prio in _SS_SLOT_TYPE_PRIORITY.items():
-            best_media: dict[str, Any] | None = None
-            best_rank: tuple[int, int] | None = None
-            for m in medias:
+            if slot_key == "video":
+                eff_prio: tuple[str, ...] = ("video", "video-normalized") if config.prefer_hd_video else ("video-normalized", "video")
+            else:
+                eff_prio = type_prio
+
+            ranked_entries: list[tuple[tuple[int, int, int], dict[str, Any]]] = []
+            for idx_m, m in enumerate(medias):
                 if not isinstance(m, dict):
                     continue
                 mtype = str(m.get("type") or "")
                 url = str(m.get("url") or "").strip()
-                if not url or mtype not in type_prio:
+                if not url or mtype not in eff_prio:
                     continue
-                rank = (type_prio.index(mtype), _region_rank(str(m.get("region") or "")))
-                if best_rank is None or rank < best_rank:
-                    best_rank = rank
-                    best_media = m
+                # En ScreenScraper el orden primario es región preferida y luego subtipo (ej. JP 2D antes que US 3D si la ROM es JP; o en el selector aparecen todas)
+                reg_str = str(m.get("region") or "")
+                if rom_regions and reg_str.lower() in rom_regions:
+                    rank = (0, rom_regions.index(reg_str.lower()), eff_prio.index(mtype))
+                else:
+                    rank = (1, eff_prio.index(mtype), _region_rank(reg_str) * 100 + idx_m)
+                ranked_entries.append((rank, m))
 
-            if best_media:
+            if ranked_entries:
+                ranked_entries.sort(key=lambda pair: pair[0])
                 def_fmt = "mp4" if slot_key == "video" else ("pdf" if slot_key == "manual" else "png")
-                fmt = str(best_media.get("format") or def_fmt).lower().lstrip(".")
                 kind = "video" if slot_key == "video" else ("pdf" if slot_key == "manual" else "image")
-                assets[slot_key] = ScraperMediaAsset(
-                    slot_key=slot_key,
-                    url=str(best_media["url"]).strip(),
-                    ext_hint=f".{fmt}",
-                    region=str(best_media.get("region") or "wor"),
-                    media_kind=kind,
-                    source_type=str(best_media.get("type") or ""),
-                    provider_id=self.provider_id,
-                )
+                variants_list: list[ScraperMediaAsset] = []
+                seen_urls: set[str] = set()
+                for _rk, m_item in ranked_entries:
+                    u_clean = str(m_item["url"]).strip()
+                    if u_clean in seen_urls:
+                        continue
+                    seen_urls.add(u_clean)
+                    fmt = str(m_item.get("format") or def_fmt).lower().lstrip(".")
+                    variants_list.append(
+                        ScraperMediaAsset(
+                            slot_key=slot_key,
+                            url=u_clean,
+                            ext_hint=f".{fmt}",
+                            region=str(m_item.get("region") or "wor"),
+                            media_kind=kind,
+                            source_type=str(m_item.get("type") or ""),
+                            provider_id=self.provider_id,
+                        )
+                    )
+                if variants_list:
+                    assets[slot_key] = variants_list[0]
+                    asset_variants[slot_key] = variants_list
 
         return ScraperCandidate(
             provider_id=self.provider_id,
@@ -779,7 +949,128 @@ class ScreenScraperProvider(BaseScraperProvider):
             match_score=match_score,
             matched_name=title,
             assets=assets,
+            asset_variants=asset_variants,
         )
+
+    @staticmethod
+    def _score_jeu_names(jeu: dict[str, Any], fallback_title: str, norm_variants: list[str]) -> float:
+        """Compara todas las variantes de búsqueda contra TODOS los nombres regionales ('noms') del juego."""
+        if not norm_variants:
+            return 0.75
+        cand_names: list[str] = []
+        raw_noms = jeu.get("noms")
+        if isinstance(raw_noms, list):
+            for item in raw_noms:
+                if isinstance(item, dict):
+                    txt = str(item.get("text") or "").strip()
+                    if txt:
+                        cand_names.append(txt)
+        if fallback_title:
+            cand_names.append(fallback_title)
+
+        norm_cands: list[str] = []
+        for cn in cand_names:
+            for piece in [cn, *[p.strip() for sep in (" - ", " : ", ": ") if sep in cn for p in cn.split(sep) if len(p.strip()) >= 4]]:
+                nk = normalize_match_key(piece)
+                if nk and nk not in norm_cands:
+                    norm_cands.append(nk)
+        if not norm_cands:
+            return 0.0
+
+        best = 0.0
+        for v_idx, nv in enumerate(norm_variants):
+            penalty = 0.0 if v_idx == 0 else 0.03
+            for nk in norm_cands:
+                if nv == nk:
+                    best = max(best, 1.0 if v_idx == 0 else 0.96)
+                else:
+                    ratio = SequenceMatcher(None, nv, nk).ratio()
+                    if len(nv) >= 6 and (nk.startswith(nv + " ") or nk.endswith(" " + nv)):
+                        ratio = max(ratio, 0.86)
+                    elif len(nk) >= 6 and (nv.startswith(nk + " ") or nv.endswith(" " + nk)):
+                        ratio = max(ratio, 0.86)
+                    ratio -= penalty
+                    if ratio > best:
+                        best = ratio
+        return max(0.0, min(1.0, best))
+
+    def _query_jeu_infos_attempts(
+        self,
+        stem: str,
+        rom_path: str,
+        system: ScraperSystem,
+        config: ScraperConfig,
+        cancel_check: Callable[[], bool] | None,
+    ) -> dict[str, Any] | None:
+        ext_low = os.path.splitext(rom_path or "")[1].lower()
+        romtype = "iso" if ext_low in _SS_ISO_EXTS else "rom"
+        base_romnom = os.path.basename(rom_path) if rom_path else (f"{stem}.zip" if stem else "")
+        hashes = compute_rom_hashes(rom_path) if (rom_path and os.path.isfile(rom_path)) else {}
+        inner_zip = compute_inner_zip_rom_info(rom_path) if (not system.is_arcade and ext_low == ".zip") else {}
+
+        cache_sig = inner_zip.get("crc") or hashes.get("crc", "")
+        cache_key_info = f"info:{system.screenscraper_id}:{stem}:{cache_sig}"
+        if not config.ss_debug_mode:
+            cached_info = self.cache.get("screenscraper", cache_key_info, max_age_sec=86400.0 * 3)
+            if isinstance(cached_info, dict) and isinstance(cached_info.get("jeu"), dict):
+                return cached_info["jeu"]
+
+        attempts: list[dict[str, str]] = []
+        sys_id_str = str(system.screenscraper_id) if system.screenscraper_id else ""
+
+        # a) En .zip de consola: probar primero CRC32 + tamaño descomprimido de la ROM interna
+        if inner_zip.get("crc"):
+            p_inner: dict[str, str] = {"romtype": "rom", "crc": inner_zip["crc"]}
+            if sys_id_str:
+                p_inner["systemeid"] = sys_id_str
+            if inner_zip.get("size"):
+                p_inner["romtaille"] = inner_zip["size"]
+            if inner_zip.get("romnom"):
+                p_inner["romnom"] = inner_zip["romnom"]
+            attempts.append(p_inner)
+
+        # b) Hashes del archivo directo en disco + romnom
+        if hashes.get("crc") or base_romnom:
+            p_hash: dict[str, str] = {"romtype": romtype}
+            if sys_id_str:
+                p_hash["systemeid"] = sys_id_str
+            if hashes.get("crc"):
+                p_hash["crc"] = hashes["crc"]
+            if hashes.get("md5"):
+                p_hash["md5"] = hashes["md5"]
+            if hashes.get("sha1"):
+                p_hash["sha1"] = hashes["sha1"]
+            if hashes.get("size"):
+                p_hash["romtaille"] = hashes["size"]
+            if base_romnom:
+                p_hash["romnom"] = base_romnom
+            attempts.append(p_hash)
+
+        # c) Si llevaba hashes y falló (ROM parcheada [Ting]/[Tesp] o archivo reempaquetado), reintentar limpio por romnom
+        if base_romnom and (hashes.get("crc") or inner_zip.get("crc")):
+            p_name: dict[str, str] = {"romtype": romtype, "romnom": base_romnom}
+            if sys_id_str:
+                p_name["systemeid"] = sys_id_str
+            attempts.append(p_name)
+
+        # d) Sub-sistemas Arcade (ej. Neo Geo 142) también indexados bajo Arcade/MAME (75) en ScreenScraper
+        if system.is_arcade and sys_id_str and sys_id_str != "75" and base_romnom:
+            attempts.append({"systemeid": "75", "romtype": romtype, "romnom": base_romnom})
+
+        for extra_params in attempts:
+            with self._acquire_slot(config, cancel_check) as ok:
+                if not ok:
+                    return None
+                params = self._base_params(config)
+                params.update(extra_params)
+                data = self._fetch_api_json("jeuInfos.php", params, config)
+            if isinstance(data, dict):
+                resp = data.get("response")
+                if isinstance(resp, dict) and isinstance(resp.get("jeu"), dict) and resp["jeu"].get("id"):
+                    jeu_exact = resp["jeu"]
+                    self.cache.set("screenscraper", cache_key_info, {"jeu": jeu_exact})
+                    return jeu_exact
+        return None
 
     def find_candidates(
         self,
@@ -796,92 +1087,77 @@ class ScreenScraperProvider(BaseScraperProvider):
             return []
 
         results: list[ScraperCandidate] = []
-        clean_q = clean_rom_search_title(query or stem)
+        rom_regions = _infer_rom_regions(stem, rom_path)
+        query_variants = build_search_query_variants(query or stem, stem)
+        norm_variants = []
+        for qv in query_variants:
+            nk = normalize_match_key(qv)
+            if nk and nk not in norm_variants:
+                norm_variants.append(nk)
 
-        # 1. Intentar lookup exacto por hash/nombre vía jeuInfos.php
-        hashes = compute_rom_hashes(rom_path) if (rom_path and os.path.isfile(rom_path)) else {}
-        cache_key_info = f"info:{system.screenscraper_id}:{stem}:{hashes.get('crc', '')}"
-        cached_info = (
-            None
-            if config.ss_debug_mode
-            else self.cache.get("screenscraper", cache_key_info, max_age_sec=86400.0 * 3)
-        )
+        # 1. Intentar lookup exacto por hash interno/externo o romnom vía jeuInfos.php
+        if stem or rom_path:
+            jeu_exact = self._query_jeu_infos_attempts(stem, rom_path, system, config, cancel_check)
+            if isinstance(jeu_exact, dict):
+                results.append(
+                    self._parse_jeu_object(jeu_exact, system, config, match_score=1.0, rom_regions=rom_regions)
+                )
 
-        jeu_exact = None
-        if isinstance(cached_info, dict) and "jeu" in cached_info:
-            jeu_exact = cached_info.get("jeu")
-        elif stem or hashes.get("crc"):
-            if self._limiter.wait(cancel_check):
-                params = self._base_params(config)
-                if system.screenscraper_id:
-                    params["systemeid"] = str(system.screenscraper_id)
-                ext_low = os.path.splitext(rom_path or "")[1].lower()
-                params["romtype"] = "iso" if ext_low in _SS_ISO_EXTS else "rom"
-                if hashes.get("crc"):
-                    params["crc"] = hashes["crc"]
-                if hashes.get("md5"):
-                    params["md5"] = hashes["md5"]
-                if hashes.get("sha1"):
-                    params["sha1"] = hashes["sha1"]
-                if hashes.get("size"):
-                    params["romtaille"] = hashes["size"]
-                if rom_path:
-                    params["romnom"] = os.path.basename(rom_path)
-                elif stem:
-                    params["romnom"] = f"{stem}.zip"
-                data = self._fetch_api_json("jeuInfos.php", params, config)
-                if isinstance(data, dict):
-                    resp = data.get("response")
-                    if isinstance(resp, dict) and isinstance(resp.get("jeu"), dict):
-                        jeu_exact = resp["jeu"]
-                    self.cache.set("screenscraper", cache_key_info, {"jeu": jeu_exact})
-
-        if isinstance(jeu_exact, dict):
-            results.append(self._parse_jeu_object(jeu_exact, system, config, match_score=1.0))
-
-        # 2. Búsqueda textual (si faltan candidatos o si no hubo hash match)
-        if clean_q and (len(results) == 0 or max_results > 1):
-            cache_key_search = f"search:{system.screenscraper_id}:{clean_q.lower()}"
-            cached_search = (
-                None
-                if config.ss_debug_mode
-                else self.cache.get("screenscraper", cache_key_search, max_age_sec=86400.0 * 3)
-            )
-            jeux_list = None
-            if isinstance(cached_search, dict) and isinstance(cached_search.get("jeux"), list):
-                jeux_list = cached_search["jeux"]
-            elif self._limiter.wait(cancel_check):
-                params = self._base_params(config)
-                params["recherche"] = clean_q
-                if system.screenscraper_id:
-                    params["systemeid"] = str(system.screenscraper_id)
-                data = self._fetch_api_json("jeuRecherche.php", params, config)
-                if isinstance(data, dict):
-                    resp = data.get("response")
-                    if isinstance(resp, dict) and isinstance(resp.get("jeux"), list):
-                        jeux_list = resp["jeux"]
-                    else:
-                        jeux_list = []
-                    self.cache.set("screenscraper", cache_key_search, {"jeux": jeux_list})
-                else:
-                    jeux_list = []
-
+        # 2. Búsqueda textual con soporte de subtítulos traducidos y nombres multi-región
+        if query_variants and (len(results) == 0 or max_results > 3):
             seen_ids = {c.game_id for c in results}
-            norm_target = normalize_match_key(clean_q)
-            for j in jeux_list or []:
-                if not isinstance(j, dict):
-                    continue
-                gid = str(j.get("id") or "")
-                if gid and gid in seen_ids:
-                    continue
-                cand = self._parse_jeu_object(j, system, config, match_score=0.75)
-                nk = normalize_match_key(cand.title)
-                if norm_target and nk:
-                    cand.match_score = SequenceMatcher(None, norm_target, nk).ratio()
-                results.append(cand)
-                if gid:
-                    seen_ids.add(gid)
-                if len(results) >= max_results:
+            sys_ids_to_try = [str(system.screenscraper_id)] if system.screenscraper_id else [""]
+            if system.is_arcade and system.screenscraper_id and int(system.screenscraper_id) != 75:
+                sys_ids_to_try.append("75")
+
+            for sys_id_str in sys_ids_to_try:
+                for q_var in query_variants:
+                    if cancel_check and cancel_check():
+                        break
+                    cache_key_search = f"search:{sys_id_str}:{q_var.lower()}"
+                    cached_search = (
+                        None
+                        if config.ss_debug_mode
+                        else self.cache.get("screenscraper", cache_key_search, max_age_sec=86400.0 * 3)
+                    )
+                    jeux_list: list[dict[str, Any]] | None = None
+                    if isinstance(cached_search, dict) and isinstance(cached_search.get("jeux"), list):
+                        cached_valid = [j for j in cached_search["jeux"] if isinstance(j, dict) and j.get("id")]
+                        if cached_valid or len(cached_search["jeux"]) == 0:
+                            jeux_list = cached_valid
+
+                    if jeux_list is None:
+                        with self._acquire_slot(config, cancel_check) as ok:
+                            if not ok:
+                                break
+                            params = self._base_params(config)
+                            params["recherche"] = q_var
+                            if sys_id_str:
+                                params["systemeid"] = sys_id_str
+                            data = self._fetch_api_json("jeuRecherche.php", params, config)
+                        if isinstance(data, dict):
+                            resp = data.get("response")
+                            raw_jeux = resp.get("jeux") if isinstance(resp, dict) and isinstance(resp.get("jeux"), list) else []
+                            jeux_list = [j for j in raw_jeux if isinstance(j, dict) and j.get("id")]
+                            self.cache.set("screenscraper", cache_key_search, {"jeux": jeux_list})
+                        else:
+                            jeux_list = []
+
+                    for j in jeux_list:
+                        gid = str(j.get("id") or "")
+                        if gid and gid in seen_ids:
+                            continue
+                        cand = self._parse_jeu_object(j, system, config, match_score=0.75, rom_regions=rom_regions)
+                        cand.match_score = self._score_jeu_names(j, cand.title, norm_variants)
+                        results.append(cand)
+                        if gid:
+                            seen_ids.add(gid)
+                        if len(results) >= max_results * 2:
+                            break
+
+                    if any(c.match_score >= 0.85 for c in results):
+                        break
+                if any(c.match_score >= 0.85 for c in results):
                     break
 
         results.sort(key=lambda c: (-round(c.match_score, 4), -len(c.assets), c.title.lower()))

@@ -257,13 +257,13 @@ def detect_system_for_list(
     """
     candidates: list[str] = []
     if list_row:
-        candidates.append(str(list_row.get("platform") or ""))
         candidates.append(str(list_row.get("name") or ""))
+        candidates.append(str(list_row.get("platform") or ""))
     if layout_name:
         candidates.append(layout_name)
     if emulator_row:
-        candidates.append(str(emulator_row.get("platform") or ""))
         candidates.append(str(emulator_row.get("name") or ""))
+        candidates.append(str(emulator_row.get("platform") or ""))
 
     ordered_aliases: list[tuple[str, ScraperSystem]] = []
     for sys_obj in SYSTEM_CATALOG:
@@ -296,11 +296,42 @@ def clean_rom_search_title(text: str) -> str:
     s = _DISC_RE.sub(" ", s)
     s = s.replace("_", " ").replace(".", " ")
     s = _SPACE_RE.sub(" ", s).strip(" -_")
-    if s.lower().endswith(", the"):
-        s = "The " + s[:-5].strip()
-    elif s.lower().endswith(", a"):
-        s = "A " + s[:-3].strip()
+    low = s.lower()
+    if low.endswith(", the"):
+        s = "The " + s[:-5].strip(" ,-_")
+    elif low.endswith(", a"):
+        s = "A " + s[:-3].strip(" ,-_")
+    elif " " in s and low.endswith(" the"):
+        s = "The " + s[:-4].strip(" ,-_")
     return _SPACE_RE.sub(" ", s).strip()
+
+
+def build_search_query_variants(raw_query: str, stem: str = "") -> list[str]:
+    """
+    Genera variantes limpias de búsqueda textual (título completo primero y luego
+    segmentos principales separados por ' - ' o ':' para ROMs traducidas con subtítulo extra).
+    """
+    variants: list[str] = []
+
+    def _add(cand: str) -> None:
+        c = clean_rom_search_title(cand)
+        if c and c.lower() not in {v.lower() for v in variants}:
+            variants.append(c)
+
+    for src in (raw_query, stem):
+        if not src:
+            continue
+        _add(src)
+        stripped_tags = _TAG_RE.sub(" ", src)
+        for sep in (" - ", ": "):
+            if sep in stripped_tags:
+                parts = [p.strip() for p in stripped_tags.split(sep) if p.strip()]
+                for part in parts:
+                    cleaned_part = clean_rom_search_title(part)
+                    if len(cleaned_part) >= 4:
+                        _add(cleaned_part)
+
+    return variants
 
 
 def normalize_match_key(text: str) -> str:
