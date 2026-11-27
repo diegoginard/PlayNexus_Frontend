@@ -28,6 +28,7 @@ from playnexus.ui.dialogs import (
 )
 from playnexus.ui.frontend_tab import FrontendSettingsWidget
 from playnexus.ui.settings_tab import SystemSettingsWidget
+from playnexus.ui.sidebar_nav import SidebarShellWidget
 from playnexus.ui.layout_studio import LayoutStudioWidget
 from playnexus.ui.layouts import LAYOUT_REGISTRY, get_available_layouts, create_layout, resolve_theme_name
 from playnexus import __version__, __version_full__
@@ -240,18 +241,9 @@ class MainWindow(QMainWindow):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(6)
 
-        # Logo de la aplicación
+        # Ruta del logo principal para la cabecera del menú lateral
         root_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent.parent
         logo_path = root_dir / "PlayNexus_Logo.png"
-        if logo_path.exists():
-            logo_label = QLabel()
-            pix = QPixmap(str(logo_path))
-            if not pix.isNull():
-                scaled_pix = pix.scaledToWidth(210, Qt.SmoothTransformation)
-                logo_label.setPixmap(scaled_pix)
-                logo_label.setAlignment(Qt.AlignCenter)
-                logo_label.setStyleSheet("padding: 2px 0 6px 0;")
-                left_layout.addWidget(logo_label)
 
         left_label = QLabel(tr("mw.left.header", "LISTS / PLATFORMS"))
         left_label.setStyleSheet("font-weight: bold; color: #8e9bb0; letter-spacing: 1px;")
@@ -508,54 +500,106 @@ class MainWindow(QMainWindow):
         splitter.setSizes([230, 690, 340])
         outer.addWidget(splitter)
 
-        # Contenedor con pestañas principales
-        self.main_tabs = QTabWidget()
-        self.main_tabs.setDocumentMode(True)
-        self.main_tabs.addTab(root, tr("mw.tabs.library", "🎮  Game Library"))
+        # Contenedor principal con menú lateral izquierdo desplegable (estilo YouTube / TecnoService)
+        sidebar_expanded = self.db.get_setting("sidebar_expanded", "true").strip().lower() not in ("false", "0", "no")
+        self.main_tabs = SidebarShellWidget(
+            logo_path=logo_path,
+            version_text=f"{__version_full__}",
+            toggle_tooltip=tr("mw.sidebar.toggle_tip", "Collapse / Expand navigation menu"),
+            expanded=sidebar_expanded,
+            parent=self,
+        )
+        self.main_tabs.toggled_expanded.connect(
+            lambda exp: self.db.set_setting("sidebar_expanded", "true" if exp else "false")
+        )
 
-        # Carga perezosa de Rom Manager: no instanciar reproductor hasta abrir la pestaña
+        grp_main = tr("mw.nav_group.main", "MAIN")
+        grp_tools = tr("mw.nav_group.tools", "TOOLS")
+        grp_studio = tr("mw.nav_group.studio", "VISUAL STUDIO")
+        grp_system = tr("mw.nav_group.system", "SYSTEM")
+
+        # Índice 0 obligatorio: Biblioteca de Juegos
+        self.main_tabs.add_page(
+            root,
+            tr("mw.tabs.library", "🎮  Game Library"),
+            icon_id="library",
+            accent_hex="#38bdf8",
+            group_title=grp_main,
+        )
+
+        self.frontend_tab = FrontendSettingsWidget(self.db, self)
+        self.frontend_tab.layout_changed.connect(self._on_frontend_layout_changed)
+        self.frontend_tab.launch_requested.connect(self.launch_frontend_player)
+        self.main_tabs.add_page(
+            self.frontend_tab,
+            tr("mw.tabs.frontend", "📺  Frontend Mode"),
+            icon_id="frontend",
+            accent_hex="#38bdf8",
+            group_title=grp_main,
+        )
+
+        # Carga perezosa de Rom Manager: no instanciar reproductor hasta abrir la sección
         self.rom_manager_tab = None
         self._rom_manager_container = QWidget()
         rm_container_layout = QVBoxLayout(self._rom_manager_container)
         rm_container_layout.setContentsMargins(0, 0, 0, 0)
         rm_container_layout.setSpacing(0)
-        self._rom_manager_tab_index = self.main_tabs.addTab(self._rom_manager_container, tr("mw.tabs.rom_manager", "🧰  Rom Manager"))
+        self._rom_manager_tab_index = self.main_tabs.add_page(
+            self._rom_manager_container,
+            tr("mw.tabs.rom_manager", "🧰  Rom Manager"),
+            icon_id="rom_manager",
+            accent_hex="#a78bfa",
+            group_title=grp_tools,
+        )
 
-        # Carga perezosa de Conversor XML: se instancia al abrir la pestaña
+        # Carga perezosa de Conversor XML: se instancia al abrir la sección
         self.xml_converter_tab = None
         self._xml_converter_container = QWidget()
         xc_container_layout = QVBoxLayout(self._xml_converter_container)
         xc_container_layout.setContentsMargins(0, 0, 0, 0)
         xc_container_layout.setSpacing(0)
-        self._xml_converter_tab_index = self.main_tabs.addTab(
+        self._xml_converter_tab_index = self.main_tabs.add_page(
             self._xml_converter_container,
             tr("mw.tabs.xml_converter", "⚡  XML Converter"),
+            icon_id="xml_converter",
+            accent_hex="#34d399",
+            group_title=grp_tools,
         )
 
         self.emulator_tab = EmulatorManagerWidget(self.db, self)
         self.emulator_tab.emulators_changed.connect(self._on_emulators_changed)
-        self.main_tabs.addTab(self.emulator_tab, tr("mw.tabs.emulators", "🕹  Manage Emulators"))
+        self.main_tabs.add_page(
+            self.emulator_tab,
+            tr("mw.tabs.emulators", "🕹  Manage Emulators"),
+            icon_id="emulators",
+            accent_hex="#fbbf24",
+            group_title=grp_tools,
+        )
 
-        self.frontend_tab = FrontendSettingsWidget(self.db, self)
-        self.frontend_tab.layout_changed.connect(self._on_frontend_layout_changed)
-        self.frontend_tab.launch_requested.connect(self.launch_frontend_player)
-        self.main_tabs.addTab(self.frontend_tab, tr("mw.tabs.frontend", "📺  Frontend Mode"))
-
-        # Carga perezosa de Layout Studio: no instanciar motores pesados hasta abrir la pestaña
+        # Carga perezosa de Layout Studio: no instanciar motores pesados hasta abrir la sección
         self.layout_studio_tab = None
         self._layout_studio_container = QWidget()
         studio_container_layout = QVBoxLayout(self._layout_studio_container)
         studio_container_layout.setContentsMargins(0, 0, 0, 0)
         studio_container_layout.setSpacing(0)
-        self._layout_studio_tab_index = self.main_tabs.addTab(self._layout_studio_container, tr("mw.tabs.layout_studio", "🎨  Layout Studio"))
+        self._layout_studio_tab_index = self.main_tabs.add_page(
+            self._layout_studio_container,
+            tr("mw.tabs.layout_studio", "🎨  Layout Studio"),
+            icon_id="layout_studio",
+            accent_hex="#fb923c",
+            group_title=grp_studio,
+        )
 
         self.settings_tab = SystemSettingsWidget(self.db, self)
         self.settings_tab.settings_saved.connect(self._on_settings_saved)
-        self.main_tabs.addTab(self.settings_tab, tr("mw.tabs.settings", "⚙  System Settings"))
-
-        version_label = QLabel(f"{__version_full__}  ")
-        version_label.setStyleSheet("color: #a78bfa; font-weight: bold; font-size: 9.5pt; padding-right: 12px;")
-        self.main_tabs.setCornerWidget(version_label, Qt.TopRightCorner)
+        self.main_tabs.add_page(
+            self.settings_tab,
+            tr("mw.tabs.settings", "⚙  System Settings"),
+            icon_id="settings",
+            accent_hex="#94a3b8",
+            group_title=grp_system,
+            bottom=True,
+        )
 
         self.main_tabs.currentChanged.connect(self._on_tab_changed)
 
@@ -2060,8 +2104,8 @@ class MainWindow(QMainWindow):
                 self.override_combo.blockSignals(False)
 
     def manage_emulators(self):
-        """Abre directamente la pestaña de Administrar Emuladores."""
-        self.main_tabs.setCurrentIndex(1)
+        """Abre directamente la sección de Administrar Emuladores."""
+        self.main_tabs.setCurrentWidget(self.emulator_tab)
 
     def launch_selected(self, *args):
         if not self.current_game_id:
@@ -2252,9 +2296,7 @@ class MainWindow(QMainWindow):
                 if self.xml_converter_tab is None:
                     from playnexus.ui.xml_converter_tab import XmlConverterWidget
                     self.xml_converter_tab = XmlConverterWidget(self.db, self._xml_converter_container)
-                    self.xml_converter_tab.catalog_linked.connect(self._on_xml_catalog_linked)
                     self._xml_converter_container.layout().addWidget(self.xml_converter_tab)
-                self.xml_converter_tab.refresh_lists(preferred_list_id=self.current_list_id)
             elif current_widget == self.emulator_tab:
                 self.emulator_tab.refresh()
             elif current_widget == self.frontend_tab:
@@ -2401,11 +2443,6 @@ class MainWindow(QMainWindow):
                 self.rom_manager_tab.stop_media()
             except Exception:
                 pass
-
-    def _on_xml_catalog_linked(self, list_id: int):
-        """Refresca la biblioteca cuando se vincula un catálogo rápido .pncat desde la pestaña Conversor XML."""
-        target_id = list_id if (list_id and self.db.get_list(list_id)) else self.current_list_id
-        self.refresh_lists(select_id=target_id)
 
     def _on_emulators_changed(self):
         """Callback cuando se modifica algún emulador en la pestaña de emuladores."""

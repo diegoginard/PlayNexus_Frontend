@@ -69,6 +69,7 @@ screensaver_overlay_art = wheel
 screensaver_preserve_ar = true
 screensaver_sound = true
 screensaver_timeout = 10
+sidebar_expanded = false
 startup_list_id = 11
 target_screen = 0
 toolkit_ffmpeg_path = tools/ffmpeg/ffmpeg.exe

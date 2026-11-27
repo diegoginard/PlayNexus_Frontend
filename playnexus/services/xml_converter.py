@@ -1,21 +1,17 @@
 """
-Conversor en streaming de catálogos XML / DAT a formato ultrarrápido PlayNexus (.pncat)
-y lector de alta velocidad en texto plano 100% portable.
+Conversor multi-fuente en streaming de catálogos XML / DAT / INI a formato ultrarrápido
+PlayNexus (.pncat) con selección dinámica de columnas y lector de alta velocidad en texto plano.
 
 Formato '.pncat' (PlayNexus Fast Catalog v1):
-- Texto plano UTF-8 orientado a líneas (sin bases binarias SQLite).
+- Texto plano UTF-8 orientado a líneas (100% portable, sin bases binarias SQLite).
 - Cabecera identificadora: '# PlayNexus Fast Catalog v1'
-- Columnas fijas separadas por tabulador (\t) para evitar parsear JSON en cada fila:
-  0:keys | 1:rom_name | 2:title | 3:year | 4:manufacturer | 5:genre | 6:players |
-  7:cloneof | 8:rating | 9:crc | 10:sourcefile | 11:notes | 12:bios | 13:romof |
-  14:status | 15:isbios | 16:isdevice | 17:ismechanical | 18:runnable |
-  19:display_type | 20:display_rotate | 21:display_width | 22:display_height |
-  23:control_type | 24:control_buttons | 25:extra_json
+- Línea de esquema dinámico: '# columns: keys\trom_name\t<col_1>\t<col_2>...'
+  conteniendo únicamente las columnas elegidas por el usuario.
 """
 from __future__ import annotations
 
 import codecs
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import io
 import json
@@ -23,7 +19,7 @@ import os
 from pathlib import Path
 import re
 import time
-from typing import Callable
+from typing import Callable, Sequence
 import xml.etree.ElementTree as ET
 
 PNCAT_EXT = ".pncat"
@@ -31,8 +27,52 @@ PNCAT_HEADER = "# PlayNexus Fast Catalog v1"
 
 _BARE_AMP_RE = re.compile(r"&(?!amp;|lt;|gt;|apos;|quot;|#\d+;|#x[0-9a-fA-F]+;)")
 
-# Nodos hijos relevantes al extraer en perfil optimizado (conserva biosset, display, input, driver, etc.)
-_RELEVANT_CHILD_TAGS_OPTIMIZED = frozenset({
+# Definición canónica de grupos de columnas seleccionables por el usuario:
+# (group_id, i18n_key, fallback_label_en, pncat_columns, default_checked)
+COLUMN_GROUPS_SPEC: tuple[tuple[str, str, str, tuple[str, ...], bool], ...] = (
+    ("title", "xmlconv.colgrp.title", "Full Title (title)", ("title",), True),
+    ("year", "xmlconv.colgrp.year", "Year (year)", ("year",), True),
+    ("manufacturer", "xmlconv.colgrp.manufacturer", "Manufacturer (manufacturer)", ("manufacturer",), True),
+    ("genre", "xmlconv.colgrp.genre", "Genre (genre)", ("genre",), True),
+    ("players", "xmlconv.colgrp.players", "Players (players)", ("players",), True),
+    ("cloneof", "xmlconv.colgrp.cloneof", "Clone Of (cloneof)", ("cloneof",), True),
+    ("bios", "xmlconv.colgrp.bios", "System BIOS (bios)", ("bios",), True),
+    ("romof", "xmlconv.colgrp.romof", "Base ROM (romof)", ("romof",), True),
+    ("sourcefile", "xmlconv.colgrp.sourcefile", "Board / Driver (sourcefile)", ("sourcefile",), True),
+    ("orientation", "xmlconv.colgrp.orientation", "Screen Rotation (display_rotate)", ("display_rotate", "display_type"), True),
+    ("resolution", "xmlconv.colgrp.resolution", "Resolution (width × height)", ("display_width", "display_height"), False),
+    ("controls", "xmlconv.colgrp.controls", "Controls & Buttons", ("control_type", "control_buttons"), False),
+    ("status", "xmlconv.colgrp.status", "Driver Status (status)", ("status",), True),
+    ("mame_flags", "xmlconv.colgrp.mame_flags", "MAME Flags (bios/device/mech/run)", ("isbios", "isdevice", "ismechanical", "runnable"), True),
+    ("crc", "xmlconv.colgrp.crc", "CRC32 (crc)", ("crc",), False),
+    ("rating", "xmlconv.colgrp.rating", "Rating (rating)", ("rating",), False),
+    ("notes", "xmlconv.colgrp.notes", "Notes / Synopsis (notes)", ("notes",), False),
+)
+
+MANDATORY_COLUMNS: tuple[str, ...] = ("keys", "rom_name")
+
+ALL_KNOWN_COLUMNS: frozenset[str] = frozenset(
+    MANDATORY_COLUMNS + tuple(col for _, _, _, cols, _ in COLUMN_GROUPS_SPEC for col in cols) + ("extra_json",)
+)
+
+# Columnas directas del diccionario principal de entrada vs propiedades técnicas
+_ENTRY_TOP_LEVEL_COLS: frozenset[str] = frozenset({
+    "rom_name",
+    "title",
+    "year",
+    "manufacturer",
+    "genre",
+    "players",
+    "cloneof",
+    "bios",
+    "rating",
+    "crc",
+    "sourcefile",
+    "notes",
+})
+
+# Nodos hijos relevantes al extraer desde XML/DAT
+_RELEVANT_CHILD_TAGS = frozenset({
     "description",
     "title",
     "fullname",
@@ -78,61 +118,51 @@ _RELEVANT_CHILD_TAGS_OPTIMIZED = frozenset({
     "video",
 })
 
-# Columnas ya representadas directamente en el TSV de 26 columnas
-_DIRECT_PROP_KEYS = frozenset({
-    "name",
-    "rom_name",
-    "title",
-    "description",
-    "year",
-    "date",
-    "releasedate",
-    "manufacturer",
-    "genre",
-    "players",
-    "input_players",
-    "cloneof",
-    "rating",
-    "crc",
-    "sourcefile",
-    "source_file",
-    "notes",
-    "desc",
-    "bios",
-    "romof",
-    "status",
-    "driver_status",
-    "isbios",
-    "isdevice",
-    "ismechanical",
-    "runnable",
-    "display_type",
-    "display_rotate",
-    "display_width",
-    "display_height",
-    "control_type",
-    "control_buttons",
-})
 
-# Propiedades adicionales que vale la pena conservar en extra_json si existen en perfil optimizado
-_EXTRA_OPTIMIZED_KEYS = frozenset({
-    "biosset_name",
-    "biosset_description",
-    "orientation",
-    "rotate",
-    "rotation",
-    "video_orientation",
-    "display_orientation",
-    "control_ways",
-    "region",
-    "language",
-    "serial",
-})
+def default_selected_columns() -> list[str]:
+    """Devuelve la lista ordenada de columnas .pncat activas por defecto."""
+    cols = list(MANDATORY_COLUMNS)
+    for _gid, _ikey, _lbl, gcols, is_def in COLUMN_GROUPS_SPEC:
+        if is_def:
+            for c in gcols:
+                if c not in cols:
+                    cols.append(c)
+    return cols
+
+
+def normalize_selected_columns(columns: Sequence[str] | None) -> list[str]:
+    """
+    Normaliza una lista de grupos o nombres de columna asegurando que 'keys' y 'rom_name'
+    vayan siempre en las posiciones 0 y 1 y manteniendo un orden estable.
+    """
+    if not columns:
+        return default_selected_columns()
+
+    group_map = {gid: gcols for gid, _, _, gcols, _ in COLUMN_GROUPS_SPEC}
+    requested: list[str] = list(MANDATORY_COLUMNS)
+    for item in columns:
+        key = str(item or "").strip()
+        if not key:
+            continue
+        if key in group_map:
+            for c in group_map[key]:
+                if c not in requested:
+                    requested.append(c)
+        elif key in ALL_KNOWN_COLUMNS and key not in requested:
+            requested.append(key)
+    return requested
+
+
+@dataclass
+class SourceSpec:
+    path: str
+    role: str = "auto"  # "auto" | "catalog" | "genre" | "players" | "manufacturer" | "year" | "notes"
 
 
 @dataclass
 class ConvertOptions:
-    profile: str = "optimized"  # "optimized" | "full"
+    selected_columns: list[str] | None = None
+    profile: str = "optimized"
     genre_ini_path: str = ""
     exclude_devices: bool = False
     exclude_mechanical: bool = False
@@ -144,7 +174,9 @@ class ConvertOptions:
 class ConvertSummary:
     source_path: str
     output_path: str
-    profile: str
+    profile: str = "custom"
+    sources_count: int = 1
+    columns_written: list[str] = field(default_factory=list)
     total_seen: int = 0
     written_entries: int = 0
     genres_assigned: int = 0
@@ -237,11 +269,22 @@ def is_fast_catalog_file(path: str | Path | None) -> bool:
         return False
 
 
+def infer_ini_role(path: str | Path) -> str:
+    """Sugiere el campo de destino inicial cuando el usuario elige un archivo .ini."""
+    stem = Path(path).stem.lower()
+    if any(k in stem for k in ("nplayer", "player")):
+        return "players"
+    if any(k in stem for k in ("manuf", "maker", "developer", "publisher")):
+        return "manufacturer"
+    if "year" in stem:
+        return "year"
+    if any(k in stem for k in ("series", "history", "note", "best")):
+        return "notes"
+    return "genre"
+
+
 class _SanitizingXmlStream(io.RawIOBase):
-    """
-    Flujo de respaldo usado únicamente cuando un XML mal formado contiene '&' sin escapar
-    o codificaciones antiguas (HyperSpin / listas caseras), manteniendo consumo mínimo de RAM.
-    """
+    """Flujo de respaldo para XMLs con '&' sin escapar o codificaciones antiguas."""
 
     def __init__(self, file_path: Path, chunk_size: int = 524_288):
         super().__init__()
@@ -341,11 +384,7 @@ class _SanitizingXmlStream(io.RawIOBase):
 
 
 def extract_catalog_entry(elem: ET.Element, optimized: bool = True) -> tuple[list[str], dict] | None:
-    """
-    Extrae las claves normalizadas y el diccionario de metadatos desde un nodo XML (<machine>, <game>, <item>).
-    Separa explícitamente `cloneof` real de `romof` / `bios` para que juegos principales con BIOS (ej. Neo Geo)
-    no se marquen falsamente como clones y conserven siempre su referencia a la BIOS.
-    """
+    """Extrae las claves normalizadas y metadatos desde un nodo XML (<machine>, <game>, <item>)."""
     props: dict[str, str] = {}
     raw_children: dict[str, str] = {}
     rom_child_names: list[str] = []
@@ -364,7 +403,7 @@ def extract_catalog_entry(elem: ET.Element, optimized: bool = True) -> tuple[lis
             continue
         tag_lower = raw_tag.rsplit("}", 1)[-1].lower() if "}" in raw_tag else raw_tag.lower()
 
-        if optimized and tag_lower not in _RELEVANT_CHILD_TAGS_OPTIMIZED:
+        if optimized and tag_lower not in _RELEVANT_CHILD_TAGS:
             continue
 
         if tag_lower == "rom":
@@ -548,7 +587,6 @@ def extract_catalog_entry(elem: ET.Element, optimized: bool = True) -> tuple[lis
     ).strip()
 
     players = (props.get("players") or props.get("nplayers") or "").strip()
-    # cloneof estricto (solo clones reales; romof se conserva por separado para BIOS)
     cloneof = (props.get("cloneof") or "").strip()
     romof = (props.get("romof") or "").strip()
     bios_explicit = (props.get("bios") or "").strip()
@@ -599,60 +637,13 @@ def extract_catalog_entry(elem: ET.Element, optimized: bool = True) -> tuple[lis
     return normalized_keys, entry
 
 
-def _format_pncat_line(keys: list[str], entry: dict, optimized: bool) -> str:
-    props = entry["properties"]
-    if optimized:
-        extra = {
-            k: v
-            for k, v in props.items()
-            if v and k in _EXTRA_OPTIMIZED_KEYS
-        }
-    else:
-        extra = {
-            k: v
-            for k, v in props.items()
-            if v and k not in _DIRECT_PROP_KEYS
-        }
-    extra_json = json.dumps(extra, ensure_ascii=False, separators=(",", ":")) if extra else ""
-    keys_str = "|".join(_esc_field(k) for k in keys if k)
-
-    return "\t".join((
-        keys_str,
-        _esc_field(entry["rom_name"]),
-        _esc_field(entry["title"]),
-        _esc_field(entry["year"]),
-        _esc_field(entry["manufacturer"]),
-        _esc_field(entry["genre"]),
-        _esc_field(entry["players"]),
-        _esc_field(entry["cloneof"]),
-        _esc_field(entry["rating"]),
-        _esc_field(entry["crc"]),
-        _esc_field(entry["sourcefile"]),
-        _esc_field(entry["notes"]),
-        _esc_field(entry.get("bios") or props.get("bios", "")),
-        _esc_field(props.get("romof", "")),
-        _esc_field(props.get("status") or props.get("driver_status") or ""),
-        _esc_field(props.get("isbios", "")),
-        _esc_field(props.get("isdevice", "")),
-        _esc_field(props.get("ismechanical", "")),
-        _esc_field(props.get("runnable", "")),
-        _esc_field(props.get("display_type", "")),
-        _esc_field(props.get("display_rotate", "")),
-        _esc_field(props.get("display_width", "")),
-        _esc_field(props.get("display_height", "")),
-        _esc_field(props.get("control_type", "")),
-        _esc_field(props.get("control_buttons", "")),
-        _esc_field(extra_json),
-    ))
-
-
-def parse_mame_genre_ini(ini_path: str | Path | None) -> dict[str, str]:
+def parse_mame_ini_mapping(ini_path: str | Path | None) -> dict[str, str]:
     """
-    Lee un archivo INI externo de géneros/categorías de MAME y devuelve {rom_name_lower: genre}.
-    Soporta ambos formatos estándar:
-      1. Formato clásico 'catver.ini' (ProgettoSnaps): sección [Category] con líneas 'sf2=Fighter / Versus'.
-      2. Formato carpetas MAMEUI / Arcade64 ('Category.ini', 'genre.ini'): secciones '[Fighter / Versus]'
-         seguidas por nombres de ROM uno por línea.
+    Lee cualquier archivo .ini de MAME y devuelve {rom_name_lower: valor}:
+      1. Formato clave=valor ('catver.ini' [Category], 'nplayers.ini' [NPlayers], etc.),
+         ignorando secciones de versión o ajustes ([VerAdded], [FOLDER_SETTINGS], [ROOT_FOLDER]).
+      2. Formato carpetas MAMEUI / Arcade64 ('Category.ini', 'Manufacturer.ini', 'Year.ini', 'Series.ini'):
+         secciones '[Valor]' seguidas de nombres de ROM uno por línea.
     """
     if not ini_path:
         return {}
@@ -680,10 +671,9 @@ def parse_mame_genre_ini(ini_path: str | Path | None) -> dict[str, str]:
         "settings",
         "general",
     }
-    kv_category_sections = {"category", "categories", "genre", "genres"}
     trailing_num_re = re.compile(r"\s*/\s*\d+$")
 
-    genre_map: dict[str, str] = {}
+    mapping: dict[str, str] = {}
     current_section = ""
     current_sec_lower = ""
 
@@ -701,107 +691,135 @@ def parse_mame_genre_ini(ini_path: str | Path | None) -> dict[str, str]:
             continue
 
         if "=" in s:
-            if current_sec_lower in kv_category_sections:
-                k, v = s.split("=", 1)
-                rk = k.strip().lower()
-                gv = v.strip()
-                if rk and gv:
-                    genre_map[rk] = gv
+            k, v = s.split("=", 1)
+            rk = k.strip().lower()
+            val = v.strip()
+            if rk and val:
+                mapping.setdefault(rk, val)
         else:
-            # Formato MAMEUI Category.ini: una ROM por línea (sin espacios) bajo [Nombre Categoría]
             if " " not in s and "\t" not in s and current_section:
                 rk = s.lower()
-                genre_map.setdefault(rk, current_section)
+                mapping.setdefault(rk, current_section)
 
-    return genre_map
+    return mapping
 
 
-def _resolve_bios_inheritance(
-    collected: list[tuple[list[str], dict]],
-    bios_names: dict[str, str],
-    parent_links: dict[str, str],
-    genre_map: dict[str, str] | None = None,
-    clone_links: dict[str, str] | None = None,
-) -> int:
+# Alias de compatibilidad
+parse_mame_genre_ini = parse_mame_ini_mapping
+
+
+def _merge_catalog_entry(
+    existing_keys: list[str],
+    existing_entry: dict,
+    new_keys: list[str],
+    new_entry: dict,
+) -> None:
     """
-    Resuelve:
-      1. La BIOS raíz incluso para clones (ej. kof98h -> kof98 -> neogeo).
-      2. El género desde Category.ini / catver.ini (directo por ROM o heredado del padre cloneof).
-    Retorna la cantidad de entradas con género asignado.
+    Fusiona los datos de una fuente secundaria sobre una entrada ya existente sin pisar
+    valores no vacíos definidos por una fuente de mayor prioridad.
     """
-    genres_count = 0
-    g_map = genre_map or {}
-    c_links = clone_links or {}
+    for k in new_keys:
+        if k and k not in existing_keys:
+            existing_keys.append(k)
 
-    for _keys, entry in collected:
-        props = entry["properties"]
-        if bios_names:
-            if props.get("isbios", "").lower() in ("yes", "true", "1"):
-                entry["bios"] = entry["rom_name"]
-                props["bios"] = entry["rom_name"]
-            else:
-                cur_bios = entry.get("bios", "")
-                if cur_bios and cur_bios.lower() in bios_names:
-                    canon = bios_names[cur_bios.lower()]
-                    entry["bios"] = canon
-                    props["bios"] = canon
-                else:
-                    visited: set[str] = set()
-                    curr = (props.get("romof") or entry.get("cloneof") or "").strip().lower()
-                    for _ in range(8):
-                        if not curr or curr in visited:
-                            break
-                        if curr in bios_names:
-                            canon = bios_names[curr]
-                            entry["bios"] = canon
-                            props["bios"] = canon
-                            break
-                        visited.add(curr)
-                        curr = parent_links.get(curr, "")
+    # Si la primera fuente solo tenía el nombre corto como título y la segunda tiene descripción real
+    if (
+        (not existing_entry["title"] or existing_entry["title"].lower() == existing_entry["rom_name"].lower())
+        and new_entry["title"]
+        and new_entry["title"].lower() != new_entry["rom_name"].lower()
+    ):
+        existing_entry["title"] = new_entry["title"]
+        existing_entry["properties"]["title"] = new_entry["title"]
 
-        # Asignación / herencia de género si el XML no lo trajo
-        if not entry["genre"] and g_map:
-            r_low = entry["rom_name"].lower()
-            resolved_g = g_map.get(r_low, "")
-            if not resolved_g:
-                visited_c: set[str] = set()
-                curr_c = entry["cloneof"].lower()
-                for _ in range(6):
-                    if not curr_c or curr_c in visited_c:
-                        break
-                    if curr_c in g_map:
-                        resolved_g = g_map[curr_c]
-                        break
-                    visited_c.add(curr_c)
-                    curr_c = c_links.get(curr_c, "")
-            if resolved_g:
-                entry["genre"] = resolved_g
-                props["genre"] = resolved_g
+    for fld in ("year", "manufacturer", "genre", "players", "cloneof", "bios", "rating", "crc", "sourcefile", "notes"):
+        if not existing_entry.get(fld) and new_entry.get(fld):
+            existing_entry[fld] = new_entry[fld]
+            if fld != "notes":
+                existing_entry["properties"][fld] = new_entry[fld]
 
-        if entry["genre"]:
-            genres_count += 1
-
-    return genres_count
+    ex_props = existing_entry["properties"]
+    for pk, pv in new_entry["properties"].items():
+        if pv and not ex_props.get(pk):
+            ex_props[pk] = pv
 
 
-def convert_xml_to_pncat(
-    source_xml_path: str | Path,
+def _format_dynamic_pncat_line(keys: list[str], entry: dict, columns: Sequence[str]) -> str:
+    """Serializa una fila del archivo .pncat conteniendo exactamente las columnas seleccionadas."""
+    props = entry["properties"]
+    out_cells: list[str] = []
+
+    for col in columns:
+        if col == "keys":
+            out_cells.append("|".join(_esc_field(k) for k in keys if k))
+        elif col in _ENTRY_TOP_LEVEL_COLS:
+            val = entry.get(col) or props.get(col, "")
+            out_cells.append(_esc_field(str(val) if val else ""))
+        elif col == "status":
+            val = props.get("status") or props.get("driver_status") or ""
+            out_cells.append(_esc_field(val))
+        else:
+            val = props.get(col, "")
+            out_cells.append(_esc_field(str(val) if val else ""))
+
+    return "\t".join(out_cells)
+
+
+def build_pncat_from_sources(
+    sources: Sequence[SourceSpec | str | Path],
     output_pncat_path: str | Path,
     options: ConvertOptions | None = None,
     progress_callback: Callable[[int, int, int, int], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
 ) -> ConvertSummary:
     """
-    Convierte un archivo XML / DAT de cualquier tamaño (ej. MAME 300+ MB) a '.pncat'
-    conservando siempre todas las BIOS y resolviendo la herencia de BIOS en padres y clones.
+    Construye un catálogo rápido '.pncat' combinando cualquier cantidad (1..N) de fuentes
+    (.xml, .dat, .pncat e .ini) en el orden indicado y escribiendo únicamente las columnas elegidas.
     """
     opts = options or ConvertOptions()
+    columns = normalize_selected_columns(opts.selected_columns)
     optimized = opts.profile != "full"
 
-    src = Path(source_xml_path)
-    if not src.is_file():
-        raise FileNotFoundError(f"No existe el archivo XML/DAT de origen: {src}")
+    norm_sources: list[SourceSpec] = []
+    for item in sources:
+        if isinstance(item, SourceSpec):
+            p_str = item.path.strip()
+            if p_str:
+                norm_sources.append(SourceSpec(path=p_str, role=item.role or "auto"))
+        else:
+            p_str = str(item or "").strip()
+            if p_str:
+                norm_sources.append(SourceSpec(path=p_str, role="auto"))
 
+    # Compatibilidad con llamadas que pasaban genre_ini_path en ConvertOptions
+    if opts.genre_ini_path and opts.genre_ini_path.strip():
+        g_path = opts.genre_ini_path.strip()
+        if all(os.path.abspath(s.path).lower() != os.path.abspath(g_path).lower() for s in norm_sources):
+            norm_sources.append(SourceSpec(path=g_path, role="genre"))
+
+    if not norm_sources:
+        raise ValueError("Debes agregar al menos un archivo de origen (.xml, .dat o .ini).")
+
+    catalog_sources: list[Path] = []
+    ini_sources: list[tuple[Path, str]] = []
+    total_bytes = 0
+
+    for spec in norm_sources:
+        p = Path(spec.path)
+        if not p.is_file():
+            raise FileNotFoundError(f"No existe el archivo de origen: {p}")
+        total_bytes += os.path.getsize(p)
+        ext = p.suffix.lower()
+        role = (spec.role or "auto").lower()
+        if ext == ".ini" or role in ("genre", "players", "manufacturer", "year", "notes"):
+            eff_role = infer_ini_role(p) if role in ("auto", "catalog", "") else role
+            ini_sources.append((p, eff_role))
+        else:
+            catalog_sources.append(p)
+
+    if not catalog_sources:
+        raise ValueError("Debes incluir al menos una fuente de catálogo (.xml o .dat) con juegos.")
+
+    total_bytes = max(1, total_bytes)
     dst = Path(output_pncat_path)
     if dst.suffix.lower() != PNCAT_EXT:
         dst = dst.with_suffix(PNCAT_EXT)
@@ -809,36 +827,50 @@ def convert_xml_to_pncat(
     tmp_dst = dst.with_name(dst.name + ".tmp")
 
     t0 = time.perf_counter()
-    total_bytes = max(1, os.path.getsize(src))
     summary = ConvertSummary(
-        source_path=str(src),
+        source_path="; ".join(str(s.path) for s in norm_sources),
         output_path=str(dst),
         profile=opts.profile,
+        sources_count=len(norm_sources),
+        columns_written=list(columns),
         source_size_bytes=total_bytes,
     )
 
-    def _reset_counts() -> None:
-        summary.total_seen = 0
-        summary.written_entries = 0
-        summary.skipped_devices = 0
-        summary.skipped_mechanical = 0
-        summary.skipped_clones = 0
-        summary.skipped_non_runnable = 0
+    merged_by_rom: dict[str, tuple[list[str], dict]] = {}
+    bios_names: dict[str, str] = {}
+    parent_links: dict[str, str] = {}
+    clone_links: dict[str, str] = {}
+    cumulative_bytes_before = 0
 
-    def _stream_collect(
-        target_tags: frozenset[str],
-        use_sanitizer: bool,
-    ) -> tuple[list[tuple[list[str], dict]], dict[str, str], dict[str, str], dict[str, str]]:
-        collected: list[tuple[list[str], dict]] = []
-        bios_names: dict[str, str] = {}
-        parent_links: dict[str, str] = {}
-        clone_links: dict[str, str] = {}
+    def _register_entry(keys: list[str], entry: dict) -> None:
+        props = entry["properties"]
+        r_low = entry["rom_name"].lower()
+        romof_val = props.get("romof", "")
+        clone_val = entry["cloneof"]
+        is_bios_entry = props.get("isbios", "").lower() in ("yes", "true", "1")
 
+        if is_bios_entry:
+            bios_names[r_low] = entry["rom_name"]
+        elif romof_val and romof_val.lower() != clone_val.lower():
+            bios_names.setdefault(romof_val.lower(), romof_val)
+        if romof_val or clone_val:
+            parent_links.setdefault(r_low, (romof_val or clone_val).lower())
+        if clone_val:
+            clone_links.setdefault(r_low, clone_val.lower())
+
+        if r_low in merged_by_rom:
+            ex_keys, ex_entry = merged_by_rom[r_low]
+            _merge_catalog_entry(ex_keys, ex_entry, keys, entry)
+        else:
+            merged_by_rom[r_low] = (keys, entry)
+
+    def _stream_single_xml(src_file: Path, target_tags: frozenset[str], use_sanitizer: bool) -> int:
+        found_in_pass = 0
         if use_sanitizer:
-            reader = _SanitizingXmlStream(src)
+            reader = _SanitizingXmlStream(src_file)
             tell_fn = lambda: reader.bytes_read
         else:
-            reader = open(src, "rb", buffering=1024 * 1024)
+            reader = open(src_file, "rb", buffering=1024 * 1024)
             tell_fn = reader.tell
 
         try:
@@ -856,100 +888,170 @@ def convert_xml_to_pncat(
                 if cancel_check and (summary.total_seen & 0xFF) == 0 and cancel_check():
                     summary.cancelled = True
                     elem.clear()
-                    return collected, bios_names, parent_links, clone_links
+                    return found_in_pass
 
                 summary.total_seen += 1
+                found_in_pass += 1
                 extracted = extract_catalog_entry(elem, optimized=optimized)
                 elem.clear()
 
                 if extracted is not None:
                     keys, entry = extracted
-                    props = entry["properties"]
-                    r_low = entry["rom_name"].lower()
-                    romof_val = props.get("romof", "")
-                    clone_val = entry["cloneof"]
-                    is_bios_entry = props.get("isbios", "").lower() in ("yes", "true", "1")
-
-                    # Registrar grafo ligero para resolver BIOS y género de clones aunque el padre fuese filtrado
-                    if is_bios_entry:
-                        bios_names[r_low] = entry["rom_name"]
-                    elif romof_val and romof_val.lower() != clone_val.lower():
-                        bios_names.setdefault(romof_val.lower(), romof_val)
-                    if romof_val or clone_val:
-                        parent_links[r_low] = (romof_val or clone_val).lower()
-                    if clone_val:
-                        clone_links[r_low] = clone_val.lower()
-
-                    # Las entradas isbios="yes" NUNCA se descartan por pre-filtros
-                    if not is_bios_entry:
-                        if opts.exclude_devices and props.get("isdevice", "").lower() in ("yes", "true", "1"):
-                            summary.skipped_devices += 1
-                            continue
-                        if opts.exclude_mechanical and props.get("ismechanical", "").lower() in ("yes", "true", "1"):
-                            summary.skipped_mechanical += 1
-                            continue
-                        if opts.exclude_non_runnable and props.get("runnable", "").lower() in ("no", "false", "0"):
-                            summary.skipped_non_runnable += 1
-                            continue
-                        if opts.exclude_clones and bool(clone_val):
-                            summary.skipped_clones += 1
-                            continue
-
-                    collected.append((keys, entry))
-                    summary.written_entries += 1
+                    _register_entry(keys, entry)
 
                 if progress_callback and (summary.total_seen & 0x1FF) == 0:
                     now = time.perf_counter()
                     if now - last_report_t >= 0.08:
                         last_report_t = now
-                        b_read = tell_fn()
-                        pct = min(96, int((b_read * 96) / total_bytes))
-                        progress_callback(pct, summary.total_seen, summary.written_entries, b_read)
+                        b_read = cumulative_bytes_before + tell_fn()
+                        pct = min(94, int((b_read * 94) / total_bytes))
+                        progress_callback(pct, summary.total_seen, len(merged_by_rom), b_read)
         finally:
             reader.close()
 
-        return collected, bios_names, parent_links, clone_links
+        return found_in_pass
 
     primary_tags = frozenset({"machine", "game", "item"})
-    genre_map = parse_mame_genre_ini(opts.genre_ini_path) if opts.genre_ini_path else {}
 
     try:
-        used_sanitizer = False
-        try:
-            collected, bios_names, parent_links, clone_links = _stream_collect(primary_tags, use_sanitizer=False)
-        except ET.ParseError:
-            used_sanitizer = True
-            _reset_counts()
-            collected, bios_names, parent_links, clone_links = _stream_collect(primary_tags, use_sanitizer=True)
+        for cat_file in catalog_sources:
+            if cancel_check and cancel_check():
+                summary.cancelled = True
+                break
 
-        if not summary.cancelled and summary.total_seen == 0:
-            _reset_counts()
-            collected, bios_names, parent_links, clone_links = _stream_collect(
-                frozenset({"rom"}), use_sanitizer=used_sanitizer
-            )
+            f_size = os.path.getsize(cat_file)
+            if is_fast_catalog_file(cat_file):
+                entries_list, _cols = read_fast_catalog_table(cat_file)
+                for entry in entries_list:
+                    summary.total_seen += 1
+                    r_name = entry["rom_name"]
+                    keys = entry.get("_keys") or [r_name.lower()]
+                    _register_entry(list(keys), entry)
+            else:
+                # Respaldar estado por si un XML requiere reintento con sanitizador de '&'
+                snap_merged = len(merged_by_rom)
+                snap_seen = summary.total_seen
+                used_sanitizer = False
+                try:
+                    cnt = _stream_single_xml(cat_file, primary_tags, use_sanitizer=False)
+                except ET.ParseError:
+                    used_sanitizer = True
+                    if snap_merged == 0:
+                        merged_by_rom.clear()
+                        bios_names.clear()
+                        parent_links.clear()
+                        clone_links.clear()
+                    summary.total_seen = snap_seen
+                    cnt = _stream_single_xml(cat_file, primary_tags, use_sanitizer=True)
+
+                if not summary.cancelled and cnt == 0:
+                    _stream_single_xml(cat_file, frozenset({"rom"}), use_sanitizer=used_sanitizer)
+
+            cumulative_bytes_before += f_size
+            if summary.cancelled:
+                break
 
         if summary.cancelled:
             tmp_dst.unlink(missing_ok=True)
             summary.elapsed_seconds = time.perf_counter() - t0
             return summary
 
-        summary.genres_assigned = _resolve_bios_inheritance(
-            collected, bios_names, parent_links, genre_map=genre_map, clone_links=clone_links
-        )
+        # Cargar fuentes .ini (géneros, jugadores, fabricante, año, notas) en orden de prioridad
+        ini_layers: list[tuple[str, dict[str, str]]] = []
+        for ini_path, role in ini_sources:
+            if cancel_check and cancel_check():
+                summary.cancelled = True
+                break
+            ini_map = parse_mame_ini_mapping(ini_path)
+            if ini_map:
+                ini_layers.append((role, ini_map))
+            cumulative_bytes_before += os.path.getsize(ini_path)
+
+        if summary.cancelled:
+            tmp_dst.unlink(missing_ok=True)
+            summary.elapsed_seconds = time.perf_counter() - t0
+            return summary
+
+        # Resolver herencia de BIOS y aplicar capas .ini (con herencia de padre a clon)
+        for _r_low, (_keys, entry) in merged_by_rom.items():
+            props = entry["properties"]
+            if bios_names:
+                if props.get("isbios", "").lower() in ("yes", "true", "1"):
+                    entry["bios"] = entry["rom_name"]
+                    props["bios"] = entry["rom_name"]
+                else:
+                    cur_bios = entry.get("bios", "")
+                    if cur_bios and cur_bios.lower() in bios_names:
+                        canon = bios_names[cur_bios.lower()]
+                        entry["bios"] = canon
+                        props["bios"] = canon
+                    else:
+                        visited: set[str] = set()
+                        curr = (props.get("romof") or entry.get("cloneof") or "").strip().lower()
+                        for _ in range(8):
+                            if not curr or curr in visited:
+                                break
+                            if curr in bios_names:
+                                canon = bios_names[curr]
+                                entry["bios"] = canon
+                                props["bios"] = canon
+                                break
+                            visited.add(curr)
+                            curr = parent_links.get(curr, "")
+
+            for role, ini_map in ini_layers:
+                if entry.get(role):
+                    continue
+                rk = entry["rom_name"].lower()
+                resolved_val = ini_map.get(rk, "")
+                if not resolved_val:
+                    visited_c: set[str] = set()
+                    curr_c = entry["cloneof"].lower()
+                    for _ in range(6):
+                        if not curr_c or curr_c in visited_c:
+                            break
+                        if curr_c in ini_map:
+                            resolved_val = ini_map[curr_c]
+                            break
+                        visited_c.add(curr_c)
+                        curr_c = clone_links.get(curr_c, "")
+                if resolved_val:
+                    entry[role] = resolved_val
+                    if role != "notes":
+                        props[role] = resolved_val
+
+            if entry.get("genre"):
+                summary.genres_assigned += 1
+
+        # Aplicar pre-filtros opcionales y escribir exactamente las columnas seleccionadas
+        src_names_header = " + ".join(Path(s.path).name for s in norm_sources)
+        cols_header = "\t".join(columns)
 
         with open(tmp_dst, "w", encoding="utf-8", buffering=1024 * 1024, newline="\n") as out_fh:
             out_fh.write(f"{PNCAT_HEADER}\n")
-            out_fh.write(f"# source: {src.name}\n")
-            out_fh.write(f"# profile: {opts.profile}\n")
+            out_fh.write(f"# sources: {src_names_header}\n")
             out_fh.write(f"# generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            out_fh.write(
-                "# columns: keys\trom_name\ttitle\tyear\tmanufacturer\tgenre\tplayers\t"
-                "cloneof\trating\tcrc\tsourcefile\tnotes\tbios\tromof\tstatus\tisbios\tisdevice\t"
-                "ismechanical\trunnable\tdisplay_type\tdisplay_rotate\tdisplay_width\t"
-                "display_height\tcontrol_type\tcontrol_buttons\textra_json\n"
-            )
-            for keys, entry in collected:
-                out_fh.write(_format_pncat_line(keys, entry, optimized=optimized) + "\n")
+            out_fh.write(f"# columns: {cols_header}\n")
+
+            for keys, entry in merged_by_rom.values():
+                props = entry["properties"]
+                is_bios_entry = props.get("isbios", "").lower() in ("yes", "true", "1")
+                if not is_bios_entry:
+                    if opts.exclude_devices and props.get("isdevice", "").lower() in ("yes", "true", "1"):
+                        summary.skipped_devices += 1
+                        continue
+                    if opts.exclude_mechanical and props.get("ismechanical", "").lower() in ("yes", "true", "1"):
+                        summary.skipped_mechanical += 1
+                        continue
+                    if opts.exclude_non_runnable and props.get("runnable", "").lower() in ("no", "false", "0"):
+                        summary.skipped_non_runnable += 1
+                        continue
+                    if opts.exclude_clones and bool(entry["cloneof"]):
+                        summary.skipped_clones += 1
+                        continue
+
+                out_fh.write(_format_dynamic_pncat_line(keys, entry, columns) + "\n")
+                summary.written_entries += 1
 
         os.replace(tmp_dst, dst)
         summary.output_size_bytes = os.path.getsize(dst)
@@ -962,19 +1064,74 @@ def convert_xml_to_pncat(
         raise
 
 
-def parse_fast_catalog(pncat_path: str | Path) -> dict[str, dict]:
+def convert_xml_to_pncat(
+    source_xml_path: str | Path,
+    output_pncat_path: str | Path,
+    options: ConvertOptions | None = None,
+    progress_callback: Callable[[int, int, int, int], None] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+) -> ConvertSummary:
+    """Envoltorio compatible para convertir un único XML/DAT (más .ini opcional en options)."""
+    return build_pncat_from_sources(
+        [SourceSpec(path=str(source_xml_path), role="catalog")],
+        output_pncat_path=output_pncat_path,
+        options=options,
+        progress_callback=progress_callback,
+        cancel_check=cancel_check,
+    )
+
+
+_LEGACY_26_COLS: tuple[str, ...] = (
+    "keys", "rom_name", "title", "year", "manufacturer", "genre", "players",
+    "cloneof", "rating", "crc", "sourcefile", "notes", "bios", "romof",
+    "status", "isbios", "isdevice", "ismechanical", "runnable",
+    "display_type", "display_rotate", "display_width", "display_height",
+    "control_type", "control_buttons", "extra_json",
+)
+
+_LEGACY_25_COLS: tuple[str, ...] = (
+    "keys", "rom_name", "title", "year", "manufacturer", "genre", "players",
+    "cloneof", "rating", "crc", "sourcefile", "notes", "romof",
+    "status", "isbios", "isdevice", "ismechanical", "runnable",
+    "display_type", "display_rotate", "display_width", "display_height",
+    "control_type", "control_buttons", "extra_json",
+)
+
+
+def _parse_fast_catalog_internal(
+    pncat_path: str | Path,
+    keep_keys_attr: bool = False,
+) -> tuple[dict[str, dict], list[str]]:
     """
-    Carga un catálogo '.pncat' a velocidad ultrarrápida retornando la misma estructura
-    que parse_rom_xml(), incluyendo 'bios' y 'romof' para reglas de filtrado.
+    Lector dinámico de alta velocidad para cualquier esquema '# columns: ...' de '.pncat'.
+    Pre-calcula índices enteros desde la cabecera una sola vez antes del bucle.
     """
     p = Path(pncat_path)
     catalog_map: dict[str, dict] = {}
     unesc = _unesc_field
 
+    header_cols: list[str] | None = None
+    idx_map: dict[str, int] = {}
+    prop_cols: list[tuple[str, int]] = []
+
+    def _bind_schema(cols: Sequence[str]) -> None:
+        nonlocal header_cols, idx_map, prop_cols
+        header_cols = list(cols)
+        idx_map = {c: i for i, c in enumerate(header_cols)}
+        skip_for_props = {"keys", "rom_name", "title", "notes", "extra_json"}
+        prop_cols = [(c, i) for i, c in enumerate(header_cols) if c not in skip_for_props]
+
     with open(p, "r", encoding="utf-8-sig", buffering=1024 * 1024) as fh:
         for raw_line in fh:
-            if not raw_line or raw_line[0] == "#" or raw_line[0] in ("\r", "\n"):
+            if not raw_line or raw_line[0] in ("\r", "\n"):
                 continue
+            if raw_line[0] == "#":
+                if raw_line.startswith("# columns:"):
+                    raw_cols = raw_line[10:].strip().split("\t")
+                    if len(raw_cols) >= 2:
+                        _bind_schema(raw_cols)
+                continue
+
             line = raw_line[:-1] if raw_line[-1] == "\n" else raw_line
             if line and line[-1] == "\r":
                 line = line[:-1]
@@ -983,173 +1140,68 @@ def parse_fast_catalog(pncat_path: str | Path) -> dict[str, dict]:
 
             parts = line.split("\t")
             n_parts = len(parts)
-            if n_parts < 12:
+            if n_parts < 2:
                 continue
 
+            if header_cols is None:
+                if n_parts >= 26:
+                    _bind_schema(_LEGACY_26_COLS)
+                elif n_parts == 25:
+                    _bind_schema(_LEGACY_25_COLS)
+                else:
+                    _bind_schema(_LEGACY_26_COLS[:n_parts])
+
             has_backslash = "\\" in line
-            if has_backslash:
-                keys_raw = parts[0]
-                rom_name = unesc(parts[1])
-                title = unesc(parts[2]) or rom_name
-                year = unesc(parts[3])
-                manufacturer = unesc(parts[4])
-                genre = unesc(parts[5])
-                players = unesc(parts[6])
-                cloneof = unesc(parts[7])
-                rating = unesc(parts[8])
-                crc = unesc(parts[9])
-                sourcefile = unesc(parts[10])
-                notes = unesc(parts[11])
-            else:
-                keys_raw = parts[0]
-                rom_name = parts[1]
-                title = parts[2] or rom_name
-                year = parts[3]
-                manufacturer = parts[4]
-                genre = parts[5]
-                players = parts[6]
-                cloneof = parts[7]
-                rating = parts[8]
-                crc = parts[9]
-                sourcefile = parts[10]
-                notes = parts[11]
+
+            def _cell(idx: int) -> str:
+                if idx < 0 or idx >= n_parts:
+                    return ""
+                val = parts[idx]
+                return unesc(val) if (has_backslash and val) else val
+
+            keys_raw = parts[idx_map.get("keys", 0)] if idx_map.get("keys", 0) < n_parts else ""
+            rom_name = _cell(idx_map.get("rom_name", 1))
+            title = _cell(idx_map.get("title", -1)) or rom_name
+            year = _cell(idx_map.get("year", -1))
+            manufacturer = _cell(idx_map.get("manufacturer", -1))
+            genre = _cell(idx_map.get("genre", -1))
+            players = _cell(idx_map.get("players", -1))
+            cloneof = _cell(idx_map.get("cloneof", -1))
+            bios = _cell(idx_map.get("bios", -1))
+            rating = _cell(idx_map.get("rating", -1))
+            crc = _cell(idx_map.get("crc", -1))
+            sourcefile = _cell(idx_map.get("sourcefile", -1))
+            notes = _cell(idx_map.get("notes", -1))
+            extra_raw = _cell(idx_map.get("extra_json", -1))
 
             props: dict[str, str] = {
                 "rom_name": rom_name,
                 "title": title,
             }
-            bios = ""
+            if extra_raw:
+                try:
+                    loaded = json.loads(extra_raw)
+                    if isinstance(loaded, dict):
+                        for ek, ev in loaded.items():
+                            if ev is not None and ev != "":
+                                props[str(ek)] = str(ev)
+                except Exception:
+                    pass
 
-            if n_parts >= 26:
-                if has_backslash:
-                    bios = unesc(parts[12])
-                    romof = unesc(parts[13])
-                    status = unesc(parts[14])
-                    isbios = unesc(parts[15])
-                    isdevice = unesc(parts[16])
-                    ismechanical = unesc(parts[17])
-                    runnable = unesc(parts[18])
-                    display_type = unesc(parts[19])
-                    display_rotate = unesc(parts[20])
-                    display_width = unesc(parts[21])
-                    display_height = unesc(parts[22])
-                    control_type = unesc(parts[23])
-                    control_buttons = unesc(parts[24])
-                    extra_raw = unesc(parts[25])
-                else:
-                    bios = parts[12]
-                    romof = parts[13]
-                    status = parts[14]
-                    isbios = parts[15]
-                    isdevice = parts[16]
-                    ismechanical = parts[17]
-                    runnable = parts[18]
-                    display_type = parts[19]
-                    display_rotate = parts[20]
-                    display_width = parts[21]
-                    display_height = parts[22]
-                    control_type = parts[23]
-                    control_buttons = parts[24]
-                    extra_raw = parts[25]
+            for c_name, c_idx in prop_cols:
+                if c_idx < n_parts:
+                    c_val = parts[c_idx]
+                    if c_val:
+                        val_clean = unesc(c_val) if has_backslash else c_val
+                        props[c_name] = val_clean
+                        if c_name == "status":
+                            props["driver_status"] = val_clean
 
-                if extra_raw:
-                    try:
-                        loaded = json.loads(extra_raw)
-                        if isinstance(loaded, dict):
-                            for ek, ev in loaded.items():
-                                if ev is not None and ev != "":
-                                    props[str(ek)] = str(ev)
-                    except Exception:
-                        pass
+            if not bios and props.get("romof") and props["romof"].lower() != cloneof.lower():
+                bios = props["romof"]
+                props["bios"] = bios
 
-                if bios:
-                    props["bios"] = bios
-                if romof:
-                    props["romof"] = romof
-                if status:
-                    props["status"] = status
-                    props["driver_status"] = status
-                if isbios:
-                    props["isbios"] = isbios
-                if isdevice:
-                    props["isdevice"] = isdevice
-                if ismechanical:
-                    props["ismechanical"] = ismechanical
-                if runnable:
-                    props["runnable"] = runnable
-                if display_type:
-                    props["display_type"] = display_type
-                if display_rotate:
-                    props["display_rotate"] = display_rotate
-                if display_width:
-                    props["display_width"] = display_width
-                if display_height:
-                    props["display_height"] = display_height
-                if control_type:
-                    props["control_type"] = control_type
-                if control_buttons:
-                    props["control_buttons"] = control_buttons
-            elif n_parts == 25:
-                # Retrocompatibilidad con layout previo de 25 columnas
-                romof = unesc(parts[12]) if has_backslash else parts[12]
-                status = unesc(parts[13]) if has_backslash else parts[13]
-                isbios = unesc(parts[14]) if has_backslash else parts[14]
-                isdevice = unesc(parts[15]) if has_backslash else parts[15]
-                ismechanical = unesc(parts[16]) if has_backslash else parts[16]
-                runnable = unesc(parts[17]) if has_backslash else parts[17]
-                display_type = unesc(parts[18]) if has_backslash else parts[18]
-                display_rotate = unesc(parts[19]) if has_backslash else parts[19]
-                display_width = unesc(parts[20]) if has_backslash else parts[20]
-                display_height = unesc(parts[21]) if has_backslash else parts[21]
-                control_type = unesc(parts[22]) if has_backslash else parts[22]
-                control_buttons = unesc(parts[23]) if has_backslash else parts[23]
-                if romof:
-                    props["romof"] = romof
-                    if romof.lower() != cloneof.lower():
-                        bios = romof
-                        props["bios"] = bios
-                if status:
-                    props["status"] = status
-                    props["driver_status"] = status
-                if isbios:
-                    props["isbios"] = isbios
-                if isdevice:
-                    props["isdevice"] = isdevice
-                if ismechanical:
-                    props["ismechanical"] = ismechanical
-                if runnable:
-                    props["runnable"] = runnable
-                if display_type:
-                    props["display_type"] = display_type
-                if display_rotate:
-                    props["display_rotate"] = display_rotate
-                if display_width:
-                    props["display_width"] = display_width
-                if display_height:
-                    props["display_height"] = display_height
-                if control_type:
-                    props["control_type"] = control_type
-                if control_buttons:
-                    props["control_buttons"] = control_buttons
-
-            if year:
-                props["year"] = year
-            if manufacturer:
-                props["manufacturer"] = manufacturer
-            if genre:
-                props["genre"] = genre
-            if players:
-                props["players"] = players
-            if cloneof:
-                props["cloneof"] = cloneof
-            if rating:
-                props["rating"] = rating
-            if crc:
-                props["crc"] = crc
-            if sourcefile:
-                props["sourcefile"] = sourcefile
-
-            entry = {
+            entry: dict = {
                 "title": title,
                 "rom_name": rom_name,
                 "year": year,
@@ -1165,25 +1217,41 @@ def parse_fast_catalog(pncat_path: str | Path) -> dict[str, dict]:
                 "properties": props,
             }
 
+            parsed_keys: list[str] = []
             if "|" in keys_raw:
                 for idx, k in enumerate(keys_raw.split("|")):
                     if not k:
                         continue
                     ck = unesc(k) if has_backslash else k
+                    parsed_keys.append(ck)
                     if idx == 0 or ck not in catalog_map:
                         catalog_map[ck] = entry
             elif keys_raw:
                 ck = unesc(keys_raw) if has_backslash else keys_raw
+                parsed_keys.append(ck)
                 catalog_map[ck] = entry
             elif rom_name:
-                catalog_map[rom_name.lower()] = entry
+                ck = rom_name.lower()
+                parsed_keys.append(ck)
+                catalog_map[ck] = entry
 
+            if keep_keys_attr:
+                entry["_keys"] = parsed_keys
+
+    return catalog_map, (header_cols or list(default_selected_columns()))
+
+
+def parse_fast_catalog(pncat_path: str | Path) -> dict[str, dict]:
+    """Carga un catálogo '.pncat' y retorna el mapa {rom_key: entry} compatible con parse_rom_xml()."""
+    catalog_map, _cols = _parse_fast_catalog_internal(pncat_path, keep_keys_attr=False)
     return catalog_map
 
 
-def read_fast_catalog_entries(pncat_path: str | Path, limit: int = 0) -> list[dict]:
-    """Devuelve una lista deduplicada de entradas únicas contenidas en un archivo '.pncat'."""
-    catalog_map = parse_fast_catalog(pncat_path)
+def read_fast_catalog_table(pncat_path: str | Path, limit: int = 0) -> tuple[list[dict], list[str]]:
+    """
+    Devuelve (entradas_unicas, columnas_del_archivo) para poblar dinámicamente la tabla de vista previa.
+    """
+    catalog_map, cols = _parse_fast_catalog_internal(pncat_path, keep_keys_attr=True)
     seen_ids: set[int] = set()
     entries: list[dict] = []
     for entry in catalog_map.values():
@@ -1194,4 +1262,10 @@ def read_fast_catalog_entries(pncat_path: str | Path, limit: int = 0) -> list[di
         entries.append(entry)
         if limit > 0 and len(entries) >= limit:
             break
+    return entries, cols
+
+
+def read_fast_catalog_entries(pncat_path: str | Path, limit: int = 0) -> list[dict]:
+    """Devuelve la lista deduplicada de entradas únicas contenidas en un archivo '.pncat'."""
+    entries, _cols = read_fast_catalog_table(pncat_path, limit=limit)
     return entries

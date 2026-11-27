@@ -1,10 +1,10 @@
 """
 Pestaña 'Conversor XML' para el Configurador de PlayNexus.
 
-Convierte catálogos XML / DAT pesados (MAME 300+ MB, HyperSpin, Logiqx DAT, EmulationStation gamelist.xml)
-al formato de texto plano ultrarrápido y 100% portable '.pncat' (PlayNexus Fast Catalog v1),
-con lectura por streaming en hilo secundario, pre-filtros opcionales, buscador de prueba instantáneo
-y vinculación en 1 clic a cualquier lista existente.
+Constructor multi-fuente a medida de catálogos rápidos '.pncat' (PlayNexus Fast Catalog v1):
+- Permite sumar cualquier cantidad de fuentes con el botón '＋' (.xml, .dat, .ini) y ordenar su prioridad.
+- Permite elegir explícitamente qué columnas se guardarán en el archivo '.pncat' (y se mostrarán en la vista previa).
+- Sin botones ni rutas predefinidas por defecto: todas las ubicaciones las elige el usuario.
 """
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ import time
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -36,18 +36,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from playnexus.db import CONFIG_DIR, Database
+from playnexus.db import Database
 from playnexus.i18n import tr
-from playnexus.services.library import apply_xml_to_list, sync_filtered_lists_for_source
 from playnexus.services.media import is_game_vertical
 from playnexus.services.xml_converter import (
+    COLUMN_GROUPS_SPEC,
     PNCAT_EXT,
     ConvertOptions,
     ConvertSummary,
-    convert_xml_to_pncat,
+    SourceSpec,
+    build_pncat_from_sources,
+    infer_ini_role,
     is_fast_catalog_file,
-    parse_mame_genre_ini,
-    read_fast_catalog_entries,
+    read_fast_catalog_table,
 )
 from playnexus.ui.table_utils import (
     SortableTableWidgetItem,
@@ -92,8 +93,30 @@ def _reveal_file_in_explorer(path: str) -> None:
         pass
 
 
+# Definición de columnas mostrables dinámicamente en la tabla de vista previa según el esquema del .pncat
+_PREVIEW_COLUMN_DEFS: tuple[tuple[str, str, str, int], ...] = (
+    ("rom_name", "xmlconv.col.rom", "ROM", 100),
+    ("title", "xmlconv.col.title", "Full Title", 240),
+    ("year", "xmlconv.col.year", "Year", 58),
+    ("manufacturer", "xmlconv.col.manufacturer", "Manufacturer", 135),
+    ("genre", "xmlconv.col.genre", "Genre", 120),
+    ("players", "xmlconv.col.players", "Players", 62),
+    ("cloneof", "xmlconv.col.cloneof", "Clone Of", 82),
+    ("bios", "xmlconv.col.bios", "BIOS", 82),
+    ("romof", "xmlconv.col.romof", "ROM Of", 82),
+    ("sourcefile", "xmlconv.col.sourcefile", "Driver / Source", 115),
+    ("display_rotate", "xmlconv.col.orientation", "Screen", 90),
+    ("resolution_ui", "xmlconv.col.resolution", "Resolution", 90),
+    ("controls_ui", "xmlconv.col.controls", "Controls", 95),
+    ("status", "xmlconv.col.status", "Status", 78),
+    ("crc", "xmlconv.col.crc", "CRC32", 85),
+    ("rating", "xmlconv.col.rating", "Rating", 70),
+    ("notes", "xmlconv.col.notes", "Notes", 160),
+)
+
+
 class XmlConvertWorker(QThread):
-    """Hilo de conversión XML/DAT -> .pncat en streaming sin bloquear la interfaz."""
+    """Hilo de conversión multi-fuente (.xml / .dat / .ini) -> .pncat sin bloquear la interfaz."""
 
     progress = Signal(int, int, int, int, float)  # pct, seen, written, bytes_read, elapsed
     finished_ok = Signal(object)  # ConvertSummary
@@ -101,13 +124,13 @@ class XmlConvertWorker(QThread):
 
     def __init__(
         self,
-        source_path: str,
+        sources: list[SourceSpec],
         output_path: str,
         options: ConvertOptions,
         parent=None,
     ):
         super().__init__(parent)
-        self.source_path = source_path
+        self.sources = list(sources)
         self.output_path = output_path
         self.options = options
         self._cancelled = False
@@ -121,8 +144,8 @@ class XmlConvertWorker(QThread):
             def _on_prog(pct: int, seen: int, written: int, bytes_read: int) -> None:
                 self.progress.emit(pct, seen, written, bytes_read, time.perf_counter() - t0)
 
-            summary = convert_xml_to_pncat(
-                self.source_path,
+            summary = build_pncat_from_sources(
+                self.sources,
                 self.output_path,
                 options=self.options,
                 progress_callback=_on_prog,
@@ -134,9 +157,7 @@ class XmlConvertWorker(QThread):
 
 
 class XmlConverterWidget(QWidget):
-    """Pestaña principal del Conversor de Catálogos XML / DAT a formato rápido .pncat."""
-
-    catalog_linked = Signal(int)
+    """Pestaña principal del Conversor Multi-Fuente de Catálogos a formato rápido .pncat."""
 
     def __init__(self, db: Database, parent=None):
         super().__init__(parent)
@@ -144,8 +165,11 @@ class XmlConverterWidget(QWidget):
         self._worker: XmlConvertWorker | None = None
         self._loaded_catalog_path: str = ""
         self._catalog_entries: list[dict] = []
+        self._catalog_columns: list[str] = []
+        self._active_preview_cols: list[str] = ["rom_name", "title", "year", "manufacturer", "genre", "bios", "sourcefile"]
         self._load_ms: float = 0.0
-        self._output_manually_edited: bool = False
+        self.source_rows: list[dict] = []
+        self.column_checkboxes: dict[str, QCheckBox] = {}
 
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -153,7 +177,7 @@ class XmlConverterWidget(QWidget):
         self._search_timer.timeout.connect(self._populate_preview_table)
 
         self._build_ui()
-        self.refresh_lists()
+        self._add_source_row()
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)
@@ -174,15 +198,15 @@ class XmlConverterWidget(QWidget):
         title_lbl = QLabel(
             tr(
                 "xmlconv.header.title",
-                "⚡  XML / DAT Fast Catalog Converter (.pncat)",
+                "⚡  XML / DAT / INI Fast Catalog Builder (.pncat)",
             )
         )
         title_lbl.setStyleSheet("font-size: 13pt; font-weight: 700; color: #e6e9f0; border: none;")
         sub_lbl = QLabel(
             tr(
                 "xmlconv.header.subtitle",
-                "Convert heavy XML or DAT files (such as MAME 300+ MB, HyperSpin, Logiqx DAT, or gamelist.xml) "
-                "into PlayNexus's ultra-fast 100% portable plain-text format (.pncat): ~98% smaller and over 100x faster.",
+                "Combine one or multiple XML, DAT, and INI sources (such as MAME XML + Category.ini + nplayers.ini) "
+                "and choose the exact columns to generate an ultra-fast 100% portable plain-text catalog (.pncat).",
             )
         )
         sub_lbl.setWordWrap(True)
@@ -193,14 +217,13 @@ class XmlConverterWidget(QWidget):
 
         open_existing_btn = QPushButton(tr("xmlconv.btn.open_pncat", "📂  Open existing .pncat…"))
         open_existing_btn.setToolTip(
-            tr("xmlconv.btn.open_pncat_tip", "Load an already-converted .pncat file to inspect or link it to a list")
+            tr("xmlconv.btn.open_pncat_tip", "Load an already-converted .pncat file to inspect its entries")
         )
         open_existing_btn.clicked.connect(self._pick_existing_pncat)
         header_layout.addWidget(open_existing_btn)
 
         outer.addWidget(header_frame)
 
-        # Splitter principal: Izquierda (Configuración / Conversión / Vinculación) | Derecha (Vista previa)
         splitter = QSplitter(Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
 
@@ -213,126 +236,108 @@ class XmlConverterWidget(QWidget):
         left_vbox.setContentsMargins(0, 0, 6, 0)
         left_vbox.setSpacing(10)
 
-        # 1. Origen y Destino
-        io_group = QGroupBox(tr("xmlconv.io.group", "1. Source XML / DAT & Output File"))
-        io_form = QFormLayout(io_group)
-        io_form.setSpacing(8)
+        # 1. Fuentes dinámicas (+) y Destino (.pncat)
+        io_group = QGroupBox(tr("xmlconv.io.group", "1. Input Sources & Output File"))
+        io_vbox = QVBoxLayout(io_group)
+        io_vbox.setSpacing(8)
 
-        self.src_list_combo = QComboBox()
-        self.src_list_combo.activated.connect(self._on_prefill_from_list)
-        io_form.addRow(tr("xmlconv.io.from_list", "Take XML from list:"), self.src_list_combo)
-
-        src_row = QHBoxLayout()
-        src_row.setSpacing(6)
-        self.src_edit = QLineEdit()
-        self.src_edit.setPlaceholderText(
-            tr("xmlconv.io.src_placeholder", "Select a .xml or .dat file (e.g. Mame_289.xml)...")
-        )
-        self.src_edit.textChanged.connect(self._on_source_changed)
-        src_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
-        src_btn.clicked.connect(self._pick_source_xml)
-        src_row.addWidget(self.src_edit, 1)
-        src_row.addWidget(src_btn)
-        src_holder = QWidget()
-        src_holder.setLayout(src_row)
-        io_form.addRow(tr("xmlconv.io.src_label", "Source XML / DAT:"), src_holder)
-
-        self.src_info_lbl = QLabel(tr("xmlconv.io.no_src", "No source file selected."))
-        self.src_info_lbl.setStyleSheet("color: #8b95ab; font-size: 8.5pt;")
-        io_form.addRow("", self.src_info_lbl)
-
-        genre_row = QHBoxLayout()
-        genre_row.setSpacing(6)
-        self.genre_ini_edit = QLineEdit()
-        self.genre_ini_edit.setPlaceholderText(
-            tr("xmlconv.io.genre_ini_placeholder", "Optional for MAME: Category.ini, catver.ini or genre.ini...")
-        )
-        self.genre_ini_edit.textChanged.connect(self._on_genre_ini_changed)
-        genre_browse_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
-        genre_browse_btn.clicked.connect(self._pick_genre_ini)
-        genre_auto_btn = QPushButton(tr("xmlconv.io.genre_auto_btn", "🔎 MAME"))
-        genre_auto_btn.setToolTip(
+        src_hdr = QHBoxLayout()
+        src_hdr_lbl = QLabel(
             tr(
-                "xmlconv.io.genre_auto_tip",
-                "Search Category.ini / catver.ini / genre.ini inside your configured MAME emulators' folders",
+                "xmlconv.io.sources_header",
+                "<b>Data Sources (.xml / .dat / .ini):</b>  <span style='color:#8b95ab; font-size:8.5pt;'>(top = highest priority)</span>",
             )
         )
-        genre_auto_btn.clicked.connect(self._auto_find_mame_genre_ini)
-        genre_clear_btn = QPushButton("✕")
-        genre_clear_btn.setFixedWidth(28)
-        genre_clear_btn.clicked.connect(lambda: self.genre_ini_edit.clear())
-        genre_row.addWidget(self.genre_ini_edit, 1)
-        genre_row.addWidget(genre_browse_btn)
-        genre_row.addWidget(genre_auto_btn)
-        genre_row.addWidget(genre_clear_btn)
-        genre_holder = QWidget()
-        genre_holder.setLayout(genre_row)
-        io_form.addRow(tr("xmlconv.io.genre_ini_label", "MAME Genres (.ini):"), genre_holder)
+        add_src_btn = QPushButton(tr("xmlconv.io.add_source_btn", "＋  Add source"))
+        add_src_btn.setToolTip(
+            tr("xmlconv.io.add_source_tip", "Add another .xml, .dat, or .ini file to combine into the catalog")
+        )
+        add_src_btn.clicked.connect(lambda: self._add_source_row())
+        src_hdr.addWidget(src_hdr_lbl, 1)
+        src_hdr.addWidget(add_src_btn)
+        io_vbox.addLayout(src_hdr)
 
-        self.genre_info_lbl = QLabel("")
-        self.genre_info_lbl.setStyleSheet("color: #7dd3fc; font-size: 8.5pt;")
-        self.genre_info_lbl.setVisible(False)
-        io_form.addRow("", self.genre_info_lbl)
+        self.sources_container = QWidget()
+        self.sources_vbox = QVBoxLayout(self.sources_container)
+        self.sources_vbox.setContentsMargins(0, 0, 0, 0)
+        self.sources_vbox.setSpacing(6)
+        io_vbox.addWidget(self.sources_container)
 
+        self.src_info_lbl = QLabel(tr("xmlconv.io.no_src", "No source files selected."))
+        self.src_info_lbl.setStyleSheet("color: #8b95ab; font-size: 8.5pt;")
+        io_vbox.addWidget(self.src_info_lbl)
+
+        dst_form = QFormLayout()
+        dst_form.setContentsMargins(0, 4, 0, 0)
         dst_row = QHBoxLayout()
         dst_row.setSpacing(6)
         self.dst_edit = QLineEdit()
         self.dst_edit.setPlaceholderText(
-            tr("xmlconv.io.dst_placeholder", "Destination path (.pncat)...")
+            tr("xmlconv.io.dst_placeholder", "Choose where to save the output .pncat file...")
         )
-        self.dst_edit.textEdited.connect(self._on_dst_edited_manually)
         dst_btn = QPushButton(tr("xmlconv.io.save_as", "Save as…"))
         dst_btn.clicked.connect(self._pick_output_pncat)
-        portable_dir_btn = QPushButton(tr("xmlconv.io.use_portable_dir", "📁 config/catalogs"))
-        portable_dir_btn.setToolTip(
-            tr(
-                "xmlconv.io.use_portable_dir_tip",
-                "Place the output .pncat inside PlayNexus's portable 'config/catalogs' folder",
-            )
-        )
-        portable_dir_btn.clicked.connect(self._set_output_in_portable_catalogs)
         dst_row.addWidget(self.dst_edit, 1)
         dst_row.addWidget(dst_btn)
-        dst_row.addWidget(portable_dir_btn)
         dst_holder = QWidget()
         dst_holder.setLayout(dst_row)
-        io_form.addRow(tr("xmlconv.io.dst_label", "Output (.pncat):"), dst_holder)
+        dst_form.addRow(tr("xmlconv.io.dst_label", "Output (.pncat):"), dst_holder)
+        io_vbox.addLayout(dst_form)
 
         left_vbox.addWidget(io_group)
 
-        # 2. Perfil y Pre-filtros
-        opts_group = QGroupBox(tr("xmlconv.opts.group", "2. Optimization Profile & Pre-Filters"))
-        opts_vbox = QVBoxLayout(opts_group)
-        opts_vbox.setSpacing(7)
+        # 2. Selección explícita de Columnas y Pre-filtros
+        cols_group = QGroupBox(tr("xmlconv.cols.group", "2. Columns to Include & Pre-Filters"))
+        cols_vbox = QVBoxLayout(cols_group)
+        cols_vbox.setSpacing(8)
 
-        prof_form = QFormLayout()
-        self.profile_combo = QComboBox()
-        self.profile_combo.addItem(
-            tr(
-                "xmlconv.opts.profile_optimized",
-                "⚡ Optimized (Recommended — keeps titles, filters & screen rotation)",
-            ),
-            "optimized",
-        )
-        self.profile_combo.addItem(
-            tr(
-                "xmlconv.opts.profile_full",
-                "📦 Full (Keeps all extra XML child attributes)",
-            ),
-            "full",
-        )
-        prof_form.addRow(tr("xmlconv.opts.profile_label", "Profile:"), self.profile_combo)
-        opts_vbox.addLayout(prof_form)
+        cols_hdr = QHBoxLayout()
+        cols_hdr.setSpacing(6)
+        cols_caption = QLabel(tr("xmlconv.cols.caption", "<b>Columns in .pncat:</b>"))
+        btn_all_cols = QPushButton(tr("xmlconv.cols.btn_all", "Check all"))
+        btn_all_cols.clicked.connect(lambda: self._set_column_selection("all"))
+        btn_ess_cols = QPushButton(tr("xmlconv.cols.btn_recommended", "Recommended"))
+        btn_ess_cols.clicked.connect(lambda: self._set_column_selection("recommended"))
+        btn_min_cols = QPushButton(tr("xmlconv.cols.btn_minimal", "Minimal"))
+        btn_min_cols.clicked.connect(lambda: self._set_column_selection("minimal"))
+        cols_hdr.addWidget(cols_caption, 1)
+        cols_hdr.addWidget(btn_all_cols)
+        cols_hdr.addWidget(btn_ess_cols)
+        cols_hdr.addWidget(btn_min_cols)
+        cols_vbox.addLayout(cols_hdr)
+
+        cols_grid = QGridLayout()
+        cols_grid.setHorizontalSpacing(12)
+        cols_grid.setVerticalSpacing(5)
+
+        fixed_rom_cb = QCheckBox(tr("xmlconv.colgrp.rom_fixed", "ROM & Keys (required)"))
+        fixed_rom_cb.setChecked(True)
+        fixed_rom_cb.setEnabled(False)
+        cols_grid.addWidget(fixed_rom_cb, 0, 0)
+
+        for idx, (gid, i18n_key, fallback_en, _pcols, def_checked) in enumerate(COLUMN_GROUPS_SPEC, start=1):
+            cb = QCheckBox(tr(i18n_key, fallback_en))
+            cb.setChecked(def_checked)
+            self.column_checkboxes[gid] = cb
+            r, c = divmod(idx, 2)
+            cols_grid.addWidget(cb, r, c)
+
+        cols_vbox.addLayout(cols_grid)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color: #2b3246;")
+        cols_vbox.addWidget(sep)
 
         filt_caption = QLabel(
             tr(
                 "xmlconv.opts.prefilter_hint",
-                "Optional pre-filters during conversion (BIOS sets & references are always preserved for list filtering):",
+                "Optional pre-filters during conversion (BIOS sets & references are always preserved):",
             )
         )
         filt_caption.setWordWrap(True)
-        filt_caption.setStyleSheet("color: #9aa3b8; font-size: 8.5pt; margin-top: 2px;")
-        opts_vbox.addWidget(filt_caption)
+        filt_caption.setStyleSheet("color: #9aa3b8; font-size: 8.5pt;")
+        cols_vbox.addWidget(filt_caption)
 
         self.cb_excl_devices = QCheckBox(tr("xmlconv.opts.excl_devices", "Exclude internal devices (isdevice=\"yes\")"))
         self.cb_excl_mech = QCheckBox(
@@ -344,15 +349,10 @@ class XmlConverterWidget(QWidget):
         self.cb_excl_clones = QCheckBox(
             tr("xmlconv.opts.excl_clones", "Exclude clones (keep parent / main sets only)")
         )
-        for cb in (
-            self.cb_excl_devices,
-            self.cb_excl_mech,
-            self.cb_excl_nonrun,
-            self.cb_excl_clones,
-        ):
-            opts_vbox.addWidget(cb)
+        for cb in (self.cb_excl_devices, self.cb_excl_mech, self.cb_excl_nonrun, self.cb_excl_clones):
+            cols_vbox.addWidget(cb)
 
-        left_vbox.addWidget(opts_group)
+        left_vbox.addWidget(cols_group)
 
         # 3. Ejecución y Progreso
         run_group = QGroupBox(tr("xmlconv.run.group", "3. Convert Catalog"))
@@ -393,40 +393,13 @@ class XmlConverterWidget(QWidget):
         run_vbox.addWidget(self.status_lbl)
 
         left_vbox.addWidget(run_group)
-
-        # 4. Vincular en 1 clic a una lista
-        link_group = QGroupBox(tr("xmlconv.link.group", "4. Link Fast Catalog to a Game List"))
-        link_vbox = QVBoxLayout(link_group)
-        link_vbox.setSpacing(8)
-
-        link_form = QFormLayout()
-        self.target_list_combo = QComboBox()
-        link_form.addRow(tr("xmlconv.link.target_list", "Target list:"), self.target_list_combo)
-        link_vbox.addLayout(link_form)
-
-        self.apply_now_cb = QCheckBox(
-            tr(
-                "xmlconv.link.apply_now_cb",
-                "Immediately update titles & metadata of games already in this list",
-            )
-        )
-        self.apply_now_cb.setChecked(True)
-        link_vbox.addWidget(self.apply_now_cb)
-
-        self.link_btn = QPushButton(tr("xmlconv.link.btn", "🔗  Link .pncat to Selected List"))
-        self.link_btn.setMinimumHeight(36)
-        self.link_btn.setEnabled(False)
-        self.link_btn.clicked.connect(self._link_catalog_to_selected_list)
-        link_vbox.addWidget(self.link_btn)
-
-        left_vbox.addWidget(link_group)
         left_vbox.addStretch(1)
 
         left_scroll.setWidget(left_container)
-        left_scroll.setMinimumWidth(420)
+        left_scroll.setMinimumWidth(460)
         splitter.addWidget(left_scroll)
 
-        # ---------------- PANEL DERECHO (EXPLORADOR DE VISTA PREVIA) ----------------
+        # ---------------- PANEL DERECHO (EXPLORADOR DINÁMICO DE VISTA PREVIA) ----------------
         right_panel = QGroupBox(tr("xmlconv.preview.group", "Fast Catalog Inspector & Instant Search"))
         right_vbox = QVBoxLayout(right_panel)
         right_vbox.setSpacing(8)
@@ -437,7 +410,7 @@ class XmlConverterWidget(QWidget):
         self.search_edit.setPlaceholderText(
             tr(
                 "xmlconv.preview.search_placeholder",
-                "🔍 Search by ROM, title, manufacturer, year, genre, driver, or cloneof...",
+                "🔍 Search across any column in the loaded .pncat...",
             )
         )
         self.search_edit.setClearButtonEnabled(True)
@@ -456,32 +429,13 @@ class XmlConverterWidget(QWidget):
         right_vbox.addLayout(search_row)
 
         self.preview_summary_lbl = QLabel(
-            tr("xmlconv.preview.empty", "Convert an XML/DAT or open an existing .pncat file to preview its entries.")
+            tr("xmlconv.preview.empty", "Convert your sources or open an existing .pncat file to preview its entries.")
         )
         self.preview_summary_lbl.setStyleSheet("color: #7dd3fc; font-size: 8.8pt; font-weight: 500;")
         right_vbox.addWidget(self.preview_summary_lbl)
 
-        self.preview_table = QTableWidget(0, 10)
-        self.preview_table.setHorizontalHeaderLabels([
-            tr("xmlconv.col.rom", "ROM"),
-            tr("xmlconv.col.title", "Full Title"),
-            tr("xmlconv.col.year", "Year"),
-            tr("xmlconv.col.manufacturer", "Manufacturer"),
-            tr("xmlconv.col.genre", "Genre"),
-            tr("xmlconv.col.players", "Players"),
-            tr("xmlconv.col.cloneof", "Clone Of"),
-            tr("xmlconv.col.bios", "BIOS"),
-            tr("xmlconv.col.sourcefile", "Driver / Source"),
-            tr("xmlconv.col.orientation", "Screen"),
-        ])
-        configure_details_table(
-            self.preview_table,
-            col_widths=[100, 245, 58, 135, 105, 60, 82, 82, 115, 90],
-            stretch_last=True,
-            sorting=True,
-            hide_vertical_header=True,
-            alternating_rows=True,
-        )
+        self.preview_table = QTableWidget(0, 0)
+        self._rebuild_preview_columns(self._active_preview_cols)
         self.preview_table.itemSelectionChanged.connect(self._on_preview_selection_changed)
         right_vbox.addWidget(self.preview_table, 1)
 
@@ -496,182 +450,204 @@ class XmlConverterWidget(QWidget):
         right_vbox.addWidget(self.entry_detail_lbl)
 
         splitter.addWidget(right_panel)
-        splitter.setSizes([460, 760])
+        splitter.setSizes([490, 740])
         outer.addWidget(splitter, 1)
 
     # ------------------------------------------------------------------
-    # LISTAS Y RUTAS
+    # FILAS DINÁMICAS DE FUENTES (+)
     # ------------------------------------------------------------------
-    def refresh_lists(self, preferred_list_id: int | None = None) -> None:
-        rows = self.db.get_lists(with_counts=False)
-        game_lists = [
-            r for r in rows
-            if r.get("list_type") not in ("menu", "filtered")
-        ]
+    def _add_source_row(self, path: str = "", role: str = "") -> dict:
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(5)
 
-        prev_target_id = preferred_list_id or self.target_list_combo.currentData()
-
-        self.src_list_combo.blockSignals(True)
-        self.src_list_combo.clear()
-        self.src_list_combo.addItem(
-            tr("xmlconv.io.select_list_placeholder", "— Select a list with XML/DAT configured —"),
-            None,
+        path_edit = QLineEdit(path)
+        path_edit.setPlaceholderText(
+            tr("xmlconv.io.row_placeholder", "Select .xml, .dat or .ini source file...")
         )
-        for r in game_lists:
-            xp = (r.get("xml_path") or "").strip()
-            if xp:
-                badge = Path(xp).name
-                self.src_list_combo.addItem(f"🎮 {r['name']}  ({badge})", r["id"])
-        self.src_list_combo.blockSignals(False)
 
-        self.target_list_combo.blockSignals(True)
-        self.target_list_combo.clear()
-        selected_idx = 0
-        for idx, r in enumerate(game_lists):
-            xp = (r.get("xml_path") or "").strip()
-            suffix = f"  [{Path(xp).name}]" if xp else ""
-            self.target_list_combo.addItem(f"🎮 {r['name']}{suffix}", r["id"])
-            if prev_target_id and r["id"] == prev_target_id:
-                selected_idx = idx
-        if self.target_list_combo.count() > 0:
-            self.target_list_combo.setCurrentIndex(selected_idx)
-        self.target_list_combo.blockSignals(False)
-        self._update_link_button_state()
+        role_combo = QComboBox()
+        role_combo.setMinimumWidth(148)
+        role_combo.addItem(tr("xmlconv.role.catalog", "📄 XML / DAT Catalog"), "catalog")
+        role_combo.addItem(tr("xmlconv.role.genre", "🏷 INI ➔ Genre"), "genre")
+        role_combo.addItem(tr("xmlconv.role.players", "👥 INI ➔ Players"), "players")
+        role_combo.addItem(tr("xmlconv.role.manufacturer", "🏢 INI ➔ Manufacturer"), "manufacturer")
+        role_combo.addItem(tr("xmlconv.role.year", "📅 INI ➔ Year"), "year")
+        role_combo.addItem(tr("xmlconv.role.notes", "📝 INI ➔ Notes"), "notes")
 
-    def _on_prefill_from_list(self, index: int) -> None:
-        list_id = self.src_list_combo.itemData(index)
-        if not list_id:
-            return
-        row = self.db.get_list(list_id)
-        if not row:
-            return
-        xp = (row.get("xml_path") or "").strip()
-        if xp:
-            self._output_manually_edited = False
-            self.src_edit.setText(xp.replace("\\", "/"))
-            if is_fast_catalog_file(xp) and Path(xp).is_file():
-                self.load_preview_catalog(xp)
-        # Sincronizar también el combo de destino con esa misma lista
-        for i in range(self.target_list_combo.count()):
-            if self.target_list_combo.itemData(i) == list_id:
-                self.target_list_combo.setCurrentIndex(i)
-                break
+        browse_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
+        up_btn = QPushButton("▲")
+        up_btn.setFixedWidth(26)
+        up_btn.setToolTip(tr("dlg.list.move_up", "▲ Move Up"))
+        down_btn = QPushButton("▼")
+        down_btn.setFixedWidth(26)
+        down_btn.setToolTip(tr("dlg.list.move_down", "▼ Move Down"))
+        del_btn = QPushButton("✕")
+        del_btn.setFixedWidth(26)
+        del_btn.setToolTip(tr("xmlconv.io.remove_source_tip", "Remove this source"))
+        del_btn.setStyleSheet(
+            "QPushButton { color: #f87171; font-weight: bold; padding: 2px; }"
+            "QPushButton:hover { background-color: #ef4444; color: white; }"
+        )
 
-    def _on_source_changed(self, text: str) -> None:
-        clean = text.strip()
-        if not clean:
-            self.src_info_lbl.setText(tr("xmlconv.io.no_src", "No source file selected."))
-            return
-        p = Path(clean)
-        if p.is_file():
-            sz = os.path.getsize(p)
-            self.src_info_lbl.setText(
-                tr("xmlconv.io.src_size_info", "Source size: {size}  ·  {name}", size=_format_bytes(sz), name=p.name)
-            )
-            if not self._output_manually_edited or not self.dst_edit.text().strip():
-                if p.suffix.lower() == PNCAT_EXT:
-                    out_p = p.with_name(p.stem + "_opt" + PNCAT_EXT)
-                else:
-                    out_p = p.with_suffix(PNCAT_EXT)
-                self.dst_edit.setText(str(out_p).replace("\\", "/"))
-        else:
-            self.src_info_lbl.setText(tr("xmlconv.io.src_missing", "⚠ File does not exist on disk."))
+        row_data = {
+            "widget": row_widget,
+            "path_edit": path_edit,
+            "role_combo": role_combo,
+        }
 
-    def _on_dst_edited_manually(self, _text: str) -> None:
-        self._output_manually_edited = True
-        self._update_link_button_state()
+        def _sync_role_from_path(txt: str) -> None:
+            clean = txt.strip()
+            ext = Path(clean).suffix.lower() if clean else ""
+            role_combo.blockSignals(True)
+            if ext == ".ini":
+                role_combo.setEnabled(True)
+                if role_combo.currentData() == "catalog":
+                    suggested = infer_ini_role(clean)
+                    idx_s = role_combo.findData(suggested)
+                    role_combo.setCurrentIndex(idx_s if idx_s >= 0 else 1)
+            else:
+                idx_c = role_combo.findData("catalog")
+                if idx_c >= 0:
+                    role_combo.setCurrentIndex(idx_c)
+                role_combo.setEnabled(False)
+            role_combo.blockSignals(False)
+            self._update_sources_summary()
 
-    def _pick_source_xml(self) -> None:
-        cur = self.src_edit.text().strip()
+        path_edit.textChanged.connect(_sync_role_from_path)
+        browse_btn.clicked.connect(lambda: self._browse_for_source_row(row_data))
+        up_btn.clicked.connect(lambda: self._move_source_row(row_data, -1))
+        down_btn.clicked.connect(lambda: self._move_source_row(row_data, +1))
+        del_btn.clicked.connect(lambda: self._remove_source_row(row_data))
+
+        row_layout.addWidget(path_edit, 1)
+        row_layout.addWidget(role_combo)
+        row_layout.addWidget(browse_btn)
+        row_layout.addWidget(up_btn)
+        row_layout.addWidget(down_btn)
+        row_layout.addWidget(del_btn)
+
+        self.source_rows.append(row_data)
+        self.sources_vbox.addWidget(row_widget)
+
+        _sync_role_from_path(path)
+        if role:
+            idx_r = role_combo.findData(role)
+            if idx_r >= 0:
+                role_combo.setCurrentIndex(idx_r)
+
+        return row_data
+
+    def _browse_for_source_row(self, row_data: dict) -> None:
+        cur = row_data["path_edit"].text().strip()
         init_dir = str(Path(cur).parent) if (cur and Path(cur).parent.is_dir()) else ""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            tr("xmlconv.io.pick_src_title", "Select XML or DAT Catalog"),
+            tr("xmlconv.io.pick_any_src_title", "Select Data Source (.xml, .dat, .ini)"),
             init_dir,
-            tr("xmlconv.io.pick_src_filter", "XML / DAT Files (*.xml *.dat);;All Files (*.*)"),
+            tr(
+                "xmlconv.io.pick_any_src_filter",
+                "Catalog & INI Sources (*.xml *.dat *.ini *.pncat);;XML / DAT Files (*.xml *.dat);;MAME INI Files (*.ini);;All Files (*.*)",
+            ),
         )
         if path:
-            self._output_manually_edited = False
-            self.src_edit.setText(path.replace("\\", "/"))
+            row_data["path_edit"].setText(path.replace("\\", "/"))
 
-    def _on_genre_ini_changed(self, text: str) -> None:
-        clean = text.strip()
-        if not clean:
-            self.genre_info_lbl.setVisible(False)
+    def _move_source_row(self, row_data: dict, delta: int) -> None:
+        if row_data not in self.source_rows:
             return
-        p = Path(clean)
-        if p.is_file():
-            try:
-                g_map = parse_mame_genre_ini(p)
-                self.genre_info_lbl.setText(
-                    tr(
-                        "xmlconv.io.genre_ini_loaded",
-                        "✓ {name}  ·  {count:,} ROM genres ready (clones inherit automatically)",
-                        name=p.name,
-                        count=len(g_map),
-                    )
-                )
-            except Exception:
-                self.genre_info_lbl.setText(f"✓ {p.name}")
-            self.genre_info_lbl.setVisible(True)
-        else:
-            self.genre_info_lbl.setText(tr("xmlconv.io.src_missing", "⚠ File does not exist on disk."))
-            self.genre_info_lbl.setVisible(True)
+        idx = self.source_rows.index(row_data)
+        new_idx = idx + delta
+        if new_idx < 0 or new_idx >= len(self.source_rows):
+            return
+        self.source_rows.pop(idx)
+        self.source_rows.insert(new_idx, row_data)
+        self.sources_vbox.removeWidget(row_data["widget"])
+        self.sources_vbox.insertWidget(new_idx, row_data["widget"])
+        self._update_sources_summary()
 
-    def _pick_genre_ini(self) -> None:
-        cur = self.genre_ini_edit.text().strip() or self.src_edit.text().strip()
-        init_dir = str(Path(cur).parent) if (cur and Path(cur).parent.is_dir()) else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            tr("xmlconv.io.pick_genre_title", "Select MAME Genre INI (Category.ini / catver.ini)"),
-            init_dir,
-            tr("xmlconv.io.pick_genre_filter", "MAME Category / Genre INI (*.ini);;All Files (*.*)"),
-        )
-        if path:
-            self.genre_ini_edit.setText(path.replace("\\", "/"))
+    def _remove_source_row(self, row_data: dict) -> None:
+        if row_data not in self.source_rows:
+            return
+        if len(self.source_rows) <= 1:
+            row_data["path_edit"].clear()
+            return
+        self.source_rows.remove(row_data)
+        w = row_data["widget"]
+        w.setParent(None)
+        w.deleteLater()
+        self._update_sources_summary()
 
-    def _auto_find_mame_genre_ini(self) -> None:
-        preferred_names = ("catver.ini", "category.ini", "genre.ini")
-        search_dirs: list[Path] = []
-        src_txt = self.src_edit.text().strip()
-        if src_txt and Path(src_txt).parent.is_dir():
-            sp = Path(src_txt).parent
-            search_dirs.extend([sp, sp / "folders", sp / "ini"])
-
-        for emu in self.db.get_emulators():
-            exe = (emu.get("executable") or "").strip()
-            if exe and Path(exe).parent.is_dir():
-                ep = Path(exe).parent
-                search_dirs.extend([ep / "folders", ep, ep / "ini"])
-
-        found_path: Path | None = None
-        for d in search_dirs:
-            if not d.is_dir():
+    def _collect_source_specs(self) -> list[SourceSpec]:
+        specs: list[SourceSpec] = []
+        for r in self.source_rows:
+            p = r["path_edit"].text().strip()
+            if not p:
                 continue
-            by_low = {f.name.lower(): f for f in d.iterdir() if f.is_file() and f.suffix.lower() == ".ini"}
-            for pref in preferred_names:
-                if pref in by_low:
-                    found_path = by_low[pref]
-                    break
-            if found_path:
-                break
+            role = str(r["role_combo"].currentData() or "auto")
+            specs.append(SourceSpec(path=p, role=role))
+        return specs
 
-        if found_path:
-            self.genre_ini_edit.setText(str(found_path).replace("\\", "/"))
+    def _update_sources_summary(self) -> None:
+        specs = self._collect_source_specs()
+        if not specs:
+            self.src_info_lbl.setText(tr("xmlconv.io.no_src", "No source files selected."))
+            return
+
+        valid_bytes = 0
+        missing = 0
+        cat_count = 0
+        ini_count = 0
+        for s in specs:
+            p = Path(s.path)
+            if p.is_file():
+                valid_bytes += os.path.getsize(p)
+                if p.suffix.lower() == ".ini" or s.role != "catalog":
+                    ini_count += 1
+                else:
+                    cat_count += 1
+            else:
+                missing += 1
+
+        if missing > 0:
+            self.src_info_lbl.setText(
+                tr("xmlconv.io.sources_missing_warn", "⚠ {count} selected source file(s) do not exist on disk.", count=missing)
+            )
         else:
-            QMessageBox.information(
-                self,
-                tr("xmlconv.io.genre_not_found_title", "INI Not Found Automatically"),
+            self.src_info_lbl.setText(
                 tr(
-                    "xmlconv.io.genre_not_found_msg",
-                    "No Category.ini, catver.ini, or genre.ini was found in your configured MAME folders.\n"
-                    "Use 'Browse…' to select it manually if you have one.",
-                ),
+                    "xmlconv.io.sources_summary",
+                    "{total} source(s) ready ({cats} XML/DAT · {inis} INI)  ·  Total input: {size}",
+                    total=len(specs),
+                    cats=cat_count,
+                    inis=ini_count,
+                    size=_format_bytes(valid_bytes),
+                )
             )
 
-    def _pick_output_pncat(self) -> None:
-        cur = self.dst_edit.text().strip() or self.src_edit.text().strip()
-        init_path = str(Path(cur).with_suffix(PNCAT_EXT)) if cur else f"catalog{PNCAT_EXT}"
+    # ------------------------------------------------------------------
+    # SELECCIÓN DE COLUMNAS Y ARCHIVOS
+    # ------------------------------------------------------------------
+    def _set_column_selection(self, mode: str) -> None:
+        minimal_ids = {"title", "year", "manufacturer", "genre", "bios", "sourcefile", "orientation"}
+        for gid, _ikey, _lbl, _pcols, def_checked in COLUMN_GROUPS_SPEC:
+            cb = self.column_checkboxes.get(gid)
+            if not cb:
+                continue
+            if mode == "all":
+                cb.setChecked(True)
+            elif mode == "minimal":
+                cb.setChecked(gid in minimal_ids)
+            else:
+                cb.setChecked(def_checked)
+
+    def _get_selected_column_groups(self) -> list[str]:
+        return [gid for gid, cb in self.column_checkboxes.items() if cb.isChecked()]
+
+    def _pick_output_pncat(self) -> bool:
+        cur = self.dst_edit.text().strip()
+        init_path = str(Path(cur).with_suffix(PNCAT_EXT)) if cur else ""
         path, _ = QFileDialog.getSaveFileName(
             self,
             tr("xmlconv.io.pick_dst_title", "Save PlayNexus Fast Catalog (.pncat)"),
@@ -681,23 +657,13 @@ class XmlConverterWidget(QWidget):
         if path:
             if not path.lower().endswith(PNCAT_EXT):
                 path += PNCAT_EXT
-            self._output_manually_edited = True
             self.dst_edit.setText(path.replace("\\", "/"))
-            self._update_link_button_state()
-
-    def _set_output_in_portable_catalogs(self) -> None:
-        cat_dir = CONFIG_DIR / "catalogs"
-        cat_dir.mkdir(parents=True, exist_ok=True)
-        src_txt = self.src_edit.text().strip()
-        stem = Path(src_txt).stem if src_txt else "catalog"
-        out_path = cat_dir / f"{stem}{PNCAT_EXT}"
-        self._output_manually_edited = True
-        self.dst_edit.setText(str(out_path).replace("\\", "/"))
-        self._update_link_button_state()
+            return True
+        return False
 
     def _pick_existing_pncat(self) -> None:
-        cat_dir = CONFIG_DIR / "catalogs"
-        init_dir = str(cat_dir) if cat_dir.is_dir() else ""
+        cur = self._loaded_catalog_path or self.dst_edit.text().strip()
+        init_dir = str(Path(cur).parent) if (cur and Path(cur).parent.is_dir()) else ""
         path, _ = QFileDialog.getOpenFileName(
             self,
             tr("xmlconv.io.open_existing_title", "Open PlayNexus Fast Catalog (.pncat)"),
@@ -716,43 +682,61 @@ class XmlConverterWidget(QWidget):
         if self._worker is not None and self._worker.isRunning():
             return
 
-        src_path = self.src_edit.text().strip()
-        dst_path = self.dst_edit.text().strip()
-        if not src_path or not Path(src_path).is_file():
+        specs = self._collect_source_specs()
+        if not specs:
             QMessageBox.warning(
                 self,
                 tr("xmlconv.err.no_src_title", "Source File Required"),
-                tr("xmlconv.err.no_src_msg", "Please select a valid .xml or .dat file to convert."),
+                tr("xmlconv.err.no_src_msg", "Please add at least one valid .xml or .dat source file to convert."),
             )
             return
 
+        for s in specs:
+            if not Path(s.path).is_file():
+                QMessageBox.warning(
+                    self,
+                    tr("xmlconv.err.no_src_title", "Source File Required"),
+                    tr("xmlconv.err.missing_src_item", "The specified source file does not exist:\n{path}", path=s.path),
+                )
+                return
+
+        has_catalog = any(
+            Path(s.path).suffix.lower() != ".ini" and s.role == "catalog"
+            for s in specs
+        )
+        if not has_catalog:
+            QMessageBox.warning(
+                self,
+                tr("xmlconv.err.no_cat_title", "Catalog Source Required"),
+                tr(
+                    "xmlconv.err.no_cat_msg",
+                    "Include at least one .xml or .dat catalog source so PlayNexus has a game list to enrich.",
+                ),
+            )
+            return
+
+        dst_path = self.dst_edit.text().strip()
         if not dst_path:
-            dst_path = str(Path(src_path).with_suffix(PNCAT_EXT)).replace("\\", "/")
-            self.dst_edit.setText(dst_path)
+            if not self._pick_output_pncat():
+                return
+            dst_path = self.dst_edit.text().strip()
         elif not dst_path.lower().endswith(PNCAT_EXT):
             dst_path += PNCAT_EXT
             self.dst_edit.setText(dst_path)
 
-        if os.path.abspath(src_path).lower() == os.path.abspath(dst_path).lower():
-            QMessageBox.warning(
-                self,
-                tr("xmlconv.err.same_path_title", "Invalid Output Path"),
-                tr("xmlconv.err.same_path_msg", "The output .pncat file must be different from the source file."),
-            )
-            return
+        dst_abs = os.path.abspath(dst_path).lower()
+        for s in specs:
+            if os.path.abspath(s.path).lower() == dst_abs:
+                QMessageBox.warning(
+                    self,
+                    tr("xmlconv.err.same_path_title", "Invalid Output Path"),
+                    tr("xmlconv.err.same_path_msg", "The output .pncat file must be different from all source files."),
+                )
+                return
 
-        genre_ini = self.genre_ini_edit.text().strip()
-        if genre_ini and not Path(genre_ini).is_file():
-            QMessageBox.warning(
-                self,
-                tr("xmlconv.err.bad_genre_title", "Genre INI Not Found"),
-                tr("xmlconv.err.bad_genre_msg", "The specified MAME genre .ini file does not exist:\n{path}", path=genre_ini),
-            )
-            return
-
+        selected_groups = self._get_selected_column_groups()
         opts = ConvertOptions(
-            profile=str(self.profile_combo.currentData() or "optimized"),
-            genre_ini_path=genre_ini,
+            selected_columns=selected_groups,
             exclude_devices=self.cb_excl_devices.isChecked(),
             exclude_mechanical=self.cb_excl_mech.isChecked(),
             exclude_non_runnable=self.cb_excl_nonrun.isChecked(),
@@ -762,11 +746,10 @@ class XmlConverterWidget(QWidget):
         self.convert_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
         self.reveal_btn.setEnabled(False)
-        self.link_btn.setEnabled(False)
         self.progress_bar.setValue(0)
-        self.status_lbl.setText(tr("xmlconv.run.starting", "Streaming XML and building fast catalog..."))
+        self.status_lbl.setText(tr("xmlconv.run.starting", "Reading sources and building custom .pncat catalog..."))
 
-        self._worker = XmlConvertWorker(src_path, dst_path, opts, self)
+        self._worker = XmlConvertWorker(specs, dst_path, opts, self)
         self._worker.progress.connect(self._on_worker_progress)
         self._worker.finished_ok.connect(self._on_worker_finished)
         self._worker.failed.connect(self._on_worker_failed)
@@ -784,7 +767,7 @@ class XmlConverterWidget(QWidget):
         self.status_lbl.setText(
             tr(
                 "xmlconv.run.progress_msg",
-                "⏳ {pct}%  ·  {seen:,} read  ·  {written:,} saved  ·  {speed:,} entries/s  ({read_mb})",
+                "⏳ {pct}%  ·  {seen:,} read  ·  {written:,} merged  ·  {speed:,} entries/s  ({read_mb})",
                 pct=pct,
                 seen=seen,
                 written=written,
@@ -800,7 +783,6 @@ class XmlConverterWidget(QWidget):
         if summary.cancelled:
             self.progress_bar.setValue(0)
             self.status_lbl.setText(tr("xmlconv.run.cancelled_done", "⏹ Conversion cancelled by user."))
-            self._update_link_button_state()
             return
 
         self.progress_bar.setValue(100)
@@ -824,34 +806,75 @@ class XmlConverterWidget(QWidget):
         self.dst_edit.setText(out_norm)
         self.reveal_btn.setEnabled(True)
         self.load_preview_catalog(out_norm)
-        self._update_link_button_state()
 
     def _on_worker_failed(self, err: str) -> None:
         self.convert_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.status_lbl.setText(tr("xmlconv.run.error_status", "❌ Error during conversion."))
-        self._update_link_button_state()
         QMessageBox.critical(
             self,
             tr("xmlconv.err.failed_title", "Conversion Error"),
-            tr("xmlconv.err.failed_msg", "Could not convert the XML/DAT file:\n\n{err}", err=err),
+            tr("xmlconv.err.failed_msg", "Could not convert the selected sources:\n\n{err}", err=err),
         )
 
     # ------------------------------------------------------------------
-    # VISTA PREVIA Y BÚSQUEDA INSTANTÁNEA
+    # VISTA PREVIA DINÁMICA SEGÚN LAS COLUMNAS DEL .PNCAT
     # ------------------------------------------------------------------
+    def _derive_preview_cols(self, file_cols: list[str]) -> list[str]:
+        fset = set(file_cols)
+        ui_cols = ["rom_name"]
+        for key, _ik, _fb, _w in _PREVIEW_COLUMN_DEFS:
+            if key == "rom_name":
+                continue
+            if key == "resolution_ui":
+                if "display_width" in fset or "display_height" in fset:
+                    ui_cols.append(key)
+            elif key == "controls_ui":
+                if "control_type" in fset or "control_buttons" in fset:
+                    ui_cols.append(key)
+            elif key == "display_rotate":
+                if "display_rotate" in fset or "display_type" in fset:
+                    ui_cols.append(key)
+            elif key in fset:
+                ui_cols.append(key)
+        return ui_cols
+
+    def _rebuild_preview_columns(self, ui_cols: list[str]) -> None:
+        self._active_preview_cols = list(ui_cols)
+        def_map = {k: (ik, fb, w) for k, ik, fb, w in _PREVIEW_COLUMN_DEFS}
+        headers: list[str] = []
+        widths: list[int] = []
+        for k in self._active_preview_cols:
+            ik, fb, w = def_map[k]
+            headers.append(tr(ik, fb))
+            widths.append(w)
+
+        self.preview_table.setSortingEnabled(False)
+        self.preview_table.clear()
+        self.preview_table.setColumnCount(len(headers))
+        self.preview_table.setHorizontalHeaderLabels(headers)
+        configure_details_table(
+            self.preview_table,
+            col_widths=widths,
+            stretch_last=True,
+            sorting=True,
+            hide_vertical_header=True,
+            alternating_rows=True,
+        )
+
     def load_preview_catalog(self, pncat_path: str) -> None:
         p = Path(pncat_path)
         if not p.is_file():
             return
         try:
             t0 = time.perf_counter()
-            entries = read_fast_catalog_entries(p)
+            entries, file_cols = read_fast_catalog_table(p)
             self._load_ms = (time.perf_counter() - t0) * 1000.0
             self._loaded_catalog_path = str(p).replace("\\", "/")
             self._catalog_entries = entries
+            self._catalog_columns = file_cols
+            self._rebuild_preview_columns(self._derive_preview_cols(file_cols))
             self.reveal_btn.setEnabled(True)
-            self._update_link_button_state()
             self._populate_preview_table()
         except Exception as exc:
             QMessageBox.warning(
@@ -879,6 +902,7 @@ class XmlConverterWidget(QWidget):
                 or q in e["sourcefile"].lower()
                 or q in e["cloneof"].lower()
                 or q in (e.get("bios") or "").lower()
+                or q in (e.get("notes") or "").lower()
             ]
         else:
             matched = entries
@@ -888,41 +912,53 @@ class XmlConverterWidget(QWidget):
 
         vert_label = tr("xmlconv.screen.vertical", "Vertical")
         horiz_label = tr("xmlconv.screen.horizontal", "Horizontal")
+        active_cols = self._active_preview_cols
 
         with paused_table_sorting(self.preview_table):
             self.preview_table.setRowCount(len(shown))
             for row_idx, entry in enumerate(shown):
                 props = entry.get("properties") or {}
-                is_vert = is_game_vertical({"xml_properties": props})
-                rot = props.get("display_rotate") or props.get("rotate") or ""
-                if is_vert:
-                    scr_txt = f"{vert_label} ({rot}°)" if rot else vert_label
-                else:
-                    scr_txt = horiz_label if props.get("display_type") or rot else "—"
-
-                rom_item = SortableTableWidgetItem(entry["rom_name"])
-                rom_item.setData(Qt.UserRole, entry)
-                year_str = entry["year"]
-                year_key = int(year_str) if year_str.isdigit() else 999999
-                bios_str = entry.get("bios") or props.get("bios", "")
-
-                self.preview_table.setItem(row_idx, 0, rom_item)
-                self.preview_table.setItem(row_idx, 1, SortableTableWidgetItem(entry["title"]))
-                self.preview_table.setItem(row_idx, 2, SortableTableWidgetItem(year_str, sort_key=year_key))
-                self.preview_table.setItem(row_idx, 3, SortableTableWidgetItem(entry["manufacturer"]))
-                self.preview_table.setItem(row_idx, 4, SortableTableWidgetItem(entry["genre"]))
-                self.preview_table.setItem(row_idx, 5, SortableTableWidgetItem(entry["players"]))
-                self.preview_table.setItem(row_idx, 6, SortableTableWidgetItem(entry["cloneof"]))
-                self.preview_table.setItem(row_idx, 7, SortableTableWidgetItem(bios_str))
-                self.preview_table.setItem(row_idx, 8, SortableTableWidgetItem(entry["sourcefile"]))
-                self.preview_table.setItem(row_idx, 9, SortableTableWidgetItem(scr_txt))
+                for col_idx, col_key in enumerate(active_cols):
+                    if col_key == "rom_name":
+                        item = SortableTableWidgetItem(entry["rom_name"])
+                        item.setData(Qt.UserRole, entry)
+                    elif col_key == "year":
+                        ys = entry["year"]
+                        item = SortableTableWidgetItem(ys, sort_key=(int(ys) if ys.isdigit() else 999999))
+                    elif col_key == "display_rotate":
+                        is_vert = is_game_vertical({"xml_properties": props})
+                        rot = props.get("display_rotate") or props.get("rotate") or ""
+                        if is_vert:
+                            scr_txt = f"{vert_label} ({rot}°)" if rot else vert_label
+                        else:
+                            scr_txt = horiz_label if props.get("display_type") or rot else "—"
+                        item = SortableTableWidgetItem(scr_txt)
+                    elif col_key == "resolution_ui":
+                        w = props.get("display_width", "")
+                        h = props.get("display_height", "")
+                        item = SortableTableWidgetItem(f"{w}×{h}" if (w and h) else "")
+                    elif col_key == "controls_ui":
+                        ct = props.get("control_type", "")
+                        cb = props.get("control_buttons", "")
+                        txt = f"{ct} ({cb}b)" if (ct and cb) else (ct or cb)
+                        item = SortableTableWidgetItem(txt)
+                    elif col_key == "status":
+                        item = SortableTableWidgetItem(props.get("status") or props.get("driver_status") or "")
+                    elif col_key == "romof":
+                        item = SortableTableWidgetItem(props.get("romof", ""))
+                    elif col_key == "bios":
+                        item = SortableTableWidgetItem(entry.get("bios") or props.get("bios", ""))
+                    else:
+                        item = SortableTableWidgetItem(str(entry.get(col_key) or props.get(col_key, "")))
+                    self.preview_table.setItem(row_idx, col_idx, item)
 
         cat_name = Path(self._loaded_catalog_path).name if self._loaded_catalog_path else ""
         self.preview_summary_lbl.setText(
             tr(
-                "xmlconv.preview.summary",
-                "📄 {name}  ·  Showing {shown:,} of {matched:,} matching ({total:,} total)  ·  ⚡ Loaded in {ms:.0f} ms",
+                "xmlconv.preview.summary_cols",
+                "📄 {name}  ·  {cols} columns  ·  Showing {shown:,} of {matched:,} ({total:,} total)  ·  ⚡ {ms:.0f} ms",
                 name=cat_name,
+                cols=len(self._catalog_columns),
                 shown=len(shown),
                 matched=len(matched),
                 total=len(entries),
@@ -967,9 +1003,6 @@ class XmlConverterWidget(QWidget):
         self.entry_detail_lbl.setText("   ·   ".join(bits))
         self.entry_detail_lbl.setVisible(True)
 
-    # ------------------------------------------------------------------
-    # VINCULACIÓN A LISTA
-    # ------------------------------------------------------------------
     def _current_candidate_pncat(self) -> str:
         dst = self.dst_edit.text().strip()
         if dst and Path(dst).is_file() and is_fast_catalog_file(dst):
@@ -978,65 +1011,10 @@ class XmlConverterWidget(QWidget):
             return self._loaded_catalog_path
         return ""
 
-    def _update_link_button_state(self) -> None:
-        has_cat = bool(self._current_candidate_pncat())
-        has_list = self.target_list_combo.count() > 0 and self.target_list_combo.currentData() is not None
-        running = self._worker is not None and self._worker.isRunning()
-        self.link_btn.setEnabled(has_cat and has_list and not running)
-
     def _reveal_current_output(self) -> None:
         cand = self._current_candidate_pncat() or self.dst_edit.text().strip()
         if cand:
             _reveal_file_in_explorer(cand)
-
-    def _link_catalog_to_selected_list(self) -> None:
-        pncat_path = self._current_candidate_pncat()
-        list_id = self.target_list_combo.currentData()
-        if not pncat_path or not list_id:
-            return
-
-        row = self.db.get_list(list_id)
-        if not row:
-            return
-
-        try:
-            QApplication.setOverrideCursor(Qt.WaitCursor)
-            self.db.update_list(list_id, xml_path=pncat_path)
-            matched_txt = ""
-            if self.apply_now_cb.isChecked():
-                res = apply_xml_to_list(self.db, list_id, xml_path=pncat_path)
-                sync_filtered_lists_for_source(self.db, list_id)
-                matched_txt = tr(
-                    "xmlconv.link.applied_counts",
-                    "\n\nUpdated games in list: {matched:,} of {total:,}.",
-                    matched=res.get("matched", 0),
-                    total=res.get("total_games", 0),
-                )
-        except Exception as exc:
-            QApplication.restoreOverrideCursor()
-            QMessageBox.critical(
-                self,
-                tr("mw.xml.err_title", "XML Error"),
-                tr("mw.xml.err_msg", "Could not link the XML file:\n{err}", err=exc),
-            )
-            return
-        finally:
-            while QApplication.overrideCursor() is not None:
-                QApplication.restoreOverrideCursor()
-
-        self.refresh_lists(preferred_list_id=list_id)
-        self.catalog_linked.emit(list_id)
-        QMessageBox.information(
-            self,
-            tr("xmlconv.link.success_title", "Fast Catalog Linked"),
-            tr(
-                "xmlconv.link.success_msg",
-                "Fast catalog '{cat}' is now linked to list '{name}'.{extra}",
-                cat=Path(pncat_path).name,
-                name=row["name"],
-                extra=matched_txt,
-            ),
-        )
 
     def cleanup(self) -> None:
         self._search_timer.stop()
