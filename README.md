@@ -1,6 +1,6 @@
 <a id="english"></a>
 
-# PlayNexus v1.5.3 — Emulation Frontend for Windows
+# PlayNexus v1.5.5 — Emulation Frontend for Windows
 
 > **Language:** **English** | [Español](#spanish)
 
@@ -136,7 +136,8 @@ Running `python build_executables.py` compiles a fast shared `--onedir` build (e
 ### 16. Rom Manager, Strict `MEDIA_REQUIREMENTS` Audit & Online Scraper
 - **Strict declarative media audit:** Audits only the exact media slots declared by each layout's `MEDIA_REQUIREMENTS` (zero predictive folder guessing), automatically resyncing lists and game counts immediately after scanning or editing in the Library tab.
 - **Per-ROM management:** Quick row actions (open folder, replace ROM, safe literal delete of ROM + exclusive media), dual image/PDF/seekable video preview, drag-and-drop media slotting, and CSV export.
-- **Multi-source batch & single-ROM scraper:** Supports **ArcadeItalia ADB**, **Libretro Thumbnails**, and **ScreenScraper API v2** (CRC/MD5/SHA1 matching with `enc1:` encrypted local credentials). In **Single-ROM Online Search**, any extra artwork returned by the provider outside `MEDIA_REQUIREMENTS` (such as `bezel`, `marquee`, `flyer`, `cabinet`, or `manual`) is dynamically offered with an optional checkbox, an editable subfolder name inside the list's media root (or `📁` folder picker), and automatic folder creation on download.
+- **Multi-source batch & single-ROM scraper (`1`–`20` parallel threads):** Supports **ArcadeItalia ADB**, **Libretro Thumbnails**, and **ScreenScraper API v2** (with `enc1:` encrypted local credentials, `1`–`20` parallel worker threads, one-click `maxthreads` account detection via `ssuserInfos.php`, and dynamic concurrent semaphore throttling). Matches inner uncompressed ROM CRC32/size inside console `.zip` archives, falls back to clean `romnom`, scores against all localized regional titles (`noms`) and split fan-translated subtitles (`[Ting]`/`[Tesp]`), honors `prefer_hd_video`, and auto-prioritizes the ROM's own region tag (`(J)`, `(U)`, `(E)`, `(S)`).
+- **Exclusive multi-region & extra-slot selector:** In **Single-ROM Online Search**, preserves every regional and style variant returned by the provider (`US · 3D`, `EU · 3D`, `JP · 2D`, `SP · 3D`, `Wheel HD / Carbon / Steel`, etc.) with an exclusive **1-region-per-media-type** dropdown synced two-way with the live preview, plus dynamic optional extra media (`bezel`, `marquee`, `flyer`, `cabinet`, `manual`) with editable destination subfolder names and auto-mkdir.
 
 ### 17. Pro Toolkit, RetroAchievements, In-App PDF Manual Viewer & Quick Menu
 - **Pro Toolkit:** Batch Auto-Trim for transparent/black borders, cancelable `ffmpeg` MP4 normalizer (`-movflags +faststart`, powered out of the box by bundled `tools/ffmpeg/`), and non-destructive 1G1R duplicate auditor.
@@ -191,7 +192,7 @@ PlayNexus_Frontend/
 ├── Layouts/                  # 19 dedicated console & arcade themes + gtc-common
 └── playnexus/
     ├── __init__.py           # QtMultimedia FFmpeg setup & early i18n initialization
-    ├── __version__.py        # Centralized app version (v1.5.3) & embedded build commit
+    ├── __version__.py        # Centralized app version (v1.5.5) & embedded build commit
     ├── __main__.py           # CLI router (--player or Configurator)
     ├── db.py                 # Portable .txt storage engine & game telemetry
     ├── i18n.py               # Plain-text lang/*.txt loader, fallback & restart helper
@@ -257,7 +258,7 @@ PlayNexus stores all configuration, translations, and library data in human-read
 
 > **Idioma:** [English](#english) | **Español**
 
-# PlayNexus v1.5.3 — Frontend de Emulación para Windows
+# PlayNexus v1.5.5 — Frontend de Emulación para Windows
 
 ![PlayNexus Logo](PlayNexus_Logo.png)
 
@@ -356,7 +357,7 @@ Al ejecutar `python build_executables.py`, se compila una distribución rápida 
 
 ### 9. Layout Studio 2.0, Rom Manager, Scraper, Pro Toolkit, RetroAchievements y Extras
 - **Layout Studio 2.0:** Edición directa sobre `ThemeLayout` real en lienzo `1920x1080`, deformación proyectiva 4 puntos (`corner_pins`), línea de tiempo de animaciones a 60 FPS, copias de seguridad locales en `Layouts/<Tema>/backups/` y **Sandbox en vivo** multi-resolución.
-- **Rom Manager y Scraper Multi-Fuente:** Auditoría estricta guiada exclusivamente por `MEDIA_REQUIREMENTS` (sin diccionarios predictivos), sincronización inmediata de listas al volver desde la pestaña Biblioteca, reemplazo y borrado literal seguro de ROM+artes exclusivas, previsualizador dual imagen/PDF/video con timeline, exportación CSV y scraping integrado con **ArcadeItalia (ADB)**, **Libretro Thumbnails** y **ScreenScraper API v2** (con cifrado local `enc1:` mediante `config/.key`). En **Buscar online… (por ROM individual)**, cualquier medio extra devuelto por el proveedor fuera de los requerimientos del layout (`bezel`, `marquee`, `flyer`, `cabinet`, `manual`, etc.) se ofrece dinámicamente con casilla opcional, nombre de subcarpeta editable dentro de la carpeta raíz de medios (o selector `📁`) y creación automática de carpeta al descargar.
+- **Rom Manager y Scraper Multi-Fuente (`1`–`20` hilos y Multi-Región):** Auditoría estricta guiada exclusivamente por `MEDIA_REQUIREMENTS` (sin diccionarios predictivos), sincronización inmediata de listas al volver desde la pestaña Biblioteca, reemplazo y borrado literal seguro de ROM+artes exclusivas, previsualizador dual imagen/PDF/video con timeline, exportación CSV y scraping integrado con **ArcadeItalia (ADB)**, **Libretro Thumbnails** y **ScreenScraper API v2** (cifrado local `enc1:`, de **`1` a `20` hilos paralelos**, botón de autodetección de `maxthreads` reales de tu cuenta vía `ssuserInfos.php` y semáforo concurrente dinámico). Incluye lectura de CRC32/tamaño interno en `.zip` de consola, respaldo limpio por `romnom`, comparación contra todos los nombres regionales (`noms`) y subtítulos traducidos (`[Ting]`/`[Tesp]`), soporte de `prefer_hd_video` y priorización automática según la región de la ROM (`(J)`, `(U)`, `(E)`, `(S)`). En **Buscar online… (individual)** conserva todas las regiones y variantes (`US · 3D`, `EU · 3D`, `JP · 2D`, `SP · 3D`, `Wheel HD`, etc.) con selector exclusivo de **1 sola región por tipo de medio** sincronizado en vivo con la vista previa, más descarga opcional de medios adicionales (`bezel`, `marquee`, `flyer`, `cabinet`, `manual`) con subcarpeta editable y creación automática.
 - **Pro Toolkit:** Auto-Trim de wheels/logos, normalizador MP4 vía `ffmpeg` (con `tools/ffmpeg/` incluido por defecto) y auditor no destructivo 1G1R/duplicados.
 - **RetroAchievements API v1, Visor PDF in-app, Menú Rápido Arcade, Shaders/Partículas y Guardián WASAPI (`audio_guard.py`).**
 
@@ -392,7 +393,7 @@ PlayNexus_Frontend/
 ├── Layouts/                  # 19 temas dedicados por consola/arcade + gtc-common
 └── playnexus/
     ├── __init__.py           # Inicialización de QtMultimedia FFmpeg e i18n temprano
-    ├── __version__.py        # Versión centralizada (v1.5.3) y commit incrustado
+    ├── __version__.py        # Versión centralizada (v1.5.5) y commit incrustado
     ├── __main__.py           # Enrutador CLI (--player o Configurador)
     ├── db.py                 # Motor de almacenamiento en texto plano y telemetría
     ├── i18n.py               # Motor de carga multi-idioma desde lang/*.txt y reinicio

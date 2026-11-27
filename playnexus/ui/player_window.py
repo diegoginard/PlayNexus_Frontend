@@ -1754,7 +1754,22 @@ class PlayerWindow(QMainWindow):
                 if not dlg.exec():
                     event.ignore()
                     return
+        self._confirmed_exit = True
+        try:
+            self.setUpdatesEnabled(False)
+            if sys.platform == "win32" and self.isVisible() and self.testAttribute(Qt.WA_WState_Created):
+                import ctypes
+                ctypes.windll.user32.ShowWindow(int(self.winId()), 0)  # SW_HIDE inmediato en DWM
+            self.hide()
+        except Exception:
+            pass
         self.stop_all_active_media()
+        for inst in list(getattr(self, "active_layouts", {}).values()):
+            try:
+                if hasattr(inst, "cleanup"):
+                    inst.cleanup()
+            except Exception:
+                pass
         if hasattr(self, "splash_screen") and self.splash_screen:
             try:
                 self.splash_screen.close()

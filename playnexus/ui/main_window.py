@@ -2429,7 +2429,15 @@ class MainWindow(QMainWindow):
         super().changeEvent(event)
 
     def closeEvent(self, event):
-        """Detiene cualquier reproducción activa antes de cerrar la ventana para evitar errores de Media Foundation."""
+        """Oculta la ventana de inmediato y detiene medios/hilos sin mostrar cuadros corruptos de VRAM."""
+        try:
+            self.setUpdatesEnabled(False)
+            if sys.platform == "win32" and self.isVisible() and self.testAttribute(Qt.WA_WState_Created):
+                import ctypes
+                ctypes.windll.user32.ShowWindow(int(self.winId()), 0)  # SW_HIDE inmediato en DWM
+            self.hide()
+        except Exception:
+            pass
         self.stop_all_active_media()
         # Cerrar y liberar hilos de layouts cargados en layout_stack y active_layouts
         if hasattr(self, "layout_stack"):

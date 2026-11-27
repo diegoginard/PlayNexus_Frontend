@@ -513,6 +513,10 @@ class _AncestorGlCleanupFilter(QObject):
                 try:
                     if ev_type == QEvent.Type.WinIdChange:
                         vp.release_gl_textures()
+                    elif ev_type == QEvent.Type.Close and obj is vp.window():
+                        # No destruir el pipeline antes de closeEvent de la ventana raíz
+                        # (la ventana puede cancelar el cierre o seguir visible un instante).
+                        pass
                     else:
                         vp.cleanup_gl()
                 except Exception:
@@ -1640,9 +1644,17 @@ class GpuSceneViewport(QOpenGLWidget):
 
     def paintGL(self) -> None:  # noqa: N802
         ctx = self.context()
-        if ctx is None or not self.gl_ready:
+        if ctx is None:
             return
         gl_funcs = ctx.functions()
+        if not self.gl_ready:
+            try:
+                gl_funcs.glBindFramebuffer(0x8D40, int(self.defaultFramebufferObject()))
+                gl_funcs.glClearColor(0.0, 0.0, 0.0, 1.0)
+                gl_funcs.glClear(0x00004000)
+            except Exception:
+                pass
+            return
 
         log_w = max(1, int(self.width()))
         log_h = max(1, int(self.height()))
