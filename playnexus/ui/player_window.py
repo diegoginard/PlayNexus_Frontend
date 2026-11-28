@@ -29,6 +29,7 @@ from playnexus.services.gamepad import get_gamepad_manager
 from playnexus.ui.frontend_quick_menu import (
     FrontendQuickMenuOverlay, QuickSearchOverlay,
     filter_and_sort_runtime_games, execute_system_power_action,
+    describe_runtime_filter, parse_field_filter_mode,
 )
 from playnexus.ui.gpu_renderer import (
     is_gpu_rendering_permitted,
@@ -355,7 +356,8 @@ class PlayerWindow(QMainWindow):
         list_row = self.db.get_list(self.current_list_id) if self.current_list_id else None
         list_name = (list_row.get("name") if list_row else "") or "Frontend"
         cur_game = next((g for g in self.games_cache if g.get("id") == self.current_game_id), None)
-        full_game = (self.db.get_game(self.current_game_id) if self.current_game_id else None) or cur_game
+        raw_game = self.db.get_game(self.current_game_id) if self.current_game_id else None
+        full_game = enrich_game_dict(raw_game) if raw_game else cur_game
         from playnexus.services.media import resolve_game_manual_pdf
         is_menu = self._is_menu_list(self.current_list_id)
         manual_pdf = resolve_game_manual_pdf(full_game, list_row=list_row) if (full_game and not is_menu) else ""
@@ -375,6 +377,7 @@ class PlayerWindow(QMainWindow):
             shader_preset=sh_cfg,
             particle_preset=pt_cfg,
             manual_path=manual_pdf,
+            all_games=self._all_list_games,
         )
         self._quick_menu_overlay.setGeometry(self.rect())
         self._quick_menu_overlay.show()
@@ -467,9 +470,20 @@ class PlayerWindow(QMainWindow):
             self._show_toast(f"🔍 {item.get('title', '')}", "#a5b4fc")
 
     def _on_runtime_filter_sort_changed(self, filter_mode: str, sort_mode: str):
+        prev_filter = self._runtime_filter_mode
         self._runtime_filter_mode = filter_mode
         self._runtime_sort_mode = sort_mode
         self._apply_runtime_filter_and_sort()
+        if filter_mode != prev_filter and parse_field_filter_mode(self._runtime_filter_mode):
+            self._show_toast(
+                tr(
+                    "player.toast_facet_applied",
+                    "🧭 {filter}  ({count} games)",
+                    filter=describe_runtime_filter(self._runtime_filter_mode),
+                    count=len(self.games_cache),
+                ),
+                "#c084fc",
+            )
 
     def _on_quick_layout_selected(self, layout_name: str):
         if not self.current_list_id or not layout_name:

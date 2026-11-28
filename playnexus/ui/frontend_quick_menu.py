@@ -7,6 +7,7 @@ Superposiciones Arcade In-Frontend para PlayerWindow (Fase 3):
 
 from __future__ import annotations
 
+import html
 import re
 import subprocess
 import sys
@@ -20,6 +21,12 @@ from PySide6.QtWidgets import (
 
 from playnexus.db import format_play_time
 from playnexus.i18n import tr
+from playnexus.services.library import (
+    discover_dynamic_columns_from_games,
+    extract_custom_game_properties,
+    get_game_field_value,
+    humanize_column_label,
+)
 from playnexus.services.controls import (
     ACTION_CLOSE_FRONTEND, ACTION_FRONTEND_MENU, ACTION_MUTE, ACTION_NAV_BACK,
     ACTION_NAV_DOWN, ACTION_NAV_LETTER_BACK, ACTION_NAV_LETTER_FWD,
@@ -39,23 +46,84 @@ def _get_quick_particle_options() -> list[tuple[str, str]]:
     return [("layout", tr("qmenu.from_layout", "From Layout"))] + list(get_particle_presets())
 
 
-def _get_quick_filter_options() -> list[tuple[str, str]]:
-    return [
+_STANDARD_FACET_SPECS: list[tuple[str, str, str, str]] = [
+    ("genre", "🎭", "layout.col_genre", "Genre"),
+    ("manufacturer", "🏢", "layout.col_manufacturer", "Manufacturer"),
+    ("year", "📅", "layout.col_year", "Year"),
+    ("players", "👥", "layout.col_players", "Players"),
+    ("bios", "🧩", "layout.col_bios", "BIOS"),
+    ("sourcefile", "⚙", "layout.col_sourcefile", "Sourcefile"),
+]
+
+
+def get_facet_field_label(field_key: str) -> str:
+    fk = str(field_key or "").strip()
+    for std_k, _ico, ikey, fb in _STANDARD_FACET_SPECS:
+        if fk == std_k:
+            return tr(ikey, fb)
+    return f"✨ {humanize_column_label(fk)}"
+
+
+def parse_field_filter_mode(filter_mode: str) -> tuple[str, str] | None:
+    raw = str(filter_mode or "").strip()
+    if not raw.lower().startswith("field:"):
+        return None
+    body = raw[6:]
+    if "=" not in body:
+        return None
+    fk, fv = body.split("=", 1)
+    fk = fk.strip()
+    fv = fv.strip()
+    if not fk or not fv:
+        return None
+    return fk, fv
+
+
+def describe_runtime_filter(filter_mode: str) -> str:
+    parsed = parse_field_filter_mode(filter_mode)
+    if parsed:
+        fk, fv = parsed
+        return f"{get_facet_field_label(fk)}: {fv}"
+    for k, lbl in _get_quick_filter_options():
+        if k == filter_mode:
+            return lbl
+    return str(filter_mode or "")
+
+
+def _get_quick_filter_options(extra_filter_mode: str = "") -> list[tuple[str, str]]:
+    opts = [
         ("all", tr("qmenu.filter_all", "All games")),
         ("favorites", tr("qmenu.filter_favorites", "⭐ Favorites Only")),
         ("unplayed", tr("qmenu.filter_unplayed", "🧭 Unplayed (0 plays)")),
         ("played", tr("qmenu.filter_played", "🎮 Played")),
     ]
+    if parse_field_filter_mode(extra_filter_mode):
+        opts.append((extra_filter_mode, describe_runtime_filter(extra_filter_mode)))
+    return opts
 
 
-def _get_quick_sort_options() -> list[tuple[str, str]]:
-    return [
+def _get_quick_sort_options(custom_cols: list[str] | None = None) -> list[tuple[str, str]]:
+    opts = [
         ("title", tr("qmenu.sort_title", "Alphabetical (A-Z)")),
+        ("title_desc", tr("qmenu.sort_title_desc", "Alphabetical (Z-A)")),
         ("favorites_first", tr("qmenu.sort_favorites_first", "Favorites first")),
         ("play_count_desc", tr("qmenu.sort_most_played", "Most played")),
         ("last_played_desc", tr("qmenu.sort_recently_played", "Recently played")),
         ("year_desc", tr("qmenu.sort_year_desc", "By Year (newest)")),
+        ("year_asc", tr("qmenu.sort_year_asc", "By Year (oldest → newest)")),
+        ("manufacturer", tr("qmenu.sort_manufacturer", "By Manufacturer")),
+        ("genre", tr("qmenu.sort_genre", "By Genre")),
     ]
+    seen = {k for k, _ in opts}
+    for col in (custom_cols or []):
+        ck = str(col or "").strip()
+        if not ck:
+            continue
+        sk = f"custom:{ck}"
+        if sk not in seen:
+            seen.add(sk)
+            opts.append((sk, tr("qmenu.sort_custom_fmt", "✨ By {col}", col=humanize_column_label(ck))))
+    return opts
 
 
 QUICK_SHADER_OPTIONS: list[tuple[str, str]] = [("layout", tr("qmenu.from_layout", "From Layout"))] + list(SHADER_PRESETS)
@@ -72,19 +140,97 @@ def _parse_year_num(raw_year: object) -> int:
     return int(m.group(0)) if m else 0
 
 
+def _natural_sort_tuple(raw_val: object) -> tuple:
+    s = str(raw_val or "").strip()
+    if not s:
+        return (1, "")
+    parts = re.split(r"(\d+)", s.lower())
+    conv = [int(p) if p.isdigit() else p for p in parts]
+    return (0, conv)
+
+
+def collect_available_facets(games: list[dict], custom_cols: list[str] | None = None) -> list[tuple[str, str, int]]:
+    """
+    Descubre todas las facetas filtrables (estándar + personalizadas .pncat/.ini)
+    que tengan al menos un valor no vacío en `games`.
+    Retorna [(field_key, display_label, distinct_values_count)].
+    """
+    non_menu = [g for g in (games or []) if not g.get("is_menu_target")]
+    if not non_menu:
+        return []
+
+    dyn_cols = list(custom_cols) if custom_cols is not None else discover_dynamic_columns_from_games(non_menu)
+    candidates: list[tuple[str, str]] = []
+    seen_keys: set[str] = set()
+    for std_k, ico, ikey, fb in _STANDARD_FACET_SPECS:
+        candidates.append((std_k, f"{ico}  {tr(ikey, fb)}"))
+        seen_keys.add(std_k)
+    for ck in dyn_cols:
+        if ck not in seen_keys:
+            seen_keys.add(ck)
+            candidates.append((ck, f"✨  {humanize_column_label(ck)}"))
+
+    out: list[tuple[str, str, int]] = []
+    for fk, flbl in candidates:
+        distinct: set[str] = set()
+        for g in non_menu:
+            val = str(get_game_field_value(g, fk) or "").strip()
+            if val:
+                distinct.add(val.lower())
+        if distinct:
+            out.append((fk, flbl, len(distinct)))
+    return out
+
+
+def collect_facet_value_counts(
+    games: list[dict], field_key: str, order_by_count: bool = False
+) -> list[tuple[str, int]]:
+    """
+    Agrupa y cuenta juegos por cada valor no vacío de `field_key`.
+    Retorna [(display_value, game_count)].
+    """
+    counts: dict[str, int] = {}
+    canonical: dict[str, str] = {}
+    for g in (games or []):
+        if g.get("is_menu_target"):
+            continue
+        val = str(get_game_field_value(g, field_key) or "").strip()
+        if not val:
+            continue
+        low = val.lower()
+        if low not in canonical:
+            canonical[low] = val
+        counts[low] = counts.get(low, 0) + 1
+
+    items = [(canonical[k], cnt) for k, cnt in counts.items()]
+    if order_by_count:
+        items.sort(key=lambda pair: (-pair[1], _natural_sort_tuple(pair[0])))
+    else:
+        items.sort(key=lambda pair: _natural_sort_tuple(pair[0]))
+    return items
+
+
 def filter_and_sort_runtime_games(
     games: list[dict], filter_mode: str = "all", sort_mode: str = "title"
 ) -> list[dict]:
     """Filtra y ordena una copia en memoria de la lista activa según el modo elegido."""
-    fmode = (filter_mode or "all").strip().lower()
-    smode = (sort_mode or "title").strip().lower()
+    raw_filter = str(filter_mode or "all").strip()
+    fmode = raw_filter.lower()
+    raw_sort = str(sort_mode or "title").strip()
+    smode = raw_sort.lower()
+    parsed_field = parse_field_filter_mode(raw_filter)
 
     filtered: list[dict] = []
     for g in games:
         if g.get("is_menu_target"):
             filtered.append(g)
             continue
-        if fmode == "favorites" and int(g.get("is_favorite") or 0) != 1:
+        if parsed_field is not None:
+            fk, target_val = parsed_field
+            cur_val = str(get_game_field_value(g, fk) or "").strip()
+            if cur_val.lower() != target_val.lower():
+                continue
+        elif fmode == "favorites" and int(g.get("is_favorite") or 0) != 1:
             continue
         elif fmode == "unplayed" and int(g.get("play_count") or 0) != 0:
             continue
@@ -95,7 +241,9 @@ def filter_and_sort_runtime_games(
     result = list(filtered)
     result.sort(key=lambda item: (item.get("title") or "").lower())
 
-    if smode == "favorites_first":
+    if smode == "title_desc":
+        result.sort(key=lambda item: (item.get("title") or "").lower(), reverse=True)
+    elif smode == "favorites_first":
         result.sort(key=lambda item: int(item.get("is_favorite") or 0), reverse=True)
     elif smode == "play_count_desc":
         result.sort(
@@ -106,6 +254,30 @@ def filter_and_sort_runtime_games(
         result.sort(key=lambda item: str(item.get("last_played") or ""), reverse=True)
     elif smode == "year_desc":
         result.sort(key=lambda item: _parse_year_num(item.get("year")), reverse=True)
+    elif smode == "year_asc":
+        result.sort(
+            key=lambda item: (
+                0 if _parse_year_num(item.get("year")) > 0 else 1,
+                _parse_year_num(item.get("year")),
+                (item.get("title") or "").lower(),
+            )
+        )
+    elif smode in ("manufacturer", "genre"):
+        result.sort(
+            key=lambda item: (
+                _natural_sort_tuple(get_game_field_value(item, smode)),
+                (item.get("title") or "").lower(),
+            )
+        )
+    elif raw_sort.lower().startswith("custom:"):
+        ck = raw_sort.split(":", 1)[1].strip()
+        if ck:
+            result.sort(
+                key=lambda item: (
+                    _natural_sort_tuple(get_game_field_value(item, ck)),
+                    (item.get("title") or "").lower(),
+                )
+            )
     return result
 
 
@@ -206,6 +378,10 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         self.db = db
         self._is_menu_list = False
         self._current_game: dict | None = None
+        self._all_games: list[dict] = []
+        self._custom_cols: list[str] = []
+        self._active_facet_key: str = ""
+        self._facet_order_by_count: bool = False
         self._filter_mode = "all"
         self._sort_mode = "title"
         self._active_layout_name = "Wheel"
@@ -308,10 +484,16 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         shader_preset: str = "layout",
         particle_preset: str = "layout",
         manual_path: str = "",
+        all_games: list[dict] | None = None,
     ):
         """Prepara el menú rápido con el estado vivo actual antes de mostrarse."""
         self._is_menu_list = is_menu_list
         self._current_game = dict(current_game) if current_game else None
+        self._all_games = [g for g in (all_games or []) if not g.get("is_menu_target")]
+        if not self._all_games and self._current_game and not self._current_game.get("is_menu_target"):
+            self._all_games = [self._current_game]
+        self._custom_cols = discover_dynamic_columns_from_games(self._all_games) if not is_menu_list else []
+        self._active_facet_key = ""
         self._manual_path = str(manual_path or "").strip()
         self._has_manual = bool(self._manual_path)
         self._filter_mode = filter_mode or "all"
@@ -351,9 +533,12 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
             self._add_action_item("random_game", tr("qmenu.random_game", "🎲  Random Game (Lucky Wheel)"))
             self._add_action_item("quick_search", tr("qmenu.quick_search", "🔍  Quick Search in List"))
 
-            f_lbl = self._label_for(_get_quick_filter_options(), self._filter_mode)
-            s_lbl = self._label_for(_get_quick_sort_options(), self._sort_mode)
+            f_opts = _get_quick_filter_options(self._filter_mode)
+            s_opts = _get_quick_sort_options(self._custom_cols)
+            f_lbl = self._label_for(f_opts, self._filter_mode)
+            s_lbl = self._label_for(s_opts, self._sort_mode)
             if not self._is_menu_list:
+                self._add_action_item("open_facets", tr("qmenu.open_facets", "🧭  Explore by Category / INI…"))
                 self._add_action_item("cycle_filter", tr("qmenu.cycle_filter", "⚡  Quick Filter:   ◀  {label}  ▶", label=f_lbl))
                 self._add_action_item("cycle_sort", tr("qmenu.cycle_sort", "⇅   List Order:  ◀  {label}  ▶", label=s_lbl))
 
@@ -372,6 +557,74 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
             self._add_action_item("info_controls", tr("qmenu.info_controls", "📖  Game Info & System Controls"))
             self._add_action_item("system_menu", tr("qmenu.system_menu", "⚙   System / Power Options"))
             self._add_action_item("close_menu", tr("qmenu.close_menu", "✕   Resume Frontend"))
+
+        elif page == "facets":
+            self.title_lbl.setText(tr("qmenu.facets_title", "🧭  EXPLORE BY CATEGORY / INI"))
+            total_n = len(self._all_games)
+            mark_all = "✓  " if self._filter_mode == "all" else "    "
+            self._add_action_item(
+                "set_filter:all",
+                tr("qmenu.facet_show_all", "{mark}All games ({count})", mark=mark_all, count=total_n),
+            )
+            facets = collect_available_facets(self._all_games, self._custom_cols)
+            parsed_cur = parse_field_filter_mode(self._filter_mode)
+            sel_idx = 0
+            for idx, (fk, flbl, dcount) in enumerate(facets, start=1):
+                active_mark = "●  " if (parsed_cur and parsed_cur[0] == fk) else "    "
+                self._add_action_item(
+                    f"open_facet:{fk}",
+                    tr(
+                        "qmenu.facet_row_fmt",
+                        "{mark}{label}   ({count} categories)",
+                        mark=active_mark,
+                        label=flbl,
+                        count=dcount,
+                    ),
+                )
+                if parsed_cur and parsed_cur[0] == fk:
+                    sel_idx = idx
+            self._add_action_item("back_main", tr("qmenu.back_main", "←  Back to Quick Menu"))
+            keep_row = keep_row if keep_row > 0 else sel_idx
+
+        elif page == "facet_values":
+            fk = self._active_facet_key
+            flbl = get_facet_field_label(fk)
+            order_lbl = (
+                tr("qmenu.facet_order_count", "Most games")
+                if self._facet_order_by_count
+                else tr("qmenu.facet_order_az", "A-Z")
+            )
+            self.title_lbl.setText(
+                tr("qmenu.facet_values_title", "🧭  {label}   [◀ {order} ▶]", label=flbl, order=order_lbl)
+            )
+            val_counts = collect_facet_value_counts(
+                self._all_games, fk, order_by_count=self._facet_order_by_count
+            )
+            parsed_cur = parse_field_filter_mode(self._filter_mode)
+            sel_idx = 0
+            for idx, (val_str, cnt) in enumerate(val_counts):
+                is_cur = bool(parsed_cur and parsed_cur[0] == fk and parsed_cur[1].lower() == val_str.lower())
+                mark = "✓  " if is_cur else "    "
+                self._add_action_item(
+                    f"set_filter:field:{fk}={val_str}",
+                    f"{mark}{val_str}   ({cnt})",
+                )
+                if is_cur:
+                    sel_idx = idx
+            self._add_action_item("back_facets", tr("qmenu.back_facets", "←  Back to Categories"))
+            keep_row = keep_row if keep_row > 0 else sel_idx
+
+        elif page == "sort":
+            self.title_lbl.setText(tr("qmenu.select_sort_title", "⇅  SELECT LIST ORDER"))
+            s_opts = _get_quick_sort_options(self._custom_cols)
+            sel_idx = 0
+            for idx, (skey, slbl) in enumerate(s_opts):
+                mark = "✓  " if skey == self._sort_mode else "    "
+                self._add_action_item(f"set_sort:{skey}", f"{mark}{slbl}")
+                if skey == self._sort_mode:
+                    sel_idx = idx
+            self._add_action_item("back_main", tr("qmenu.back_main", "←  Back to Quick Menu"))
+            keep_row = sel_idx
 
         elif page == "layout":
             self.title_lbl.setText(tr("qmenu.select_layout_title", "🎨  SELECT VISUAL LAYOUT"))
@@ -419,15 +672,16 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
     def _populate_info_page(self):
         g = self._current_game
         if g and not g.get("is_menu_target"):
-            title = g.get("title") or tr("qmenu.untitled", "Untitled")
-            year = g.get("year") or "—"
-            maker = g.get("manufacturer") or "—"
-            genre = g.get("genre") or "—"
-            players = g.get("players") or "—"
+            title = html.escape(str(g.get("title") or tr("qmenu.untitled", "Untitled")))
+            year = html.escape(str(g.get("year") or "—"))
+            maker = html.escape(str(g.get("manufacturer") or "—"))
+            genre = html.escape(str(g.get("genre") or "—"))
+            players = html.escape(str(g.get("players") or "—"))
+            bios_val = str(get_game_field_value(g, "bios") or "").strip()
             plays = int(g.get("play_count") or 0)
             ptime = format_play_time(g.get("play_time_seconds") or 0)
-            last = str(g.get("last_played") or "").strip() or tr("qmenu.never", "Never")
-            tags = str(g.get("tags") or "").strip() or "—"
+            last = html.escape(str(g.get("last_played") or "").strip() or tr("qmenu.never", "Never"))
+            tags = html.escape(str(g.get("tags") or "").strip() or "—")
             fav_badge = (
                 tr("qmenu.badge_favorite", "⭐ Favorite")
                 if int(g.get("is_favorite") or 0) == 1
@@ -435,35 +689,43 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
             )
             from playnexus.services.retroachievements import format_ra_badge_text, get_cached_ra_progress_summary
             ra_sum = get_cached_ra_progress_summary(self.db, g)
-            ra_txt = format_ra_badge_text(ra_sum) if ra_sum else tr("qmenu.ra_unsynced", "Not synced")
+            ra_txt = html.escape(format_ra_badge_text(ra_sum) if ra_sum else tr("qmenu.ra_unsynced", "Not synced"))
             manual_badge = (
                 tr("qmenu.manual_badge_available", "Available (PDF)")
                 if getattr(self, "_has_manual", False)
                 else tr("qmenu.manual_badge_none", "Not assigned")
             )
-            self.info_game_lbl.setText(
-                tr(
-                    "qmenu.info_game_html",
-                    "<b style='font-size:12pt; color:#f8fafc;'>{title}</b>   "
-                    "<span style='color:#fbbf24;'>[{fav_badge}]</span><br>"
-                    "<b>Year:</b> {year}  ·  <b>Manufacturer:</b> {maker}  ·  <b>Genre:</b> {genre}  ·  <b>Players:</b> {players}<br>"
-                    "<b>Activity:</b> {plays} plays  ·  {ptime} total  ·  <b>Last played:</b> {last}<br>"
-                    "<b>RetroAchievements:</b> <span style='color:#fde047;'>{ra_txt}</span>  ·  <b>Manual:</b> {manual_badge}<br>"
-                    "<b>Tags:</b> {tags}",
-                    title=title,
-                    fav_badge=fav_badge,
-                    year=year,
-                    maker=maker,
-                    genre=genre,
-                    players=players,
-                    plays=plays,
-                    ptime=ptime,
-                    last=last,
-                    ra_txt=ra_txt,
-                    manual_badge=manual_badge,
-                    tags=tags,
-                )
+            base_html = tr(
+                "qmenu.info_game_html",
+                "<b style='font-size:12pt; color:#f8fafc;'>{title}</b>   "
+                "<span style='color:#fbbf24;'>[{fav_badge}]</span><br>"
+                "<b>Year:</b> {year}  ·  <b>Manufacturer:</b> {maker}  ·  <b>Genre:</b> {genre}  ·  <b>Players:</b> {players}<br>"
+                "<b>Activity:</b> {plays} plays  ·  {ptime} total  ·  <b>Last played:</b> {last}<br>"
+                "<b>RetroAchievements:</b> <span style='color:#fde047;'>{ra_txt}</span>  ·  <b>Manual:</b> {manual_badge}<br>"
+                "<b>Tags:</b> {tags}",
+                title=title,
+                fav_badge=fav_badge,
+                year=year,
+                maker=maker,
+                genre=genre,
+                players=players,
+                plays=plays,
+                ptime=ptime,
+                last=last,
+                ra_txt=ra_txt,
+                manual_badge=manual_badge,
+                tags=tags,
             )
+            extra_parts: list[str] = []
+            if bios_val:
+                extra_parts.append(f"<b>BIOS:</b> {html.escape(bios_val)}")
+            for _ck, clbl, cval in extract_custom_game_properties(g):
+                extra_parts.append(
+                    f"<span style='color:#c4b5fd;'><b>✨ {html.escape(clbl)}:</b></span> {html.escape(cval)}"
+                )
+            if extra_parts:
+                base_html += "<br>" + "  ·  ".join(extra_parts)
+            self.info_game_lbl.setText(base_html)
         else:
             self.info_game_lbl.setText(
                 tr("qmenu.info_menu_view", "<b>Menu / List View</b> — Select a game to view its stats.")
@@ -478,9 +740,10 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
                 tr(
                     "qmenu.control_binding_row",
                     "• <b>{name}:</b> Keyboard <code>{key}</code> | Gamepad <code>{pad}</code>",
-                    name=b["name"],
-                    key=key_s,
-                    pad=pad_s,
+                ).format(
+                    name=html.escape(str(b["name"])),
+                    key=html.escape(str(key_s)),
+                    pad=html.escape(str(pad_s)),
                 )
             )
         self.info_controls_lbl.setText("<br>".join(rows_html))
@@ -493,6 +756,10 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         return keys[idx]
 
     def _cycle_current_row_inline(self, delta: int) -> bool:
+        if self._page == "facet_values":
+            self._facet_order_by_count = not self._facet_order_by_count
+            self._show_page("facet_values", keep_row=0)
+            return True
         if self._page != "main":
             return False
         item = self.menu_list.currentItem()
@@ -501,12 +768,14 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         act = item.data(Qt.UserRole)
         row = self.menu_list.currentRow()
         if act == "cycle_filter":
-            self._filter_mode = self._cycle_option(QUICK_FILTER_OPTIONS, self._filter_mode, delta)
+            f_opts = _get_quick_filter_options(self._filter_mode)
+            self._filter_mode = self._cycle_option(f_opts, self._filter_mode, delta)
             self.filter_sort_changed.emit(self._filter_mode, self._sort_mode)
             self._show_page("main", keep_row=row)
             return True
         if act == "cycle_sort":
-            self._sort_mode = self._cycle_option(QUICK_SORT_OPTIONS, self._sort_mode, delta)
+            s_opts = _get_quick_sort_options(self._custom_cols)
+            self._sort_mode = self._cycle_option(s_opts, self._sort_mode, delta)
             self.filter_sort_changed.emit(self._filter_mode, self._sort_mode)
             self._show_page("main", keep_row=row)
             return True
@@ -521,12 +790,12 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
             self._show_page("main", keep_row=row)
             return True
         if act == "cycle_shader":
-            self._shader_preset = self._cycle_option(QUICK_SHADER_OPTIONS, self._shader_preset, delta)
+            self._shader_preset = self._cycle_option(_get_quick_shader_options(), self._shader_preset, delta)
             self.shader_preset_changed.emit(self._shader_preset)
             self._show_page("main", keep_row=row)
             return True
         if act == "cycle_particle":
-            self._particle_preset = self._cycle_option(QUICK_PARTICLE_OPTIONS, self._particle_preset, delta)
+            self._particle_preset = self._cycle_option(_get_quick_particle_options(), self._particle_preset, delta)
             self.particle_preset_changed.emit(self._particle_preset)
             self._show_page("main", keep_row=row)
             return True
@@ -548,10 +817,25 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
         elif act == "quick_search":
             self.close_requested.emit()
             self.search_requested.emit()
+        elif act == "open_facets":
+            self._show_page("facets")
+        elif act.startswith("open_facet:"):
+            self._active_facet_key = act.split(":", 1)[1]
+            self._show_page("facet_values")
+        elif act.startswith("set_filter:"):
+            chosen_f = act.split(":", 1)[1]
+            self._filter_mode = chosen_f
+            self.filter_sort_changed.emit(self._filter_mode, self._sort_mode)
+            self.close_requested.emit()
         elif act == "cycle_filter":
             self._cycle_current_row_inline(1)
         elif act == "cycle_sort":
-            self._cycle_current_row_inline(1)
+            self._show_page("sort")
+        elif act.startswith("set_sort:"):
+            chosen_s = act.split(":", 1)[1]
+            self._sort_mode = chosen_s
+            self.filter_sort_changed.emit(self._filter_mode, self._sort_mode)
+            self.close_requested.emit()
         elif act in ("cycle_shader", "cycle_particle"):
             self._cycle_current_row_inline(1)
         elif act == "pick_layout":
@@ -568,6 +852,8 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
             self.open_manual_requested.emit()
         elif act == "system_menu":
             self._show_page("system")
+        elif act == "back_facets":
+            self._show_page("facets")
         elif act == "back_main":
             self._show_page("main")
         elif act == "back_system":
@@ -610,6 +896,8 @@ class FrontendQuickMenuOverlay(_BaseBackdropOverlay):
                 self.close_requested.emit()
             elif self._page == "confirm_power":
                 self._show_page("system")
+            elif self._page == "facet_values":
+                self._show_page("facets")
             else:
                 self._show_page("main")
             return True
@@ -806,17 +1094,25 @@ class QuickSearchOverlay(_BaseBackdropOverlay):
         self.results_list.clear()
         matches: list[dict] = []
         for g in self._games:
-            hay = " ".join(
-                str(g.get(k) or "") for k in ("title", "rom_name", "genre", "manufacturer", "year", "tags")
-            ).lower()
-            if not q or q in hay:
+            if not q:
+                matches.append(g)
+                continue
+            parts = [
+                str(g.get(k) or "")
+                for k in ("title", "rom_name", "genre", "manufacturer", "year", "sourcefile", "tags")
+            ]
+            parts.append(str(get_game_field_value(g, "bios") or ""))
+            for _ck, _clbl, cval in extract_custom_game_properties(g):
+                parts.append(cval)
+            if any(q in p.lower() for p in parts if p):
                 matches.append(g)
 
         game_fallback = tr("qmenu.game_fallback", "Game")
-        for g in matches[:40]:
+        for g in matches[:50]:
             star = "⭐ " if int(g.get("is_favorite") or 0) == 1 else ""
             yr = f" ({g['year']})" if g.get("year") else ""
-            item = QListWidgetItem(f"{star}{g.get('title') or game_fallback}{yr}")
+            maker = f"  ·  {g['manufacturer']}" if g.get("manufacturer") else ""
+            item = QListWidgetItem(f"{star}{g.get('title') or game_fallback}{yr}{maker}")
             item.setData(Qt.UserRole, g.get("id"))
             self.results_list.addItem(item)
 
