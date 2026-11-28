@@ -119,6 +119,58 @@ _RELEVANT_CHILD_TAGS = frozenset({
 })
 
 
+def sanitize_custom_column_name(raw_name: str | None) -> str:
+    """
+    Normaliza el nombre de una columna personalizada elegida por el usuario o derivada de un .ini
+    (ej. '[GAMING HISTORY] Arcade By Decade' -> 'arcade_by_decade', 'Series' -> 'series').
+    """
+    s = str(raw_name or "").strip()
+    if not s:
+        return ""
+    # Quitar etiquetas entre corchetes al inicio como '[GAMING HISTORY]'
+    s = re.sub(r"^\s*\[[^\]]*\]\s*", "", s)
+    s = s.lower()
+    # Reemplazar caracteres acentuados comunes para claves limpias y portables
+    for src_ch, dst_ch in (("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u"), ("ü", "u"), ("ñ", "n")):
+        s = s.replace(src_ch, dst_ch)
+    s = re.sub(r"[^a-z0-9_]+", "_", s).strip("_")
+    if s in ("keys", "rom_name", "extra_json"):
+        s = f"custom_{s}"
+    return s
+
+
+def suggest_custom_column_from_ini(path: str | Path) -> str:
+    """Sugiere un identificador limpio de columna a partir del nombre de un archivo .ini."""
+    stem = Path(path).stem
+    return sanitize_custom_column_name(stem) or "custom_ini"
+
+
+def read_pncat_schema_columns(pncat_path: str | Path | None) -> list[str]:
+    """
+    Lee en <1 ms únicamente las líneas de cabecera '#' de un archivo '.pncat'
+    y retorna la lista exacta de columnas definidas en '# columns: ...'.
+    """
+    if not pncat_path:
+        return []
+    p = Path(pncat_path)
+    if not p.is_file() or not is_fast_catalog_file(p):
+        return []
+    try:
+        with open(p, "r", encoding="utf-8-sig") as fh:
+            for _ in range(25):
+                line = fh.readline()
+                if not line:
+                    break
+                if line.startswith("# columns:"):
+                    cols = [c.strip() for c in line[10:].strip().split("\t") if c.strip()]
+                    return cols
+                if line and line[0] not in ("#", "\r", "\n"):
+                    break
+    except OSError:
+        return []
+    return []
+
+
 def default_selected_columns() -> list[str]:
     """Devuelve la lista ordenada de columnas .pncat activas por defecto."""
     cols = list(MANDATORY_COLUMNS)
@@ -132,8 +184,8 @@ def default_selected_columns() -> list[str]:
 
 def normalize_selected_columns(columns: Sequence[str] | None) -> list[str]:
     """
-    Normaliza una lista de grupos o nombres de columna asegurando que 'keys' y 'rom_name'
-    vayan siempre en las posiciones 0 y 1 y manteniendo un orden estable.
+    Normaliza una lista de grupos, columnas estándar o columnas personalizadas (.ini)
+    asegurando que 'keys' y 'rom_name' vayan siempre en las posiciones 0 y 1.
     """
     if not columns:
         return default_selected_columns()
@@ -148,15 +200,21 @@ def normalize_selected_columns(columns: Sequence[str] | None) -> list[str]:
             for c in group_map[key]:
                 if c not in requested:
                     requested.append(c)
-        elif key in ALL_KNOWN_COLUMNS and key not in requested:
-            requested.append(key)
+        elif key in ALL_KNOWN_COLUMNS:
+            if key not in requested:
+                requested.append(key)
+        else:
+            custom_c = sanitize_custom_column_name(key)
+            if custom_c and custom_c not in requested:
+                requested.append(custom_c)
     return requested
 
 
 @dataclass
 class SourceSpec:
     path: str
-    role: str = "auto"  # "auto" | "catalog" | "genre" | "players" | "manufacturer" | "year" | "notes"
+    role: str = "auto"  # "auto" | "catalog" | "genre" | "players" | "manufacturer" | "year" | "notes" | "custom"
+    custom_column: str = ""
 
 
 @dataclass
@@ -270,17 +328,21 @@ def is_fast_catalog_file(path: str | Path | None) -> bool:
 
 
 def infer_ini_role(path: str | Path) -> str:
-    """Sugiere el campo de destino inicial cuando el usuario elige un archivo .ini."""
-    stem = Path(path).stem.lower()
+    """
+    Sugiere el campo de destino inicial cuando el usuario elige un archivo .ini.
+    Si no corresponde a una de las columnas estándar (género, jugadores, fabricante, año),
+    sugiere 'custom' para crear una columna propia con el nombre del .ini.
+    """
+    stem = re.sub(r"^\s*\[[^\]]*\]\s*", "", Path(path).stem).strip().lower()
+    if stem in ("catver", "category", "categories", "genre", "genres") or "catver" in stem or stem.startswith("genre"):
+        return "genre"
     if any(k in stem for k in ("nplayer", "player")):
         return "players"
     if any(k in stem for k in ("manuf", "maker", "developer", "publisher")):
         return "manufacturer"
-    if "year" in stem:
+    if stem in ("year", "years"):
         return "year"
-    if any(k in stem for k in ("series", "history", "note", "best")):
-        return "notes"
-    return "genre"
+    return "custom"
 
 
 class _SanitizingXmlStream(io.RawIOBase):
@@ -784,7 +846,13 @@ def build_pncat_from_sources(
         if isinstance(item, SourceSpec):
             p_str = item.path.strip()
             if p_str:
-                norm_sources.append(SourceSpec(path=p_str, role=item.role or "auto"))
+                norm_sources.append(
+                    SourceSpec(
+                        path=p_str,
+                        role=item.role or "auto",
+                        custom_column=item.custom_column or "",
+                    )
+                )
         else:
             p_str = str(item or "").strip()
             if p_str:
@@ -803,16 +871,31 @@ def build_pncat_from_sources(
     ini_sources: list[tuple[Path, str]] = []
     total_bytes = 0
 
+    standard_ini_roles = {"genre", "players", "manufacturer", "year", "notes"}
     for spec in norm_sources:
         p = Path(spec.path)
         if not p.is_file():
             raise FileNotFoundError(f"No existe el archivo de origen: {p}")
         total_bytes += os.path.getsize(p)
         ext = p.suffix.lower()
-        role = (spec.role or "auto").lower()
-        if ext == ".ini" or role in ("genre", "players", "manufacturer", "year", "notes"):
-            eff_role = infer_ini_role(p) if role in ("auto", "catalog", "") else role
-            ini_sources.append((p, eff_role))
+        role = (spec.role or "auto").strip().lower()
+        if ext == ".ini" or role != "catalog" and role != "auto":
+            if role in ("auto", "catalog", ""):
+                inferred = infer_ini_role(p)
+                if inferred == "custom":
+                    target_col = sanitize_custom_column_name(spec.custom_column) or suggest_custom_column_from_ini(p)
+                else:
+                    target_col = inferred
+            elif role == "custom":
+                target_col = sanitize_custom_column_name(spec.custom_column) or suggest_custom_column_from_ini(p)
+            elif role in standard_ini_roles:
+                target_col = role
+            else:
+                target_col = sanitize_custom_column_name(spec.custom_column or role) or suggest_custom_column_from_ini(p)
+            ini_sources.append((p, target_col))
+            # Si el usuario no pasó selected_columns explícito (uso por API), incluir las columnas personalizadas nuevas
+            if opts.selected_columns is None and target_col not in columns:
+                columns.append(target_col)
         else:
             catalog_sources.append(p)
 
@@ -1216,6 +1299,9 @@ def _parse_fast_catalog_internal(
                 "notes": notes,
                 "properties": props,
             }
+            for c_name, _c_idx in prop_cols:
+                if c_name not in entry and c_name in props:
+                    entry[c_name] = props[c_name]
 
             parsed_keys: list[str] = []
             if "|" in keys_raw:

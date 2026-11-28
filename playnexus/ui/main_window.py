@@ -1,3 +1,4 @@
+import html
 import sys
 import os
 import subprocess
@@ -18,7 +19,8 @@ from playnexus.services.library import (
     scan_rom_folder, import_scanned_games, add_game, parse_extensions_list,
     parse_rom_xml, enrich_game_dict,
     parse_rom_folders, format_rom_folders, sync_filtered_list_games,
-    sync_filtered_lists_for_source,
+    sync_filtered_lists_for_source, extract_custom_game_properties,
+    get_game_field_value,
 )
 from playnexus.services.media import clear_media_cache, is_game_vertical
 from playnexus.services.launcher import launch_game, resolve_emulator
@@ -1368,8 +1370,31 @@ class MainWindow(QMainWindow):
             self._render_games()
             return
 
-        rows = self.db.get_games(self.current_list_id, search_term=term, enriched=True)
-        self.games_cache = [enrich_game_dict(r) for r in rows]
+        if term:
+            all_rows = self.db.get_games(self.current_list_id, search_term="", enriched=True)
+            needle = term.lower()
+            matched: list[dict] = []
+            for r in all_rows:
+                g = enrich_game_dict(r)
+                haystack_parts = [
+                    str(g.get("title") or ""),
+                    str(g.get("rom_name") or ""),
+                    str(g.get("rom_path") or ""),
+                    str(g.get("manufacturer") or ""),
+                    str(g.get("genre") or ""),
+                    str(g.get("year") or ""),
+                    str(g.get("sourcefile") or ""),
+                    str(g.get("tags") or ""),
+                    str(get_game_field_value(g, "bios") or ""),
+                ]
+                for _ck, _clbl, cval in extract_custom_game_properties(g):
+                    haystack_parts.append(cval)
+                if any(needle in part.lower() for part in haystack_parts if part):
+                    matched.append(g)
+            self.games_cache = matched
+        else:
+            rows = self.db.get_games(self.current_list_id, search_term="", enriched=True)
+            self.games_cache = [enrich_game_dict(r) for r in rows]
         self._render_games()
 
     def filter_games(self):
@@ -1546,24 +1571,31 @@ class MainWindow(QMainWindow):
         rom_code = game.get("rom_name") or rom_p.stem
         self.game_rom_code.setText(rom_code)
 
-        # Mostrar propiedades del XML si están disponibles
+        # Mostrar propiedades del XML / .pncat / .ini si están disponibles
         meta_parts = []
         if game.get("year"):
-            meta_parts.append(tr("mw.details.meta_year", "<b>Year:</b> {val}", val=game["year"]))
+            meta_parts.append(tr("mw.details.meta_year", "<b>Year:</b> {val}", val=html.escape(str(game["year"]))))
         if game.get("manufacturer"):
-            meta_parts.append(tr("mw.details.meta_manufacturer", "<b>Manufacturer:</b> {val}", val=game["manufacturer"]))
+            meta_parts.append(tr("mw.details.meta_manufacturer", "<b>Manufacturer:</b> {val}", val=html.escape(str(game["manufacturer"]))))
         if game.get("genre"):
-            meta_parts.append(tr("mw.details.meta_genre", "<b>Genre:</b> {val}", val=game["genre"]))
+            meta_parts.append(tr("mw.details.meta_genre", "<b>Genre:</b> {val}", val=html.escape(str(game["genre"]))))
         if game.get("players"):
-            meta_parts.append(tr("mw.details.meta_players", "<b>Players:</b> {val}", val=game["players"]))
+            meta_parts.append(tr("mw.details.meta_players", "<b>Players:</b> {val}", val=html.escape(str(game["players"]))))
+        bios_val = get_game_field_value(game, "bios")
+        if bios_val:
+            meta_parts.append(tr("mw.details.meta_bios", "<b>BIOS:</b> {val}", val=html.escape(bios_val)))
         if game.get("cloneof"):
-            meta_parts.append(tr("mw.details.meta_cloneof", "<b>Clone of:</b> {val}", val=game["cloneof"]))
+            meta_parts.append(tr("mw.details.meta_cloneof", "<b>Clone of:</b> {val}", val=html.escape(str(game["cloneof"]))))
         if game.get("rating"):
-            meta_parts.append(tr("mw.details.meta_rating", "<b>Rating:</b> {val}", val=game["rating"]))
+            meta_parts.append(tr("mw.details.meta_rating", "<b>Rating:</b> {val}", val=html.escape(str(game["rating"]))))
         if game.get("crc"):
-            meta_parts.append(tr("mw.details.meta_crc", "<b>CRC:</b> {val}", val=game["crc"]))
+            meta_parts.append(tr("mw.details.meta_crc", "<b>CRC:</b> {val}", val=html.escape(str(game["crc"]))))
         if game.get("sourcefile"):
-            meta_parts.append(tr("mw.details.meta_driver", "<b>Driver:</b> {val}", val=game["sourcefile"]))
+            meta_parts.append(tr("mw.details.meta_driver", "<b>Driver:</b> {val}", val=html.escape(str(game["sourcefile"]))))
+        for _ck, clbl, cval in extract_custom_game_properties(game):
+            meta_parts.append(
+                f"<span style='color:#c4b5fd;'><b>✨ {html.escape(clbl)}:</b></span> {html.escape(cval)}"
+            )
         if is_game_vertical(game):
             meta_parts.append(tr("mw.details.meta_vertical", "<span style='color: #38bdf8;'><b>Display:</b> Vertical ↕</span>"))
 

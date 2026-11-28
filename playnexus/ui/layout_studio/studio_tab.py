@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from playnexus.i18n import tr
+from playnexus.services.library import discover_dynamic_columns_from_games
 from playnexus.services.themes import get_layouts_root, get_all_theme_layouts
 from playnexus.ui.layout_studio.models import LayoutProject, LayoutElement, CANONICAL_W, CANONICAL_H
 from playnexus.ui.layout_studio.templates import (
@@ -675,6 +676,10 @@ class LayoutStudioWidget(QWidget):
         # Sincronizar la colección de juegos con el lienzo para poblar la ruleta de ruedas
         if hasattr(self.canvas, "set_sample_games_list"):
             self.canvas.set_sample_games_list(self.current_list_games)
+        if hasattr(self.inspector, "set_available_custom_vars"):
+            self.inspector.set_available_custom_vars(
+                discover_dynamic_columns_from_games(self.current_list_games or [])
+            )
 
         if self.cb_sample_games.count() > 0:
             self.cb_sample_games.setCurrentIndex(0)
@@ -827,6 +832,10 @@ class LayoutStudioWidget(QWidget):
 
         if hasattr(self.canvas, "set_sample_games_list"):
             self.canvas.set_sample_games_list(self.current_list_games)
+        if hasattr(self.inspector, "set_available_custom_vars"):
+            self.inspector.set_available_custom_vars(
+                discover_dynamic_columns_from_games(self.current_list_games or [])
+            )
         selected_game = self.cb_sample_games.currentData()
         if selected_game:
             if self.canvas.layout_instance is not None and not already_synced:

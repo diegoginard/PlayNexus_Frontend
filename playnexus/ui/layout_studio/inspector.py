@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QSignalBlocker
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from playnexus.i18n import tr
+from playnexus.services.library import humanize_column_label
 from playnexus.ui.layout_studio.models import LayoutElement, LayoutProject, CANONICAL_W, CANONICAL_H
 from playnexus.ui.shaders import (
     SHADER_PRESETS,
@@ -69,8 +70,42 @@ class LayoutInspectorWidget(QWidget):
         self.project: LayoutProject | None = None
         self.current_elem_id: str | None = None
         self._updating_ui = False
+        self._extra_template_vars: list[str] = []
+        self._txt_var_combo: QComboBox | None = None
 
         self._init_ui()
+
+    def set_available_custom_vars(self, vars_list: list[str]):
+        cleaned = [str(v).strip() for v in (vars_list or []) if str(v).strip()]
+        self._extra_template_vars = list(dict.fromkeys(cleaned))
+        if self._txt_var_combo is not None:
+            try:
+                self._populate_var_combo(self._txt_var_combo)
+            except RuntimeError:
+                self._txt_var_combo = None
+
+    def _populate_var_combo(self, combo: QComboBox):
+        with QSignalBlocker(combo):
+            combo.clear()
+            combo.addItem(tr("studio.inspector.insert_var_placeholder", "＋ Insert variable…"), "")
+            std_vars = [
+                ("{title}", f"{{title}} — {tr('layout.col_title', 'Title')}"),
+                ("{rom_name}", f"{{rom_name}} — {tr('layout.col_rom_file', 'ROM / File')}"),
+                ("{year}", f"{{year}} — {tr('layout.col_year', 'Year')}"),
+                ("{manufacturer}", f"{{manufacturer}} — {tr('layout.col_manufacturer', 'Manufacturer')}"),
+                ("{genre}", f"{{genre}} — {tr('layout.col_genre', 'Genre')}"),
+                ("{players}", f"{{players}} — {tr('layout.col_players', 'Players')}"),
+                ("{bios}", f"{{bios}} — {tr('layout.col_bios', 'BIOS')}"),
+                ("{sourcefile}", f"{{sourcefile}} — {tr('layout.col_sourcefile', 'Sourcefile')}"),
+                ("{cloneof}", f"{{cloneof}} — {tr('layout.col_cloneof', 'Clone of')}"),
+                ("{index}/{total}", "{index}/{total}"),
+            ]
+            for token, label in std_vars:
+                combo.addItem(label, token)
+            for v in self._extra_template_vars:
+                tok = f"{{{v}}}"
+                combo.addItem(f"✨ {tok} — {humanize_column_label(v)}", tok)
+            combo.setCurrentIndex(0)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -505,6 +540,23 @@ class LayoutInspectorWidget(QWidget):
             txt_edit = QLineEdit(elem.text_template)
             txt_edit.textChanged.connect(lambda t: self._update_elem_attr("text_template", t))
             self.spec_layout.addWidget(txt_edit)
+
+            var_combo = QComboBox()
+            self._txt_var_combo = var_combo
+            self._populate_var_combo(var_combo)
+
+            def _on_insert_var(idx: int):
+                if idx <= 0:
+                    return
+                token = str(var_combo.itemData(idx) or "")
+                with QSignalBlocker(var_combo):
+                    var_combo.setCurrentIndex(0)
+                if token:
+                    txt_edit.setFocus()
+                    txt_edit.insert(token)
+
+            var_combo.activated.connect(_on_insert_var)
+            self.spec_layout.addWidget(var_combo)
 
             self.spec_layout.addWidget(QLabel(tr("studio.inspector.font_size", "Font Size:")))
             sp_font = QSpinBox()

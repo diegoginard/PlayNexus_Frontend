@@ -18,6 +18,7 @@ from PySide6.QtGui import (
 )
 
 from playnexus.i18n import tr
+from playnexus.services.library import format_game_template
 from playnexus.ui.gpu_renderer import (
     GpuQuadCommand,
     GpuSceneViewport,
@@ -488,13 +489,12 @@ def render_native_layer(painter: QPainter, inst, elem_id: str, sr: QRect | None 
             games = getattr(inst, "games", [])
             sel_idx = int(getattr(inst, "selected_index", 0))
             cur_game = games[sel_idx] if (games and 0 <= sel_idx < len(games)) else {}
-            txt = (elem.text_template or "{title}").format(
-                title=cur_game.get("title", tr("studio.runtime.default_game", "Game")),
-                year=cur_game.get("year", ""),
-                manufacturer=cur_game.get("manufacturer", ""),
-                genre=cur_game.get("genre", ""),
+            txt = format_game_template(
+                elem.text_template or "{title}",
+                cur_game,
                 index=(sel_idx + 1) if games else 0,
                 total=len(games),
+                default_title=tr("studio.runtime.default_game", "Game"),
             )
             font_fam = getattr(inst, "_font_title", getattr(inst, "_font_bebas", "Segoe UI"))
             painter.setFont(QFont(font_fam, elem.font_size, QFont.Bold))

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtMultimedia import QMediaPlayer, QVideoSink
 
 from playnexus.i18n import tr
+from playnexus.services.library import format_game_template
 from playnexus.ui.layout_studio.models import LayoutElement, LayoutProject, CANONICAL_W, CANONICAL_H
 from playnexus.ui.layout_studio.runtime_hook import (
     NATIVE_LAYER_IDS,
@@ -716,13 +717,16 @@ class LayoutCanvasWidget(QWidget):
         elif elem.type == "text":
             tpl = elem.text_template or "{title}"
             games = self._sample_games_list if self._sample_games_list else [self._sample_game]
-            txt = tpl.format(
-                title=self._sample_game.get("title", tr("studio.canvas.sample_game", "Sample Game")),
-                year=self._sample_game.get("year", "1995"),
-                manufacturer=self._sample_game.get("manufacturer", tr("studio.canvas.sample_company", "Company")),
-                genre=self._sample_game.get("genre", "Arcade"),
+            sample = dict(self._sample_game or {})
+            sample.setdefault("year", "1995")
+            sample.setdefault("manufacturer", tr("studio.canvas.sample_company", "Company"))
+            sample.setdefault("genre", "Arcade")
+            txt = format_game_template(
+                tpl,
+                sample,
                 index=1,
                 total=len(games),
+                default_title=tr("studio.canvas.sample_game", "Sample Game"),
             )
             painter.setFont(QFont("Segoe UI", elem.font_size, QFont.Bold))
             painter.setPen(QColor(elem.text_color))

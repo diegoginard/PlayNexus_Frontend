@@ -1388,3 +1388,240 @@ def sync_filtered_lists_for_source(db, source_list_id: int | None = None) -> int
         total_synced += sync_filtered_list_games(db, lst["id"])
     return total_synced
 
+
+# ----------------------------------------------------------------------
+# COLUMNAS Y VARIABLES DINÁMICAS UNIVERSALES (.pncat / INI / Layout Studio)
+# ----------------------------------------------------------------------
+
+_INTERNAL_META_KEYS = frozenset({
+    "keys",
+    "extra_json",
+    "rom_name",
+    "name",
+    "title",
+    "description",
+    "fullname",
+    "label",
+    "id",
+    "path",
+    "rom",
+    "filename",
+    "file",
+    "romname",
+    "year",
+    "date",
+    "releasedate",
+    "manufacturer",
+    "developer",
+    "publisher",
+    "company",
+    "maker",
+    "genre",
+    "category",
+    "type",
+    "players",
+    "nplayers",
+    "cloneof",
+    "romof",
+    "bios",
+    "sampleof",
+    "rating",
+    "score",
+    "crc",
+    "md5",
+    "sha1",
+    "size",
+    "sourcefile",
+    "source_file",
+    "notes",
+    "desc",
+    "plot",
+    "synopsis",
+    "story",
+    "history",
+    "isbios",
+    "isdevice",
+    "ismechanical",
+    "runnable",
+    "status",
+    "orientation",
+    "rotate",
+    "rotation",
+    "video_orientation",
+    "display_orientation",
+})
+
+_LEGACY_NOISE_PREFIXES = (
+    "chip_",
+    "dipswitch_",
+    "dipvalue_",
+    "port_",
+    "device_",
+    "slot_",
+    "configuration_",
+    "confsetting_",
+    "sound_",
+    "feature_",
+    "adjuster_",
+    "biosset_",
+    "driver_",
+    "display_",
+    "input_",
+    "control_",
+)
+
+
+def is_custom_metadata_key(key: str) -> bool:
+    """Indica si una clave de metadatos corresponde a una columna personalizada (ej. creada desde .ini)."""
+    k = str(key or "").strip().lower()
+    if not k or k in _INTERNAL_META_KEYS:
+        return False
+    if k.startswith(_LEGACY_NOISE_PREFIXES):
+        return False
+    return True
+
+
+def humanize_column_label(col_key: str) -> str:
+    """Convierte un identificador de columna ('arcade_by_decade') en etiqueta legible ('Arcade By Decade')."""
+    s = str(col_key or "").strip().replace("_", " ").strip()
+    if not s:
+        return ""
+    return " ".join(w.upper() if w.lower() in ("id", "ra", "crc", "rom", "bios", "cpu", "tv") else w.capitalize() for w in s.split())
+
+
+def extract_game_xml_props(game: dict | None) -> dict[str, str]:
+    """Obtiene el diccionario de propiedades adicionales de un juego (desde xml_properties o xml_metadata)."""
+    if not game or not isinstance(game, dict):
+        return {}
+    xp = game.get("xml_properties")
+    if isinstance(xp, dict) and xp:
+        return xp
+    raw = game.get("xml_metadata")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip() and raw.strip() != "{}":
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+    return {}
+
+
+def extract_custom_game_properties(game: dict | None) -> list[tuple[str, str, str]]:
+    """
+    Devuelve una lista ordenada [(key, etiqueta_legible, valor)] con todas las columnas
+    personalizadas no vacías presentes en un juego (ej. 'series', 'arcade_by_decade', 'idioma').
+    """
+    props = extract_game_xml_props(game)
+    if not props:
+        return []
+    out: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for k, v in props.items():
+        val_s = str(v or "").strip()
+        if not val_s:
+            continue
+        k_low = str(k).strip().lower()
+        if k_low in seen or not is_custom_metadata_key(k_low):
+            continue
+        seen.add(k_low)
+        out.append((str(k).strip(), humanize_column_label(str(k)), val_s))
+    return out
+
+
+def discover_dynamic_columns_from_games(
+    games: list[dict] | None,
+    list_row: dict | None = None,
+) -> list[str]:
+    """
+    Descubre todas las columnas personalizadas presentes en el catálogo .pncat vinculado a la lista
+    y/o en los metadatos de sus juegos (preservando el orden de aparición).
+    """
+    from playnexus.services.xml_converter import read_pncat_schema_columns
+
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def _push(col: str) -> None:
+        c = str(col or "").strip()
+        c_low = c.lower()
+        if c and c_low not in seen and is_custom_metadata_key(c_low):
+            seen.add(c_low)
+            found.append(c)
+
+    if list_row and isinstance(list_row, dict) and list_row.get("xml_path"):
+        for sc_col in read_pncat_schema_columns(list_row["xml_path"]):
+            _push(sc_col)
+
+    for g in (games or [])[:600]:
+        props = extract_game_xml_props(g)
+        for pk, pv in props.items():
+            if pv is not None and str(pv).strip() != "":
+                _push(pk)
+
+    return found
+
+
+class _SafeGameTemplateMap(dict):
+    """Diccionario tolerante a claves faltantes para plantillas dinámicas {variable} en Layout Studio."""
+
+    def __missing__(self, key: str) -> str:
+        k_low = str(key or "").lower()
+        for existing_k, existing_v in self.items():
+            if str(existing_k).lower() == k_low:
+                return str(existing_v)
+        return ""
+
+
+def format_game_template(
+    template: str | None,
+    game: dict | None,
+    *,
+    index: int = 1,
+    total: int = 1,
+    default_title: str = "Game",
+) -> str:
+    """
+    Renderiza una plantilla de texto de Layout Studio soportando cualquier variable estándar o
+    columna personalizada de .pncat/.ini ({title}, {year}, {manufacturer}, {genre}, {players},
+    {bios}, {sourcefile}, {rom_name}, {cloneof}, {series}, {arcade_by_decade}, {index}, {total}, etc.)
+    sin lanzar nunca KeyError ni ValueError aunque la plantilla esté a medio escribir.
+    """
+    tpl = template if (template is not None and template != "") else "{title}"
+    g = game if isinstance(game, dict) else {}
+    props = extract_game_xml_props(g)
+
+    ctx = _SafeGameTemplateMap()
+    for pk, pv in props.items():
+        if pv is not None:
+            ctx[str(pk)] = str(pv)
+    for gk, gv in g.items():
+        if gk in ("xml_metadata", "xml_properties") or gv is None:
+            continue
+        ctx[str(gk)] = str(gv)
+
+    ctx["title"] = str(g.get("title") or props.get("title") or default_title)
+    ctx["rom_name"] = str(g.get("rom_name") or props.get("rom_name") or "")
+    ctx["year"] = str(g.get("year") or props.get("year") or "")
+    ctx["manufacturer"] = str(g.get("manufacturer") or props.get("manufacturer") or "")
+    ctx["genre"] = str(g.get("genre") or props.get("genre") or "")
+    ctx["players"] = str(g.get("players") or props.get("players") or "")
+    ctx["cloneof"] = str(g.get("cloneof") or props.get("cloneof") or "")
+    ctx["sourcefile"] = str(g.get("sourcefile") or props.get("sourcefile") or "")
+    ctx["bios"] = str(get_game_field_value(g, "bios") or "")
+    ctx["index"] = index
+    ctx["total"] = total
+
+    try:
+        return tpl.format_map(ctx)
+    except (ValueError, KeyError, IndexError, TypeError):
+        # Si el usuario está escribiendo una llave sin cerrar en vivo en Layout Studio, reemplazar de forma segura
+        def _repl(match: re.Match) -> str:
+            var_name = match.group(1).strip()
+            return str(ctx[var_name])
+
+        return re.sub(r"\{([a-zA-Z0-9_]+)\}", _repl, tpl)
+
+

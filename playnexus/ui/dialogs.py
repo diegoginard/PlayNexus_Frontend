@@ -332,6 +332,8 @@ class ListDialog(QDialog):
 
         self.xml_edit = QLineEdit()
         self.xml_edit.setPlaceholderText(tr("dlg.list.xml_placeholder", "Optional: .pncat / .xml / .dat file with full names and ROM metadata..."))
+        self.xml_edit.textChanged.connect(lambda _: self._refresh_dynamic_filter_fields())
+        self._extra_filter_fields: list[str] = []
         browse_xml_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         browse_xml_btn.clicked.connect(self.pick_xml)
         clear_xml_btn = QPushButton("✕")
@@ -672,6 +674,15 @@ class ListDialog(QDialog):
                     rules_list = json.loads(raw_rules) if isinstance(raw_rules, str) else raw_rules
                 except Exception:
                     rules_list = []
+                # Pre-registrar cualquier campo personalizado guardado en las reglas existentes
+                if isinstance(rules_list, list):
+                    std_keys = {fk for fk, _ in FILTERABLE_FIELDS}
+                    for r_item in rules_list:
+                        if isinstance(r_item, dict):
+                            rf = str(r_item.get("field") or "").strip()
+                            if rf and rf not in std_keys and rf not in self._extra_filter_fields:
+                                self._extra_filter_fields.append(rf)
+                self._refresh_dynamic_filter_fields()
                 for r_data in list(self.filter_rule_rows):
                     self._remove_filter_rule_row(r_data)
                 if isinstance(rules_list, list) and rules_list:
@@ -780,6 +791,7 @@ class ListDialog(QDialog):
             self.sort_mode_label.setVisible(is_filtered or is_games)
             self.sort_mode_combo.setVisible(is_filtered or is_games)
 
+        self._refresh_dynamic_filter_fields()
         if is_menu:
             if not self.platform_edit.text().strip():
                 self.platform_edit.setText(tr("dlg.list.default_menu_platform", "Main Menu"))
@@ -854,18 +866,91 @@ class ListDialog(QDialog):
             return str(self.sort_mode_combo.currentData() or "title")
         return "title"
 
+    def _discover_extra_filter_fields(self) -> list[str]:
+        """
+        Descubre columnas adicionales/personalizadas disponibles para filtrar:
+          1. Desde la cabecera '# columns:' del archivo '.pncat' vinculado (en Lista común o Lista origen).
+          2. Desde las propiedades guardadas en 'xml_metadata' de la Lista origen (en Lista filtrada).
+          3. Desde cualquier regla ya presente en el formulario.
+        """
+        from playnexus.services.xml_converter import MANDATORY_COLUMNS, read_pncat_schema_columns
+
+        std_keys = {fk for fk, _ in FILTERABLE_FIELDS}
+        ignored = std_keys | set(MANDATORY_COLUMNS) | {"extra_json", "description"}
+        discovered: list[str] = []
+
+        def _add_col(c: str) -> None:
+            cs = str(c or "").strip()
+            if cs and cs not in ignored and cs not in discovered:
+                discovered.append(cs)
+
+        is_filtered = (self.type_combo.currentData() == "filtered") if hasattr(self, "type_combo") else False
+        if is_filtered and hasattr(self, "filter_source_combo") and self.db:
+            src_id = self.filter_source_combo.currentData()
+            if src_id:
+                src_row = self.db.get_list(src_id)
+                if src_row and src_row.get("xml_path"):
+                    for col in read_pncat_schema_columns(src_row["xml_path"]):
+                        _add_col(col)
+                # Inspeccionar también claves presentes en xml_metadata de los juegos de la lista origen
+                for g in self.db.get_games(src_id, enriched=False)[:400]:
+                    raw_m = g.get("xml_metadata")
+                    if raw_m and raw_m != "{}":
+                        try:
+                            md = json.loads(raw_m) if isinstance(raw_m, str) else raw_m
+                            if isinstance(md, dict):
+                                for mk in md.keys():
+                                    _add_col(mk)
+                        except Exception:
+                            pass
+        elif hasattr(self, "xml_edit"):
+            xp = self.xml_edit.text().strip()
+            if xp:
+                for col in read_pncat_schema_columns(xp):
+                    _add_col(col)
+
+        for r in getattr(self, "filter_rule_rows", []):
+            cur_f = r["field_combo"].currentData()
+            if cur_f:
+                _add_col(str(cur_f))
+        for prev_f in getattr(self, "_extra_filter_fields", []):
+            _add_col(prev_f)
+
+        return discovered
+
+    def _populate_field_combo(self, field_combo: QComboBox, selected_field: str = "sourcefile") -> None:
+        field_combo.blockSignals(True)
+        field_combo.clear()
+        for f_key, f_label in FILTERABLE_FIELDS:
+            field_combo.addItem(_tr_from_map(_FILTER_FIELD_I18N, f_key, f_label), f_key)
+        for ext_key in self._extra_filter_fields:
+            lbl = tr("dlg.filter_field.dynamic_pncat", "✨ {col} (Catalog / INI)", col=ext_key)
+            field_combo.addItem(lbl, ext_key)
+        idx = field_combo.findData(selected_field)
+        if idx >= 0:
+            field_combo.setCurrentIndex(idx)
+        field_combo.blockSignals(False)
+
+    def _refresh_dynamic_filter_fields(self) -> None:
+        new_extras = self._discover_extra_filter_fields()
+        self._extra_filter_fields = new_extras
+        for r in getattr(self, "filter_rule_rows", []):
+            fc = r["field_combo"]
+            cur_sel = str(fc.currentData() or "sourcefile")
+            self._populate_field_combo(fc, selected_field=cur_sel)
+
     def _add_filter_rule_row(self, field="sourcefile", op="contains", val=""):
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(6)
 
+        std_keys = {fk for fk, _ in FILTERABLE_FIELDS}
+        if field and field not in std_keys and field not in self._extra_filter_fields:
+            self._extra_filter_fields.append(field)
+
         field_combo = QComboBox()
-        for f_key, f_label in FILTERABLE_FIELDS:
-            field_combo.addItem(_tr_from_map(_FILTER_FIELD_I18N, f_key, f_label), f_key)
-        idx = field_combo.findData(field)
-        if idx >= 0:
-            field_combo.setCurrentIndex(idx)
+        self._populate_field_combo(field_combo, selected_field=field)
 
         op_combo = QComboBox()
         for o_key, o_label in FILTER_OPERATORS:
@@ -954,6 +1039,7 @@ class ListDialog(QDialog):
                         self._media_values[k] = val
                         if k in self.media_edits:
                             self.media_edits[k].setText(val)
+        self._refresh_dynamic_filter_fields()
         self._update_filter_preview()
 
     def _update_filter_preview(self):
@@ -1213,6 +1299,7 @@ class ListDialog(QDialog):
 
         is_menu = (self.type_combo.currentData() == "menu")
         is_filtered = (self.type_combo.currentData() == "filtered")
+        self._refresh_dynamic_filter_fields()
         if is_menu:
             checked_count = sum(1 for i in range(self.sublists_list.count()) if self.sublists_list.item(i).checkState() == Qt.Checked)
             if checked_count == 0:

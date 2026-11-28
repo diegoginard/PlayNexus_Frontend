@@ -40,7 +40,9 @@ from playnexus.db import Database
 from playnexus.i18n import tr
 from playnexus.services.media import is_game_vertical
 from playnexus.services.xml_converter import (
+    ALL_KNOWN_COLUMNS,
     COLUMN_GROUPS_SPEC,
+    MANDATORY_COLUMNS,
     PNCAT_EXT,
     ConvertOptions,
     ConvertSummary,
@@ -49,6 +51,8 @@ from playnexus.services.xml_converter import (
     infer_ini_role,
     is_fast_catalog_file,
     read_fast_catalog_table,
+    sanitize_custom_column_name,
+    suggest_custom_column_from_ini,
 )
 from playnexus.ui.table_utils import (
     SortableTableWidgetItem,
@@ -170,6 +174,7 @@ class XmlConverterWidget(QWidget):
         self._load_ms: float = 0.0
         self.source_rows: list[dict] = []
         self.column_checkboxes: dict[str, QCheckBox] = {}
+        self.custom_column_checkboxes: dict[str, QCheckBox] = {}
 
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -324,6 +329,14 @@ class XmlConverterWidget(QWidget):
 
         cols_vbox.addLayout(cols_grid)
 
+        self.custom_cols_container = QWidget()
+        self.custom_cols_grid = QGridLayout(self.custom_cols_container)
+        self.custom_cols_grid.setContentsMargins(0, 2, 0, 0)
+        self.custom_cols_grid.setHorizontalSpacing(12)
+        self.custom_cols_grid.setVerticalSpacing(5)
+        self.custom_cols_container.setVisible(False)
+        cols_vbox.addWidget(self.custom_cols_container)
+
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setStyleSheet("color: #2b3246;")
@@ -456,7 +469,7 @@ class XmlConverterWidget(QWidget):
     # ------------------------------------------------------------------
     # FILAS DINÁMICAS DE FUENTES (+)
     # ------------------------------------------------------------------
-    def _add_source_row(self, path: str = "", role: str = "") -> dict:
+    def _add_source_row(self, path: str = "", role: str = "", custom_col: str = "") -> dict:
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -475,6 +488,12 @@ class XmlConverterWidget(QWidget):
         role_combo.addItem(tr("xmlconv.role.manufacturer", "🏢 INI ➔ Manufacturer"), "manufacturer")
         role_combo.addItem(tr("xmlconv.role.year", "📅 INI ➔ Year"), "year")
         role_combo.addItem(tr("xmlconv.role.notes", "📝 INI ➔ Notes"), "notes")
+        role_combo.addItem(tr("xmlconv.role.custom", "✨ INI ➔ New Column…"), "custom")
+
+        custom_col_edit = QLineEdit(custom_col)
+        custom_col_edit.setFixedWidth(122)
+        custom_col_edit.setPlaceholderText(tr("xmlconv.io.custom_col_placeholder", "col_name (e.g. series)"))
+        custom_col_edit.setVisible(False)
 
         browse_btn = QPushButton(tr("dlg.btn.browse", "Browse…"))
         up_btn = QPushButton("▲")
@@ -495,7 +514,18 @@ class XmlConverterWidget(QWidget):
             "widget": row_widget,
             "path_edit": path_edit,
             "role_combo": role_combo,
+            "custom_col_edit": custom_col_edit,
         }
+
+        def _on_role_changed() -> None:
+            is_cust = role_combo.isEnabled() and role_combo.currentData() == "custom"
+            custom_col_edit.setVisible(is_cust)
+            if is_cust and not custom_col_edit.text().strip():
+                p_clean = path_edit.text().strip()
+                if p_clean:
+                    custom_col_edit.setText(suggest_custom_column_from_ini(p_clean))
+            self._sync_custom_column_checkboxes()
+            self._update_sources_summary()
 
         def _sync_role_from_path(txt: str) -> None:
             clean = txt.strip()
@@ -507,15 +537,19 @@ class XmlConverterWidget(QWidget):
                     suggested = infer_ini_role(clean)
                     idx_s = role_combo.findData(suggested)
                     role_combo.setCurrentIndex(idx_s if idx_s >= 0 else 1)
+                if role_combo.currentData() == "custom" and clean:
+                    custom_col_edit.setText(suggest_custom_column_from_ini(clean))
             else:
                 idx_c = role_combo.findData("catalog")
                 if idx_c >= 0:
                     role_combo.setCurrentIndex(idx_c)
                 role_combo.setEnabled(False)
             role_combo.blockSignals(False)
-            self._update_sources_summary()
+            _on_role_changed()
 
         path_edit.textChanged.connect(_sync_role_from_path)
+        role_combo.currentIndexChanged.connect(lambda _: _on_role_changed())
+        custom_col_edit.textChanged.connect(lambda _: self._sync_custom_column_checkboxes())
         browse_btn.clicked.connect(lambda: self._browse_for_source_row(row_data))
         up_btn.clicked.connect(lambda: self._move_source_row(row_data, -1))
         down_btn.clicked.connect(lambda: self._move_source_row(row_data, +1))
@@ -523,6 +557,7 @@ class XmlConverterWidget(QWidget):
 
         row_layout.addWidget(path_edit, 1)
         row_layout.addWidget(role_combo)
+        row_layout.addWidget(custom_col_edit)
         row_layout.addWidget(browse_btn)
         row_layout.addWidget(up_btn)
         row_layout.addWidget(down_btn)
@@ -536,6 +571,9 @@ class XmlConverterWidget(QWidget):
             idx_r = role_combo.findData(role)
             if idx_r >= 0:
                 role_combo.setCurrentIndex(idx_r)
+        if custom_col:
+            custom_col_edit.setText(custom_col)
+        _on_role_changed()
 
         return row_data
 
@@ -572,12 +610,48 @@ class XmlConverterWidget(QWidget):
             return
         if len(self.source_rows) <= 1:
             row_data["path_edit"].clear()
+            row_data["custom_col_edit"].clear()
+            self._sync_custom_column_checkboxes()
             return
         self.source_rows.remove(row_data)
         w = row_data["widget"]
         w.setParent(None)
         w.deleteLater()
+        self._sync_custom_column_checkboxes()
         self._update_sources_summary()
+
+    def _sync_custom_column_checkboxes(self) -> None:
+        """Sincroniza en vivo las casillas de columnas nuevas declaradas por filas .ini personalizadas."""
+        active_custom_cols: list[str] = []
+        for r in self.source_rows:
+            if not r["role_combo"].isEnabled() or r["role_combo"].currentData() != "custom":
+                continue
+            raw_c = r["custom_col_edit"].text().strip()
+            p_txt = r["path_edit"].text().strip()
+            clean_c = sanitize_custom_column_name(raw_c) or (suggest_custom_column_from_ini(p_txt) if p_txt else "")
+            if clean_c and clean_c not in ALL_KNOWN_COLUMNS and clean_c not in active_custom_cols:
+                active_custom_cols.append(clean_c)
+
+        prev_states = {k: cb.isChecked() for k, cb in self.custom_column_checkboxes.items()}
+        while self.custom_cols_grid.count():
+            item = self.custom_cols_grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.custom_column_checkboxes.clear()
+
+        if not active_custom_cols:
+            self.custom_cols_container.setVisible(False)
+            return
+
+        for idx, col_name in enumerate(active_custom_cols):
+            cb = QCheckBox(f"✨ {col_name} (.ini)")
+            cb.setStyleSheet("color: #7dd3fc; font-weight: 600;")
+            cb.setChecked(prev_states.get(col_name, True))
+            self.custom_column_checkboxes[col_name] = cb
+            r_idx, c_idx = divmod(idx, 2)
+            self.custom_cols_grid.addWidget(cb, r_idx, c_idx)
+
+        self.custom_cols_container.setVisible(True)
 
     def _collect_source_specs(self) -> list[SourceSpec]:
         specs: list[SourceSpec] = []
@@ -586,7 +660,8 @@ class XmlConverterWidget(QWidget):
             if not p:
                 continue
             role = str(r["role_combo"].currentData() or "auto")
-            specs.append(SourceSpec(path=p, role=role))
+            cust_col = r["custom_col_edit"].text().strip() if role == "custom" else ""
+            specs.append(SourceSpec(path=p, role=role, custom_column=cust_col))
         return specs
 
     def _update_sources_summary(self) -> None:
@@ -641,9 +716,15 @@ class XmlConverterWidget(QWidget):
                 cb.setChecked(gid in minimal_ids)
             else:
                 cb.setChecked(def_checked)
+        for cb in self.custom_column_checkboxes.values():
+            cb.setChecked(True)
 
     def _get_selected_column_groups(self) -> list[str]:
-        return [gid for gid, cb in self.column_checkboxes.items() if cb.isChecked()]
+        selected = [gid for gid, cb in self.column_checkboxes.items() if cb.isChecked()]
+        for custom_col, cb in self.custom_column_checkboxes.items():
+            if cb.isChecked() and custom_col not in selected:
+                selected.append(custom_col)
+        return selected
 
     def _pick_output_pncat(self) -> bool:
         cur = self.dst_edit.text().strip()
@@ -837,6 +918,10 @@ class XmlConverterWidget(QWidget):
                     ui_cols.append(key)
             elif key in fset:
                 ui_cols.append(key)
+        # Agregar también cualquier columna personalizada definida desde .ini
+        for fc in file_cols:
+            if fc not in MANDATORY_COLUMNS and fc not in ALL_KNOWN_COLUMNS and fc not in ui_cols:
+                ui_cols.append(fc)
         return ui_cols
 
     def _rebuild_preview_columns(self, ui_cols: list[str]) -> None:
@@ -845,9 +930,13 @@ class XmlConverterWidget(QWidget):
         headers: list[str] = []
         widths: list[int] = []
         for k in self._active_preview_cols:
-            ik, fb, w = def_map[k]
-            headers.append(tr(ik, fb))
-            widths.append(w)
+            if k in def_map:
+                ik, fb, w = def_map[k]
+                headers.append(tr(ik, fb))
+                widths.append(w)
+            else:
+                headers.append(f"✨ {k}")
+                widths.append(120)
 
         self.preview_table.setSortingEnabled(False)
         self.preview_table.clear()
@@ -903,6 +992,7 @@ class XmlConverterWidget(QWidget):
                 or q in e["cloneof"].lower()
                 or q in (e.get("bios") or "").lower()
                 or q in (e.get("notes") or "").lower()
+                or any(q in str(v).lower() for v in (e.get("properties") or {}).values())
             ]
         else:
             matched = entries
